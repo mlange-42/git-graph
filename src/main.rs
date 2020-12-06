@@ -1,4 +1,5 @@
-use git2::{Commit, Error, Repository, Time};
+use git2::{Commit, Error, Time};
+use git_graph::graph::GitGraph;
 
 struct Args {}
 
@@ -12,21 +13,30 @@ fn main() {
 
 fn run(_args: &Args) -> Result<(), Error> {
     let path = ".";
-    let repo = Repository::open(path)?;
-    let mut revwalk = repo.revwalk()?;
-
-    revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
-
-    revwalk.push_head()?;
-
-    for oid in revwalk {
-        let oid = oid?;
-        let commit = repo.find_commit(oid).unwrap();
-        print_commit(&commit);
+    let graph = GitGraph::new(path)?;
+    for info in &graph.commits {
+        print_commit_short(&graph.commit(info.oid)?);
     }
     Ok(())
 }
 
+#[allow(dead_code)]
+fn print_commit_short(commit: &Commit) {
+    let symbol = if commit.parents().len() > 1 {
+        "\u{25CB}"
+    } else {
+        "\u{25CF}"
+    };
+    let str = format!(
+        "{} {} {}",
+        symbol,
+        &commit.id().to_string()[0..7],
+        &commit.summary().unwrap_or("---")
+    );
+    println!("{}", str);
+}
+
+#[allow(dead_code)]
 fn print_commit(commit: &Commit) {
     println!("commit {}", commit.id());
 
@@ -49,6 +59,7 @@ fn print_commit(commit: &Commit) {
     println!();
 }
 
+#[allow(dead_code)]
 fn print_time(time: &Time, prefix: &str) {
     let (offset, sign) = match time.offset_minutes() {
         n if n < 0 => (-n, '-'),
