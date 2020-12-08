@@ -1,0 +1,29 @@
+language: rust
+env:
+  global:
+    - REPO=git-graph
+
+rust:
+  - stable
+
+branches:
+  only:
+    - master
+    - "/^\\d+\\.\\d+\\.\\d+/"
+
+script:
+  - rustup component add rustfmt clippy
+  - cargo fmt -- --check
+  - cargo clippy --all-targets -- --deny warnings
+  - cargo test --verbose
+  - cargo build
+
+# Need to cache the whole `.cargo` directory to keep .crates.toml for
+# cargo-update to work
+cache:
+  directories:
+    - /home/travis/.cargo
+
+# But don't cache the cargo registry
+before_cache:
+  - rm -rf /home/travis/.cargo/registry
