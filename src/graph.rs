@@ -1,11 +1,9 @@
 use git2::{BranchType, Commit, Error, Oid, Repository};
 use std::collections::HashMap;
 
-#[allow(dead_code)]
 pub struct GitGraph {
     pub repository: Repository,
     pub commits: Vec<CommitInfo>,
-    pub indices: HashMap<Oid, usize>,
 }
 
 impl GitGraph {
@@ -28,21 +26,20 @@ impl GitGraph {
         let mut graph = GitGraph {
             repository,
             commits,
-            indices,
         };
-        graph.assign_branches()?;
+        graph.assign_branches(indices)?;
 
         Ok(graph)
     }
-    fn assign_branches(&mut self) -> Result<(), Error> {
+    fn assign_branches(&mut self, indices: HashMap<Oid, usize>) -> Result<(), Error> {
         let branches = self.repository.branches(None)?;
         for branch in branches {
             let (branch, branch_type) = branch?;
             if branch_type == BranchType::Local {
                 let reference = branch.get();
-                if let Some(oid) = reference.target() {
-                    let idx = self.indices[&oid];
-                    if let Some(name) = reference.name() {
+                if let Some(name) = reference.name() {
+                    if let Some(oid) = reference.target() {
+                        let idx = indices[&oid];
                         self.commits[idx].branches.push(name[11..].to_string());
                     }
                 }
@@ -56,7 +53,6 @@ impl GitGraph {
     }
 }
 
-#[allow(dead_code)]
 pub struct CommitInfo {
     pub oid: Oid,
     pub branches: Vec<String>,

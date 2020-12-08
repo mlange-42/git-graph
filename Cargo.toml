@@ -4,13 +4,5 @@ version = "0.1.0"
 authors = ["mlange-42 <martin_lange_@gmx.net>"]
 edition = "2018"
 
-[[bin]]
-name = "git-graph"
-path = "src/main.rs"
-
-[lib]
-path = "src/lib.rs"
-
 [dependencies]
 git2 = "0.13"
-time = "0.1"

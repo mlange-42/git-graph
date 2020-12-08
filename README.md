@@ -2,7 +2,7 @@
 
 A command line tool to visualize Git history graphs in a comprehensible way, following different branching models.
 
-Exemplary for the GitFlow model, the aim is to have a structured graph like this:
+The aim is a structured graph of the branches. An example using the [GitFlow model](https://nvie.com/posts/a-successful-git-branching-model/) looks like this:
 
 ```
 ,-------- master
