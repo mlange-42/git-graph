@@ -1,4 +1,5 @@
-use git2::{BranchType, Commit, Error, Oid, Repository};
+use crate::settings::Settings;
+use git2::{Branch, BranchType, Commit, Error, Oid, Repository};
 use std::collections::HashMap;
 
 pub struct GitGraph {
@@ -7,7 +8,7 @@ pub struct GitGraph {
 }
 
 impl GitGraph {
-    pub fn new(path: &str) -> Result<Self, Error> {
+    pub fn new(path: &str, settings: &Settings) -> Result<Self, Error> {
         let repository = Repository::open(path)?;
         let mut walk = repository.revwalk()?;
 
@@ -27,27 +28,30 @@ impl GitGraph {
             repository,
             commits,
         };
-        graph.assign_branches(indices)?;
+        graph.assign_branches(indices, settings)?;
 
         Ok(graph)
     }
-    fn assign_branches(&mut self, indices: HashMap<Oid, usize>) -> Result<(), Error> {
-        let branches = self.repository.branches(None)?;
-        for branch in branches {
-            let (branch, branch_type) = branch?;
-            if branch_type == BranchType::Local {
-                let reference = branch.get();
-                if let Some(name) = reference.name() {
-                    if let Some(oid) = reference.target() {
-                        let idx = indices[&oid];
-                        self.commits[idx].branches.push(name[11..].to_string());
-                    }
+    fn assign_branches(
+        &mut self,
+        indices: HashMap<Oid, usize>,
+        settings: &Settings,
+    ) -> Result<(), Error> {
+        let branches_ordered = branches_persistence_order(&self.repository, settings)?;
+
+        for branch in branches_ordered {
+            let reference = branch.get();
+            if let Some(name) = reference.name() {
+                if let Some(oid) = reference.target() {
+                    let idx = indices[&oid];
+                    self.commits[idx].branches.push(name[11..].to_string());
                 }
             }
         }
 
         Ok(())
     }
+
     pub fn commit(&self, id: Oid) -> Result<Commit, Error> {
         self.repository.find_commit(id)
     }
@@ -67,4 +71,24 @@ impl CommitInfo {
             branch_traces: Vec::new(),
         }
     }
+}
+
+fn branches_persistence_order<'repo>(
+    repository: &'repo Repository,
+    settings: &Settings,
+) -> Result<Vec<Branch<'repo>>, Error> {
+    let mut branches = repository
+        .branches(Some(BranchType::Local))?
+        .map(|bt| bt.map(|bt| bt.0))
+        .collect::<Result<Vec<_>, Error>>()?;
+
+    branches.sort_by_cached_key(|branch| {
+        settings
+            .branch_persistance
+            .iter()
+            .position(|b| branch.get().name().unwrap_or("refs/heads/-")[11..].starts_with(b))
+            .unwrap_or(settings.branch_persistance.len())
+    });
+
+    Ok(branches)
 }

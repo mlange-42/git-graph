@@ -1,17 +1,19 @@
 use git2::{Commit, Error};
 use git_graph::graph::GitGraph;
+use git_graph::settings::Settings;
 
 struct Args {}
 
 fn main() -> Result<(), Error> {
-    let args = Args {};
-    run(&args)?;
+    let _args = Args {};
+    let settings = Settings::default();
+    run(&settings)?;
     Ok(())
 }
 
-fn run(_args: &Args) -> Result<(), Error> {
+fn run(settings: &Settings) -> Result<(), Error> {
     let path = ".";
-    let graph = GitGraph::new(path)?;
+    let graph = GitGraph::new(path, settings)?;
     for info in &graph.commits {
         let commit = &graph.commit(info.oid)?;
         print_commit_short(commit, &info.branches);
