@@ -7,12 +7,12 @@ lazy_static! {
     static ref REGEX_GIT_MASTER: Regex = Regex::new(r"^Merge branch '(.+)'$").unwrap();
     static ref REGEX_GITHUB_PULL: Regex =
         Regex::new(r"^Merge pull request #[0-9]+ from .[^/]+/(.+)$").unwrap();
+    static ref REGEX_GITHUB_PULL_2: Regex = Regex::new(r"^Merge branch '(.+)' of .+$").unwrap();
     static ref REGEX_BITBUCKET_PULL: Regex =
         Regex::new(r"^Merged in (.+) \(pull request #[0-9]+\)$").unwrap();
 }
 
-#[allow(dead_code)]
-fn parse_merge_summary(summary: &str) -> (Option<String>, Option<String>) {
+pub fn parse_merge_summary(summary: &str) -> (Option<String>, Option<String>) {
     if let Some(captures) = REGEX_GITLAB_PULL.captures(summary) {
         if captures.len() == 3 && captures.get(2).is_some() && captures.get(1).is_some() {
             return (
@@ -43,6 +43,12 @@ fn parse_merge_summary(summary: &str) -> (Option<String>, Option<String>) {
         }
     }
 
+    if let Some(captures) = REGEX_GITHUB_PULL_2.captures(summary) {
+        if captures.len() == 2 && captures.get(1).is_some() {
+            return (None, captures.get(1).map(|m| m.as_str().to_string()));
+        }
+    }
+
     if let Some(captures) = REGEX_BITBUCKET_PULL.captures(summary) {
         if captures.len() == 2 && captures.get(1).is_some() {
             return (None, captures.get(1).map(|m| m.as_str().to_string()));
@@ -60,6 +66,7 @@ mod tests {
         let git_default = "Merge branch 'feature/my-feature' into dev";
         let git_master = "Merge branch 'feature/my-feature'";
         let github_pull = "Merge pull request #1 from user-x/feature/my-feature";
+        let github_pull_2 = "Merge branch 'feature/my-feature' of github.com:user-x/repo";
         let bitbucket_pull = "Merged in feature/my-feature (pull request #1)";
 
         assert_eq!(
@@ -82,6 +89,10 @@ mod tests {
         );
         assert_eq!(
             super::parse_merge_summary(&github_pull),
+            (None, Some("feature/my-feature".to_string()))
+        );
+        assert_eq!(
+            super::parse_merge_summary(&github_pull_2),
             (None, Some("feature/my-feature".to_string()))
         );
         assert_eq!(

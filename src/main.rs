@@ -16,12 +16,12 @@ fn run(settings: &Settings) -> Result<(), Error> {
     let graph = GitGraph::new(path, settings)?;
     for info in &graph.commits {
         let commit = &graph.commit(info.oid)?;
-        print_commit_short(commit, &info.branches);
+        print_commit_short(commit, &info.branches, &info.branch_trace);
     }
     Ok(())
 }
 
-fn print_commit_short(commit: &Commit, branches: &[String]) {
+fn print_commit_short(commit: &Commit, branches: &[String], trace: &Option<String>) {
     let symbol = if commit.parents().len() > 1 {
         "\u{25CB}"
     } else {
@@ -32,11 +32,21 @@ fn print_commit_short(commit: &Commit, branches: &[String]) {
     } else {
         format!(" ({})", branches.join(", "))
     };
+    let trace_str = if let Some(trace) = trace {
+        format!(
+            " [{}{}]",
+            &trace[0..1],
+            &trace[(trace.len() - 1)..trace.len()]
+        )
+    } else {
+        "".to_string()
+    };
 
     println!(
-        "{} {}{} {}",
+        "{} {}{}{} {}",
         symbol,
         &commit.id().to_string()[0..7],
+        trace_str,
         branch_str,
         &commit.summary().unwrap_or("---")
     );
