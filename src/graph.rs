@@ -1,4 +1,4 @@
-use crate::settings::Settings;
+use crate::settings::{BranchSettings, Settings};
 use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Repository};
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ impl GitGraph {
             indices.insert(oid, idx);
         }
 
-        let branches = assign_branches(&repository, &mut commits, indices, settings)?;
+        let branches = assign_branches(&repository, &mut commits, indices, &settings.branches)?;
         let graph = GitGraph {
             repository,
             commits,
@@ -76,7 +76,7 @@ fn assign_branches(
     repository: &Repository,
     commits: &mut Vec<CommitInfo>,
     indices: HashMap<Oid, usize>,
-    settings: &Settings,
+    settings: &BranchSettings,
 ) -> Result<Vec<BranchInfo>, Error> {
     let branches_ordered = extract_branches(repository, commits, settings)?;
 
@@ -130,7 +130,7 @@ fn trace_branch<'repo>(
 fn extract_branches(
     repository: &Repository,
     commits: &[CommitInfo],
-    settings: &Settings,
+    settings: &BranchSettings,
 ) -> Result<Vec<BranchInfo>, Error> {
     let actual_branches = repository
         .branches(Some(BranchType::Local))?
@@ -166,10 +166,10 @@ fn extract_branches(
     Ok(valid_branches)
 }
 
-fn branch_persistence(name: &str, settings: &Settings) -> usize {
+fn branch_persistence(name: &str, settings: &BranchSettings) -> usize {
     settings
-        .branch_persistance
+        .persistence
         .iter()
         .position(|b| name.starts_with(b))
-        .unwrap_or(settings.branch_persistance.len())
+        .unwrap_or(settings.persistence.len())
 }
