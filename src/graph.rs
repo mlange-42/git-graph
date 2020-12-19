@@ -6,6 +6,7 @@ use std::collections::HashMap;
 pub struct GitGraph {
     pub repository: Repository,
     pub commits: Vec<CommitInfo>,
+    pub branches: Vec<BranchInfo>,
 }
 
 impl GitGraph {
@@ -25,46 +26,14 @@ impl GitGraph {
             indices.insert(oid, idx);
         }
 
-        let mut graph = GitGraph {
+        let branches = assign_branches(&repository, &mut commits, indices, settings)?;
+        let graph = GitGraph {
             repository,
             commits,
+            branches,
         };
-        graph.assign_branches(indices, settings)?;
 
         Ok(graph)
-    }
-    fn assign_branches(
-        &mut self,
-        indices: HashMap<Oid, usize>,
-        settings: &Settings,
-    ) -> Result<(), Error> {
-        let valid_branches = extract_branches(&self.repository, &self.commits)?;
-        let branches_ordered = branches_persistence_order(valid_branches, settings);
-
-        for branch in branches_ordered {
-            if let Some(&idx) = indices.get(&branch.target) {
-                let trace_oid = {
-                    let info = &mut self.commits[idx];
-                    if !info.branches.contains(&branch.name) {
-                        info.branches.push(branch.name.to_owned());
-                        Some(info.oid)
-                    } else {
-                        None
-                    }
-                };
-                if let Some(oid) = trace_oid {
-                    trace_branch(
-                        &self.repository,
-                        &mut self.commits,
-                        &indices,
-                        oid,
-                        &branch.name,
-                    )?;
-                }
-            }
-        }
-
-        Ok(())
     }
 
     pub fn commit(&self, id: Oid) -> Result<Commit, Error> {
@@ -74,8 +43,8 @@ impl GitGraph {
 
 pub struct CommitInfo {
     pub oid: Oid,
-    pub branches: Vec<String>,
-    pub branch_trace: Option<String>,
+    pub branches: Vec<usize>,
+    pub branch_trace: Option<usize>,
 }
 
 impl CommitInfo {
@@ -103,12 +72,40 @@ impl BranchInfo {
     }
 }
 
+fn assign_branches(
+    repository: &Repository,
+    commits: &mut Vec<CommitInfo>,
+    indices: HashMap<Oid, usize>,
+    settings: &Settings,
+) -> Result<Vec<BranchInfo>, Error> {
+    let branches_ordered = extract_branches(repository, commits, settings)?;
+
+    for (branch_idx, branch) in branches_ordered.iter().enumerate() {
+        if let Some(&idx) = indices.get(&branch.target) {
+            let trace_oid = {
+                let info = &mut commits[idx];
+                if !info.branches.contains(&branch_idx) {
+                    info.branches.push(branch_idx);
+                    Some(info.oid)
+                } else {
+                    None
+                }
+            };
+            if let Some(oid) = trace_oid {
+                trace_branch(repository, commits, &indices, oid, branch_idx)?;
+            }
+        }
+    }
+
+    Ok(branches_ordered)
+}
+
 fn trace_branch<'repo>(
     repository: &'repo Repository,
     commits: &mut Vec<CommitInfo>,
     indices: &HashMap<Oid, usize>,
     oid: Oid,
-    branch: &str,
+    branch: usize,
 ) -> Result<(), Error> {
     let mut curr_oid = oid;
     loop {
@@ -117,7 +114,7 @@ fn trace_branch<'repo>(
         if info.branch_trace.is_some() {
             break;
         } else {
-            info.branch_trace = Some(branch.to_string());
+            info.branch_trace = Some(branch);
         }
         let commit = repository.find_commit(curr_oid)?;
         match commit.parent_count() {
@@ -133,6 +130,7 @@ fn trace_branch<'repo>(
 fn extract_branches(
     repository: &Repository,
     commits: &[CommitInfo],
+    settings: &Settings,
 ) -> Result<Vec<BranchInfo>, Error> {
     let actual_branches = repository
         .branches(Some(BranchType::Local))?
@@ -163,19 +161,15 @@ fn extract_branches(
         }
     }
 
+    valid_branches.sort_by_cached_key(|branch| branch_persistence(&branch.name, settings));
+
     Ok(valid_branches)
 }
 
-fn branches_persistence_order(
-    mut branches: Vec<BranchInfo>,
-    settings: &Settings,
-) -> Vec<BranchInfo> {
-    branches.sort_by_cached_key(|branch| {
-        settings
-            .branch_persistance
-            .iter()
-            .position(|b| branch.name.starts_with(b))
-            .unwrap_or(settings.branch_persistance.len())
-    });
-    branches
+fn branch_persistence(name: &str, settings: &Settings) -> usize {
+    settings
+        .branch_persistance
+        .iter()
+        .position(|b| name.starts_with(b))
+        .unwrap_or(settings.branch_persistance.len())
 }
