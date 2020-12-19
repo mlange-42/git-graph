@@ -4,8 +4,8 @@ pub struct Settings {
     pub branches: BranchSettings,
 }
 
-impl Default for Settings {
-    fn default() -> Self {
+impl Settings {
+    pub fn git_flow() -> Self {
         Self {
             branches: BranchSettings {
                 persistence: vec![
@@ -18,6 +18,14 @@ impl Default for Settings {
                     "hotfix".to_string(),
                     "bugfix".to_string(),
                 ],
+                order: vec![
+                    "master".to_string(),
+                    "main".to_string(),
+                    "hotfix".to_string(),
+                    "release".to_string(),
+                    "develop".to_string(),
+                    "dev".to_string(),
+                ],
             },
         }
     }
@@ -26,4 +34,6 @@ impl Default for Settings {
 pub struct BranchSettings {
     /// Branch persistence
     pub persistence: Vec<String>,
+    /// Branch ordering
+    pub order: Vec<String>,
 }
