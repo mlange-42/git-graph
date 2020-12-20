@@ -64,6 +64,7 @@ pub struct BranchInfo {
     pub target: Oid,
     pub target_index: Option<usize>,
     pub name: String,
+    pub is_remote: bool,
     pub order_group: usize,
     pub column: Option<usize>,
     pub deleted: bool,
@@ -74,6 +75,7 @@ impl BranchInfo {
         target: Oid,
         target_index: Option<usize>,
         name: String,
+        is_remote: bool,
         order_group: usize,
         deleted: bool,
         end_index: Option<usize>,
@@ -82,6 +84,7 @@ impl BranchInfo {
             target,
             target_index,
             name,
+            is_remote,
             order_group,
             column: None,
             deleted,
@@ -144,20 +147,24 @@ fn extract_branches(
     };
     let actual_branches = repository
         .branches(filter)?
-        .map(|bt| bt.map(|bt| bt.0))
         .collect::<Result<Vec<_>, Error>>()?;
 
     let mut valid_branches = actual_branches
         .iter()
-        .filter_map(|br| {
+        .filter_map(|(br, tp)| {
             br.get().name().and_then(|n| {
                 br.get().target().map(|t| {
-                    let name = &n[11..];
+                    let start_index = match tp {
+                        BranchType::Local => 11,
+                        BranchType::Remote => 13,
+                    };
+                    let name = &n[start_index..];
                     let end_index = indices.get(&t).cloned();
                     BranchInfo::new(
                         t,
                         indices.get(&t).cloned(),
                         name.to_string(),
+                        &BranchType::Remote == tp,
                         branch_order(name, &settings.order),
                         false,
                         end_index,
@@ -181,6 +188,7 @@ fn extract_branches(
                     parent_oid,
                     indices.get(&parent_oid).cloned(),
                     branch_name,
+                    false,
                     pos,
                     true,
                     Some(idx + 1),
@@ -231,7 +239,15 @@ fn trace_branch<'repo>(
             }
         }
     }
-    branch.range = (branch.range.0, Some(start_index));
+    if let Some(end) = branch.range.0 {
+        if start_index < end {
+            branch.range = (None, None);
+        } else {
+            branch.range = (branch.range.0, Some(start_index));
+        }
+    } else {
+        branch.range = (branch.range.0, Some(start_index));
+    }
     Ok(any_assigned)
 }
 
@@ -245,6 +261,7 @@ fn assign_branch_columns(
     let mut start_queue: VecDeque<_> = branches
         .iter()
         .enumerate()
+        .filter(|br| br.1.range.0.is_some() || br.1.range.1.is_some())
         .map(|(idx, br)| (idx, br.range.0.unwrap_or(0)))
         .sorted_by_key(|tup| tup.1)
         .collect();
@@ -252,6 +269,7 @@ fn assign_branch_columns(
     let mut end_queue: VecDeque<_> = branches
         .iter()
         .enumerate()
+        .filter(|br| br.1.range.0.is_some() || br.1.range.1.is_some())
         .map(|(idx, br)| (idx, br.range.1.unwrap_or(branches.len())))
         .sorted_by_key(|tup| tup.1)
         .collect();
@@ -326,6 +344,8 @@ fn assign_branch_columns(
 fn branch_order(name: &str, order: &[String]) -> usize {
     order
         .iter()
-        .position(|b| name.starts_with(b))
+        .position(|b| {
+            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
+        })
         .unwrap_or(order.len())
 }

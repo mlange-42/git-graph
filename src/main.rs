@@ -15,7 +15,12 @@ fn run(settings: &Settings) -> Result<(), Error> {
     let path = ".";
     let graph = GitGraph::new(path, settings)?;
     for branch in &graph.branches {
-        println!("{} (col {})", branch.name, branch.column.unwrap());
+        println!(
+            "{} (col {}) ({:?})",
+            branch.name,
+            branch.column.unwrap_or(99),
+            branch.range
+        );
     }
     println!("---------------------------------------------");
     for info in &graph.commits {
@@ -48,12 +53,10 @@ fn print_commit_short(graph: &GitGraph, info: &CommitInfo) -> Result<(), Error> 
         let name = &branch.name;
         (
             format!(
-                " [{}{}-{}/{}-{}]",
+                " [{}{}-{}]",
                 &name[0..1],
                 &name[(name.len() - 1)..name.len()],
                 trace,
-                branch.range.0.unwrap_or(0),
-                branch.range.1.unwrap_or(0),
             ),
             std::iter::repeat(" ")
                 .take(branch.column.unwrap())

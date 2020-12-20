@@ -8,7 +8,7 @@ impl Settings {
     pub fn git_flow() -> Self {
         Self {
             branches: BranchSettings {
-                include_remote: false,
+                include_remote: true,
                 persistence: vec![
                     "master".to_string(),
                     "main".to_string(),
