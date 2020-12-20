@@ -7,6 +7,7 @@ use std::collections::{HashMap, VecDeque};
 pub struct GitGraph {
     pub repository: Repository,
     pub commits: Vec<CommitInfo>,
+    pub indices: HashMap<Oid, usize>,
     pub branches: Vec<BranchInfo>,
 }
 
@@ -33,6 +34,7 @@ impl GitGraph {
         let graph = GitGraph {
             repository,
             commits,
+            indices,
             branches,
         };
 
@@ -46,6 +48,8 @@ impl GitGraph {
 
 pub struct CommitInfo {
     pub oid: Oid,
+    pub is_merge: bool,
+    pub parents: [Option<Oid>; 2],
     pub branches: Vec<usize>,
     pub branch_trace: Option<usize>,
 }
@@ -54,6 +58,8 @@ impl CommitInfo {
     fn new(commit: &Commit) -> Self {
         CommitInfo {
             oid: commit.id(),
+            is_merge: commit.parent_count() > 1,
+            parents: [commit.parent_id(0).ok(), commit.parent_id(1).ok()],
             branches: Vec::new(),
             branch_trace: None,
         }

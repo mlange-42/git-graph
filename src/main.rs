@@ -1,5 +1,6 @@
 use git2::Error;
 use git_graph::graph::{CommitInfo, GitGraph};
+use git_graph::print::svg::print_svg;
 use git_graph::settings::Settings;
 
 struct Args {}
@@ -14,20 +15,22 @@ fn main() -> Result<(), Error> {
 fn run(settings: &Settings) -> Result<(), Error> {
     let path = ".";
     let graph = GitGraph::new(path, settings)?;
+
     for branch in &graph.branches {
-        println!(
+        eprintln!(
             "{} (col {}) ({:?})",
             branch.name,
             branch.column.unwrap_or(99),
             branch.range
         );
     }
-    println!("---------------------------------------------");
+    eprintln!("---------------------------------------------");
     for info in &graph.commits {
         if info.branch_trace.is_some() {
             print_commit_short(&graph, &info)?;
         }
     }
+    println!("{}", print_svg(&graph, &settings).unwrap());
     Ok(())
 }
 
@@ -66,7 +69,7 @@ fn print_commit_short(graph: &GitGraph, info: &CommitInfo) -> Result<(), Error> 
         ("".to_string(), "".to_string())
     };
 
-    println!(
+    eprintln!(
         "{}{} {}{}{} {}",
         indent,
         symbol,
