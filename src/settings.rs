@@ -8,6 +8,7 @@ impl Settings {
     pub fn git_flow() -> Self {
         Self {
             branches: BranchSettings {
+                include_remote: false,
                 persistence: vec![
                     "master".to_string(),
                     "main".to_string(),
@@ -32,6 +33,8 @@ impl Settings {
 }
 
 pub struct BranchSettings {
+    /// Include remote branches?
+    pub include_remote: bool,
     /// Branch persistence
     pub persistence: Vec<String>,
     /// Branch ordering

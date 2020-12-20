@@ -15,16 +15,18 @@ fn run(settings: &Settings) -> Result<(), Error> {
     let path = ".";
     let graph = GitGraph::new(path, settings)?;
     for branch in &graph.branches {
-        println!("{}", branch.name);
+        println!("{} (col {})", branch.name, branch.column.unwrap());
     }
     println!("---------------------------------------------");
-    for (idx, info) in graph.commits.iter().enumerate() {
-        print_commit_short(&graph, &info, idx)?;
+    for info in &graph.commits {
+        if info.branch_trace.is_some() {
+            print_commit_short(&graph, &info)?;
+        }
     }
     Ok(())
 }
 
-fn print_commit_short(graph: &GitGraph, info: &CommitInfo, index: usize) -> Result<(), Error> {
+fn print_commit_short(graph: &GitGraph, info: &CommitInfo) -> Result<(), Error> {
     let commit = &graph.commit(info.oid)?;
     let symbol = if commit.parents().len() > 1 { "o" } else { "*" };
 
@@ -46,7 +48,7 @@ fn print_commit_short(graph: &GitGraph, info: &CommitInfo, index: usize) -> Resu
         let name = &branch.name;
         (
             format!(
-                " {}{}-{}/{}-{}]",
+                " [{}{}-{}/{}-{}]",
                 &name[0..1],
                 &name[(name.len() - 1)..name.len()],
                 trace,
@@ -54,7 +56,7 @@ fn print_commit_short(graph: &GitGraph, info: &CommitInfo, index: usize) -> Resu
                 branch.range.1.unwrap_or(0),
             ),
             std::iter::repeat(" ")
-                .take(branch.order_group)
+                .take(branch.column.unwrap())
                 .collect::<String>(),
         )
     } else {
@@ -62,8 +64,7 @@ fn print_commit_short(graph: &GitGraph, info: &CommitInfo, index: usize) -> Resu
     };
 
     println!(
-        "{} {}{} {}{}{} {}",
-        index,
+        "{}{} {}{}{} {}",
         indent,
         symbol,
         &commit.id().to_string()[0..7],
