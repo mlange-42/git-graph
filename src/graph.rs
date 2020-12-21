@@ -271,7 +271,16 @@ fn trace_branch<'repo>(
                 None => start_index = index as i32 - 1,
                 Some(prev_index) => {
                     if commits[prev_index].is_merge {
-                        start_index = prev_index as i32;
+                        let mut temp_index = prev_index;
+                        for sibling_oid in &commits[index].children {
+                            if sibling_oid != &curr_oid {
+                                let sibling_index = indices[&sibling_oid];
+                                if sibling_index > temp_index {
+                                    temp_index = sibling_index;
+                                }
+                            }
+                        }
+                        start_index = temp_index as i32;
                     } else {
                         start_index = index as i32 - 1;
                     }

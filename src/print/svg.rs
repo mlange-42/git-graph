@@ -1,6 +1,7 @@
 use crate::graph::GitGraph;
 use crate::settings::BranchSettings;
 use lazy_static::lazy_static;
+use std::cmp::max;
 use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
@@ -9,11 +10,29 @@ lazy_static! {
     static ref COLOR_UNKNOWN: (String, String) = (String::new(), "grey".to_string());
 }
 
-pub fn print_svg(graph: &GitGraph, settings: &BranchSettings) -> Result<String, String> {
+pub fn print_svg(
+    graph: &GitGraph,
+    settings: &BranchSettings,
+    debug: bool,
+) -> Result<String, String> {
     let mut document = Document::new();
 
     let max_idx = graph.commits.len();
     let mut max_column = 0;
+
+    if debug {
+        for branch in &graph.branches {
+            if let (Some(start), Some(end)) = branch.range {
+                document = document.add(bold_line(
+                    start,
+                    branch.visual.column.unwrap(),
+                    end,
+                    branch.visual.column.unwrap(),
+                    "cyan",
+                ));
+            }
+        }
+    }
 
     for (idx, info) in graph.commits.iter().enumerate() {
         let branch = &graph.branches[info.branch_trace.unwrap()];
@@ -52,12 +71,26 @@ pub fn print_svg(graph: &GitGraph, settings: &BranchSettings) -> Result<String, 
                         color,
                     ));
                 } else {
+                    let mut min_split_idx = idx;
+                    for sibling_oid in &graph.commits[par_idx].children {
+                        let sibling_index = graph.indices[&sibling_oid];
+                        let sibling_branch =
+                            &graph.branches[graph.commits[sibling_index].branch_trace.unwrap()];
+                        if sibling_oid != &info.oid
+                            && sibling_branch.visual.column == par_branch.visual.column
+                        {
+                            if sibling_index > min_split_idx {
+                                min_split_idx = sibling_index;
+                            }
+                        }
+                    }
                     document = document.add(path(
                         idx,
                         branch.visual.column.unwrap(),
                         par_idx,
                         par_branch.visual.column.unwrap(),
                         info.is_merge,
+                        min_split_idx,
                         color,
                     ));
                 }
@@ -110,22 +143,35 @@ fn line(index1: usize, column1: usize, index2: usize, column2: usize, color: &st
         .set("stroke-width", 1)
 }
 
+fn bold_line(index1: usize, column1: usize, index2: usize, column2: usize, color: &str) -> Line {
+    let (x1, y1) = commit_coord_u(index1, column1);
+    let (x2, y2) = commit_coord_u(index2, column2);
+    Line::new()
+        .set("x1", x1)
+        .set("y1", y1)
+        .set("x2", x2)
+        .set("y2", y2)
+        .set("stroke", color)
+        .set("stroke-width", 5)
+}
+
 fn path(
     index1: usize,
     column1: usize,
     index2: usize,
     column2: usize,
     is_merge: bool,
+    min_split_idx: usize,
     color: &str,
 ) -> Path {
     let c0 = commit_coord_u(index1, column1);
     let c1 = if is_merge {
-        commit_coord_u(index1, column1)
+        commit_coord_u(max(index1, min_split_idx), column1)
     } else {
         commit_coord_i(index2 as i32 - 1, column1 as i32)
     };
     let c2 = if is_merge {
-        commit_coord_u(index1 + 1, column2)
+        commit_coord_u(max(index1, min_split_idx) + 1, column2)
     } else {
         commit_coord_u(index2, column2)
     };

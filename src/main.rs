@@ -31,7 +31,7 @@ fn run(settings: &Settings) -> Result<(), Error> {
             print_commit_short(&graph, &info)?;
         }
     }
-    println!("{}", print_svg(&graph, &settings.branches).unwrap());
+    println!("{}", print_svg(&graph, &settings.branches, true).unwrap());
     Ok(())
 }
 
