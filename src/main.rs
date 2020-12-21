@@ -1,5 +1,6 @@
 use git2::Error;
 use git_graph::graph::{CommitInfo, GitGraph};
+use git_graph::print::svg::print_svg;
 use git_graph::settings::Settings;
 
 struct Args {}
@@ -30,6 +31,7 @@ fn run(settings: &Settings) -> Result<(), Error> {
             print_commit_short(&graph, &info)?;
         }
     }
+    println!("{}", print_svg(&graph, &settings.branches, true).unwrap());
     Ok(())
 }
 
