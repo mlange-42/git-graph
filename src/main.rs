@@ -1,7 +1,8 @@
 use git2::Error;
 use git_graph::graph::{CommitInfo, GitGraph};
 use git_graph::print::svg::print_svg;
-use git_graph::settings::{BranchSettings, MergePatterns, Settings};
+use git_graph::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};
+use std::time::Instant;
 
 struct Args {}
 
@@ -10,6 +11,8 @@ fn main() -> Result<(), Error> {
 
     let settings = Settings {
         debug: true,
+        include_remote: true,
+        branch_order: BranchOrder::ShortestFirst(true),
         branches: BranchSettings::git_flow(),
         merge_patterns: MergePatterns::default(),
     };
@@ -20,7 +23,10 @@ fn main() -> Result<(), Error> {
 
 fn run(settings: &Settings) -> Result<(), Error> {
     let path = ".";
+
+    let now = Instant::now();
     let graph = GitGraph::new(path, settings)?;
+    let duration_graph = now.elapsed().as_micros();
 
     if settings.debug {
         for branch in &graph.branches {
@@ -40,9 +46,18 @@ fn run(settings: &Settings) -> Result<(), Error> {
         }
     }
 
+    let now = Instant::now();
     println!(
         "{}",
         print_svg(&graph, &settings.branches, settings.debug).unwrap()
+    );
+    let duration_print = now.elapsed().as_micros();
+
+    eprintln!(
+        "Graph construction: {:.1} ms, printing: {:.1} ms ({} commits)",
+        duration_graph as f32 / 1000.0,
+        duration_print as f32 / 1000.0,
+        graph.commits.len()
     );
 
     Ok(())

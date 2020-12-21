@@ -1,4 +1,4 @@
-use crate::settings::{BranchSettings, MergePatterns, Settings};
+use crate::settings::{BranchOrder, BranchSettings, Settings};
 use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Repository};
 use itertools::Itertools;
@@ -30,16 +30,21 @@ impl GitGraph {
         }
         assign_children(&mut commits, &indices);
 
-        let mut branches = assign_branches(
-            &repository,
-            &mut commits,
-            &indices,
-            &settings.branches,
-            &settings.merge_patterns,
-        )?;
-        assign_branch_columns(&commits, &mut branches, &settings.branches);
+        let mut branches = assign_branches(&repository, &mut commits, &indices, &settings)?;
 
-        let graph = if settings.branches.include_remote {
+        match settings.branch_order {
+            BranchOrder::FirstComeFirstServed(forward) => {
+                assign_branch_columns_fcfs(&commits, &mut branches, &settings.branches, forward)
+            }
+            BranchOrder::ShortestFirst(forward) => assign_branch_columns_shortest_first(
+                &commits,
+                &mut branches,
+                &settings.branches,
+                forward,
+            ),
+        }
+
+        let graph = if settings.include_remote {
             GitGraph {
                 repository,
                 commits,
@@ -196,35 +201,33 @@ fn assign_branches(
     repository: &Repository,
     commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
-    settings: &BranchSettings,
-    merge_patterns: &MergePatterns,
+    settings: &Settings,
 ) -> Result<Vec<BranchInfo>, Error> {
     let mut branch_idx = 0;
-    let branches_ordered =
-        extract_branches(repository, commits, &indices, settings, merge_patterns)?
-            .into_iter()
-            .filter_map(|mut branch| {
-                if let Some(&idx) = &indices.get(&branch.target) {
-                    let info = &mut commits[idx];
-                    if !branch.deleted {
-                        info.branches.push(branch_idx);
-                    }
-                    let oid = info.oid;
-                    let any_assigned =
-                        trace_branch(repository, commits, &indices, oid, &mut branch, branch_idx)
-                            .ok()?;
+    let branches_ordered = extract_branches(repository, commits, &indices, settings)?
+        .into_iter()
+        .filter_map(|mut branch| {
+            if let Some(&idx) = &indices.get(&branch.target) {
+                let info = &mut commits[idx];
+                if !branch.deleted {
+                    info.branches.push(branch_idx);
+                }
+                let oid = info.oid;
+                let any_assigned =
+                    trace_branch(repository, commits, &indices, oid, &mut branch, branch_idx)
+                        .ok()?;
 
-                    if any_assigned || !branch.deleted {
-                        branch_idx += 1;
-                        Some(branch)
-                    } else {
-                        None
-                    }
+                if any_assigned || !branch.deleted {
+                    branch_idx += 1;
+                    Some(branch)
                 } else {
                     None
                 }
-            })
-            .collect();
+            } else {
+                None
+            }
+        })
+        .collect();
 
     Ok(branches_ordered)
 }
@@ -234,8 +237,7 @@ fn extract_branches(
     repository: &Repository,
     commits: &[CommitInfo],
     indices: &HashMap<Oid, usize>,
-    settings: &BranchSettings,
-    merge_patterns: &MergePatterns,
+    settings: &Settings,
 ) -> Result<Vec<BranchInfo>, Error> {
     let filter = if settings.include_remote {
         None
@@ -263,8 +265,8 @@ fn extract_branches(
                         &BranchType::Remote == tp,
                         false,
                         BranchVis::new(
-                            branch_order(name, &settings.order),
-                            branch_color(name, &settings.color),
+                            branch_order(name, &settings.branches.order),
+                            branch_color(name, &settings.branches.color),
                         ),
                         false,
                         end_index,
@@ -280,11 +282,11 @@ fn extract_branches(
             if let Some(summary) = commit.summary() {
                 let parent_oid = commit.parent_id(1)?;
 
-                let branch_name = text::parse_merge_summary(summary, merge_patterns)
+                let branch_name = text::parse_merge_summary(summary, &settings.merge_patterns)
                     .unwrap_or_else(|| "unknown".to_string());
 
-                let pos = branch_order(&branch_name, &settings.order);
-                let col = branch_color(&branch_name, &settings.color);
+                let pos = branch_order(&branch_name, &settings.branches.order);
+                let col = branch_color(&branch_name, &settings.branches.color);
 
                 let branch_info = BranchInfo::new(
                     parent_oid,
@@ -302,7 +304,7 @@ fn extract_branches(
 
     valid_branches.sort_by_cached_key(|branch| {
         (
-            branch_order(&branch.name, &settings.persistence),
+            branch_order(&branch.name, &settings.branches.persistence),
             !branch.is_merged,
         )
     });
@@ -377,32 +379,41 @@ fn trace_branch<'repo>(
     Ok(any_assigned)
 }
 
-/// Sorts branches into columns for visualization, that all branches can be visualizes linearly
-/// and without overlaps.
-fn assign_branch_columns(
+/// Sorts branches into columns for visualization, that all branches can be
+/// visualizes linearly and without overlaps. Uses First-Come First-Served scheduling.
+fn assign_branch_columns_fcfs(
     commits: &[CommitInfo],
     branches: &mut [BranchInfo],
     settings: &BranchSettings,
+    forward: bool,
 ) {
     let mut occupied: Vec<Vec<bool>> = vec![vec![]; settings.order.len() + 1];
+
+    let sort_factor = if forward { 1 } else { -1 };
 
     let mut start_queue: VecDeque<_> = branches
         .iter()
         .enumerate()
         .filter(|br| br.1.range.0.is_some() || br.1.range.1.is_some())
         .map(|(idx, br)| (idx, br.range.0.unwrap_or(0)))
-        .sorted_by_key(|tup| tup.1)
+        .sorted_by_key(|tup| tup.1 as i32 * sort_factor)
         .collect();
 
     let mut end_queue: VecDeque<_> = branches
         .iter()
         .enumerate()
         .filter(|br| br.1.range.0.is_some() || br.1.range.1.is_some())
-        .map(|(idx, br)| (idx, br.range.1.unwrap_or(branches.len())))
-        .sorted_by_key(|tup| tup.1)
+        .map(|(idx, br)| (idx, br.range.1.unwrap_or(branches.len() - 1)))
+        .sorted_by_key(|tup| tup.1 as i32 * sort_factor)
         .collect();
 
-    for idx in 0..commits.len() {
+    if !forward {
+        std::mem::swap(&mut start_queue, &mut end_queue);
+    }
+
+    for i in 0..commits.len() {
+        let idx = if forward { i } else { commits.len() - 1 - i };
+
         loop {
             let start = start_queue.pop_front();
 
@@ -447,6 +458,78 @@ fn assign_branch_columns(
                 break;
             }
         }
+    }
+
+    let group_offset: Vec<usize> = occupied
+        .iter()
+        .scan(0, |acc, group| {
+            *acc += group.len();
+            Some(*acc)
+        })
+        .collect();
+
+    for branch in branches {
+        if let Some(column) = branch.visual.column {
+            let offset = if branch.visual.order_group == 0 {
+                0
+            } else {
+                group_offset[branch.visual.order_group - 1]
+            };
+            branch.visual.column = Some(column + offset);
+        }
+    }
+}
+
+/// Sorts branches into columns for visualization, that all branches can be
+/// visualizes linearly and without overlaps. Uses Shortest-First scheduling.
+fn assign_branch_columns_shortest_first(
+    _commits: &[CommitInfo],
+    branches: &mut [BranchInfo],
+    settings: &BranchSettings,
+    forward: bool,
+) {
+    let mut occupied: Vec<Vec<Vec<(usize, usize)>>> = vec![vec![]; settings.order.len() + 1];
+
+    let sort_factor = if forward { 1 } else { -1 };
+
+    let branches_sort: VecDeque<_> = branches
+        .iter()
+        .enumerate()
+        .filter(|(_idx, br)| br.range.0.is_some() || br.range.1.is_some())
+        .map(|(idx, br)| {
+            (
+                idx,
+                br.range.0.unwrap_or(0),
+                br.range.1.unwrap_or(branches.len() - 1),
+            )
+        })
+        .sorted_by_key(|tup| (tup.2 as i32 - tup.1 as i32, tup.1 as i32 * sort_factor))
+        .collect();
+
+    for (branch_idx, start, end) in branches_sort {
+        let branch = &mut branches[branch_idx];
+        let group = branch.visual.order_group;
+        let group_occ = &mut occupied[group];
+
+        let mut found = group_occ.len();
+        for (i, column_occ) in group_occ.iter().enumerate() {
+            let mut occ = false;
+            for (s, e) in column_occ {
+                if start <= *e && end >= *s {
+                    occ = true;
+                    break;
+                }
+            }
+            if !occ {
+                found = i;
+                break;
+            }
+        }
+        branch.visual.column = Some(found);
+        if found == group_occ.len() {
+            group_occ.push(vec![]);
+        }
+        group_occ[found].push((start, end));
     }
 
     let group_offset: Vec<usize> = occupied

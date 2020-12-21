@@ -1,9 +1,26 @@
 use regex::Regex;
 
+/// Ordering policy for branches in visual columns.
+pub enum BranchOrder {
+    /// Recommended! Shortest branches are inserted left-most.
+    ///
+    /// For branches with equal length, branches ending last are inserted first.
+    /// Reverse (arg = false): Branches ending first are inserted first.
+    ShortestFirst(bool),
+    /// Branches ending last are inserted left-most.
+    ///
+    /// Reverse (arg = false): Branches starting first are inserted left-most.
+    FirstComeFirstServed(bool),
+}
+
 /// Top-level settings
 pub struct Settings {
     /// Debug printing and drawing
     pub debug: bool,
+    /// Include remote branches?
+    pub include_remote: bool,
+    /// Branch column sorting algorithm
+    pub branch_order: BranchOrder,
     /// Settings for branches
     pub branches: BranchSettings,
     /// Regex patterns for finding branch names in merge commit summaries
@@ -11,8 +28,6 @@ pub struct Settings {
 }
 
 pub struct BranchSettings {
-    /// Include remote branches?
-    pub include_remote: bool,
     /// Branch persistence
     pub persistence: Vec<String>,
     /// Branch ordering
@@ -26,7 +41,6 @@ pub struct BranchSettings {
 impl BranchSettings {
     pub fn git_flow() -> Self {
         BranchSettings {
-            include_remote: true,
             persistence: vec![
                 "master".to_string(),
                 "main".to_string(),
