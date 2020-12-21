@@ -68,10 +68,10 @@ impl CommitInfo {
 
 pub struct BranchInfo {
     pub target: Oid,
-    pub target_index: Option<usize>,
     pub name: String,
     pub is_remote: bool,
     pub order_group: usize,
+    pub color_group: usize,
     pub column: Option<usize>,
     pub deleted: bool,
     pub range: (Option<usize>, Option<usize>),
@@ -79,19 +79,19 @@ pub struct BranchInfo {
 impl BranchInfo {
     fn new(
         target: Oid,
-        target_index: Option<usize>,
         name: String,
         is_remote: bool,
         order_group: usize,
+        color_group: usize,
         deleted: bool,
         end_index: Option<usize>,
     ) -> Self {
         BranchInfo {
             target,
-            target_index,
             name,
             is_remote,
             order_group,
+            color_group,
             column: None,
             deleted,
             range: (end_index, None),
@@ -168,10 +168,10 @@ fn extract_branches(
                     let end_index = indices.get(&t).cloned();
                     BranchInfo::new(
                         t,
-                        indices.get(&t).cloned(),
                         name.to_string(),
                         &BranchType::Remote == tp,
                         branch_order(name, &settings.order),
+                        branch_color(name, &settings.color),
                         false,
                         end_index,
                     )
@@ -189,13 +189,14 @@ fn extract_branches(
                 let branches = text::parse_merge_summary(summary);
                 let branch_name = branches.1.unwrap_or_else(|| "unknown".to_string());
                 let pos = branch_order(&branch_name, &settings.order);
+                let col = branch_color(&branch_name, &settings.color);
 
                 let branch_info = BranchInfo::new(
                     parent_oid,
-                    indices.get(&parent_oid).cloned(),
                     branch_name,
                     false,
                     pos,
+                    col,
                     true,
                     Some(idx + 1),
                 );
@@ -351,6 +352,15 @@ fn branch_order(name: &str, order: &[String]) -> usize {
     order
         .iter()
         .position(|b| {
+            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
+        })
+        .unwrap_or(order.len())
+}
+
+fn branch_color(name: &str, order: &[(String, String)]) -> usize {
+    order
+        .iter()
+        .position(|(b, _)| {
             name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
         })
         .unwrap_or(order.len())

@@ -1,10 +1,15 @@
 use crate::graph::GitGraph;
-use crate::settings::Settings;
+use crate::settings::BranchSettings;
+use lazy_static::lazy_static;
 use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
 
-pub fn print_svg(graph: &GitGraph, _settings: &Settings) -> Result<String, String> {
+lazy_static! {
+    static ref COLOR_UNKNOWN: (String, String) = (String::new(), "grey".to_string());
+}
+
+pub fn print_svg(graph: &GitGraph, settings: &BranchSettings) -> Result<String, String> {
     let mut document = Document::new();
 
     let max_idx = graph.commits.len();
@@ -12,6 +17,11 @@ pub fn print_svg(graph: &GitGraph, _settings: &Settings) -> Result<String, Strin
 
     for (idx, info) in graph.commits.iter().enumerate() {
         let branch = &graph.branches[info.branch_trace.unwrap()];
+        let branch_color = &settings
+            .color
+            .get(branch.color_group)
+            .unwrap_or(&COLOR_UNKNOWN)
+            .1;
 
         if branch.column.unwrap() > max_column {
             max_column = branch.column.unwrap();
@@ -22,13 +32,24 @@ pub fn print_svg(graph: &GitGraph, _settings: &Settings) -> Result<String, Strin
                 let par_idx = graph.indices[&par_oid];
                 let par_info = &graph.commits[par_idx];
                 let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
+
+                let color = if info.is_merge {
+                    &settings
+                        .color
+                        .get(par_branch.color_group)
+                        .unwrap_or(&COLOR_UNKNOWN)
+                        .1
+                } else {
+                    branch_color
+                };
+
                 if branch.column == par_branch.column {
                     document = document.add(line(
                         idx,
                         branch.column.unwrap(),
                         par_idx,
                         par_branch.column.unwrap(),
-                        "red",
+                        color,
                     ));
                 } else {
                     document = document.add(path(
@@ -37,7 +58,7 @@ pub fn print_svg(graph: &GitGraph, _settings: &Settings) -> Result<String, Strin
                         par_idx,
                         par_branch.column.unwrap(),
                         info.is_merge,
-                        "red",
+                        color,
                     ));
                 }
             }
@@ -46,7 +67,7 @@ pub fn print_svg(graph: &GitGraph, _settings: &Settings) -> Result<String, Strin
         document = document.add(commit_dot(
             idx,
             branch.column.unwrap(),
-            "red",
+            branch_color,
             !info.is_merge,
         ));
     }
