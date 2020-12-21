@@ -219,16 +219,17 @@ fn trace_branch<'repo>(
     branch_index: usize,
 ) -> Result<bool, Error> {
     let mut curr_oid = oid;
-    let start_index;
+    let start_index: i32;
     let mut any_assigned = false;
     loop {
         let index = indices[&curr_oid];
         let info = &mut commits[index];
         if info.branch_trace.is_some() {
-            if index > 0 {
-                start_index = index - 1;
+            // TODO: remove exception (see TODO below)
+            if index > 0 || !any_assigned {
+                start_index = index as i32 - 1;
             } else {
-                start_index = index
+                start_index = index as i32
             }
             break;
         } else {
@@ -238,7 +239,7 @@ fn trace_branch<'repo>(
         let commit = repository.find_commit(curr_oid)?;
         match commit.parent_count() {
             0 => {
-                start_index = index;
+                start_index = index as i32;
                 break;
             }
             _ => {
@@ -247,13 +248,14 @@ fn trace_branch<'repo>(
         }
     }
     if let Some(end) = branch.range.0 {
-        if start_index < end {
+        if start_index < end as i32 {
+            // TODO: find a better solution (bool field?) to identify non-deleted branches that were not assigned to any commits, and thus should not occupy a column.
             branch.range = (None, None);
         } else {
-            branch.range = (branch.range.0, Some(start_index));
+            branch.range = (branch.range.0, Some(start_index as usize));
         }
     } else {
-        branch.range = (branch.range.0, Some(start_index));
+        branch.range = (branch.range.0, Some(start_index as usize));
     }
     Ok(any_assigned)
 }
