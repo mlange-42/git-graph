@@ -7,6 +7,7 @@ use std::collections::{HashMap, VecDeque};
 pub struct GitGraph {
     pub repository: Repository,
     pub commits: Vec<CommitInfo>,
+    pub indices: HashMap<Oid, usize>,
     pub branches: Vec<BranchInfo>,
 }
 
@@ -26,6 +27,7 @@ impl GitGraph {
             commits.push(CommitInfo::new(&commit));
             indices.insert(oid, idx);
         }
+        assign_children(&mut commits, &indices);
 
         let mut branches =
             assign_branches(&repository, &mut commits, &indices, &settings.branches)?;
@@ -33,6 +35,7 @@ impl GitGraph {
         let graph = GitGraph {
             repository,
             commits,
+            indices,
             branches,
         };
 
@@ -46,6 +49,9 @@ impl GitGraph {
 
 pub struct CommitInfo {
     pub oid: Oid,
+    pub is_merge: bool,
+    pub parents: [Option<Oid>; 2],
+    pub children: Vec<Oid>,
     pub branches: Vec<usize>,
     pub branch_trace: Option<usize>,
 }
@@ -54,6 +60,9 @@ impl CommitInfo {
     fn new(commit: &Commit) -> Self {
         CommitInfo {
             oid: commit.id(),
+            is_merge: commit.parent_count() > 1,
+            parents: [commit.parent_id(0).ok(), commit.parent_id(1).ok()],
+            children: Vec::new(),
             branches: Vec::new(),
             branch_trace: None,
         }
@@ -62,33 +71,62 @@ impl CommitInfo {
 
 pub struct BranchInfo {
     pub target: Oid,
-    pub target_index: Option<usize>,
     pub name: String,
     pub is_remote: bool,
-    pub order_group: usize,
-    pub column: Option<usize>,
+    pub is_merged: bool,
+    pub visual: BranchVis,
     pub deleted: bool,
     pub range: (Option<usize>, Option<usize>),
 }
 impl BranchInfo {
     fn new(
         target: Oid,
-        target_index: Option<usize>,
         name: String,
         is_remote: bool,
-        order_group: usize,
+        is_merged: bool,
+        visual: BranchVis,
         deleted: bool,
         end_index: Option<usize>,
     ) -> Self {
         BranchInfo {
             target,
-            target_index,
             name,
             is_remote,
-            order_group,
-            column: None,
+            is_merged,
+            visual,
             deleted,
             range: (end_index, None),
+        }
+    }
+}
+
+pub struct BranchVis {
+    pub order_group: usize,
+    pub color_group: usize,
+    pub column: Option<usize>,
+}
+
+impl BranchVis {
+    fn new(order_group: usize, color_group: usize) -> Self {
+        BranchVis {
+            order_group,
+            color_group,
+            column: None,
+        }
+    }
+}
+
+fn assign_children(commits: &mut [CommitInfo], indices: &HashMap<Oid, usize>) {
+    for idx in 0..commits.len() {
+        let (oid, parents) = {
+            let info = &commits[idx];
+            (info.oid, info.parents)
+        };
+        for par_oid in &parents {
+            if let Some(par_oid) = par_oid {
+                let par_idx = indices[par_oid];
+                commits[par_idx].children.push(oid);
+            }
         }
     }
 }
@@ -101,7 +139,7 @@ impl BranchInfo {
 /// * Iterating over all branches in persistence order, trace back over commit parents until a trace is already assigned
 fn assign_branches(
     repository: &Repository,
-    commits: &mut Vec<CommitInfo>,
+    commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &BranchSettings,
 ) -> Result<Vec<BranchInfo>, Error> {
@@ -162,10 +200,13 @@ fn extract_branches(
                     let end_index = indices.get(&t).cloned();
                     BranchInfo::new(
                         t,
-                        indices.get(&t).cloned(),
                         name.to_string(),
                         &BranchType::Remote == tp,
-                        branch_order(name, &settings.order),
+                        false,
+                        BranchVis::new(
+                            branch_order(name, &settings.order),
+                            branch_color(name, &settings.color),
+                        ),
                         false,
                         end_index,
                     )
@@ -176,20 +217,22 @@ fn extract_branches(
 
     for (idx, info) in commits.iter().enumerate() {
         let commit = repository.find_commit(info.oid)?;
-        if commit.parent_count() > 1 {
+        if info.is_merge {
             if let Some(summary) = commit.summary() {
                 let parent_oid = commit.parent_id(1)?;
 
                 let branches = text::parse_merge_summary(summary);
                 let branch_name = branches.1.unwrap_or_else(|| "unknown".to_string());
+
                 let pos = branch_order(&branch_name, &settings.order);
+                let col = branch_color(&branch_name, &settings.color);
 
                 let branch_info = BranchInfo::new(
                     parent_oid,
-                    indices.get(&parent_oid).cloned(),
                     branch_name,
                     false,
-                    pos,
+                    true,
+                    BranchVis::new(pos, col),
                     true,
                     Some(idx + 1),
                 );
@@ -198,30 +241,50 @@ fn extract_branches(
         }
     }
 
-    valid_branches.sort_by_cached_key(|branch| branch_order(&branch.name, &settings.persistence));
+    valid_branches.sort_by_cached_key(|branch| {
+        (
+            branch_order(&branch.name, &settings.persistence),
+            !branch.is_merged,
+        )
+    });
 
     Ok(valid_branches)
 }
 
 fn trace_branch<'repo>(
     repository: &'repo Repository,
-    commits: &mut Vec<CommitInfo>,
+    commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
     oid: Oid,
     branch: &mut BranchInfo,
     branch_index: usize,
 ) -> Result<bool, Error> {
     let mut curr_oid = oid;
-    let start_index;
+    let mut prev_index: Option<usize> = None;
+    let start_index: i32;
     let mut any_assigned = false;
     loop {
         let index = indices[&curr_oid];
         let info = &mut commits[index];
         if info.branch_trace.is_some() {
-            if index > 0 {
-                start_index = index - 1;
-            } else {
-                start_index = index
+            match prev_index {
+                None => start_index = index as i32 - 1,
+                Some(prev_index) => {
+                    if commits[prev_index].is_merge {
+                        let mut temp_index = prev_index;
+                        for sibling_oid in &commits[index].children {
+                            if sibling_oid != &curr_oid {
+                                let sibling_index = indices[&sibling_oid];
+                                if sibling_index > temp_index {
+                                    temp_index = sibling_index;
+                                }
+                            }
+                        }
+                        start_index = temp_index as i32;
+                    } else {
+                        start_index = index as i32 - 1;
+                    }
+                }
             }
             break;
         } else {
@@ -231,22 +294,24 @@ fn trace_branch<'repo>(
         let commit = repository.find_commit(curr_oid)?;
         match commit.parent_count() {
             0 => {
-                start_index = index;
+                start_index = index as i32;
                 break;
             }
             _ => {
+                prev_index = Some(index);
                 curr_oid = commit.parent_id(0)?;
             }
         }
     }
     if let Some(end) = branch.range.0 {
-        if start_index < end {
+        if start_index < end as i32 {
+            // TODO: find a better solution (bool field?) to identify non-deleted branches that were not assigned to any commits, and thus should not occupy a column.
             branch.range = (None, None);
         } else {
-            branch.range = (branch.range.0, Some(start_index));
+            branch.range = (branch.range.0, Some(start_index as usize));
         }
     } else {
-        branch.range = (branch.range.0, Some(start_index));
+        branch.range = (branch.range.0, Some(start_index as usize));
     }
     Ok(any_assigned)
 }
@@ -281,13 +346,13 @@ fn assign_branch_columns(
             if let Some(start) = start {
                 if start.1 == idx {
                     let branch = &mut branches[start.0];
-                    let group = &mut occupied[branch.order_group];
+                    let group = &mut occupied[branch.visual.order_group];
                     let column = group
                         .iter()
                         .find_position(|val| !**val)
                         .unwrap_or_else(|| (group.len(), &false))
                         .0;
-                    branch.column = Some(column);
+                    branch.visual.column = Some(column);
                     if column < group.len() {
                         group[column] = true;
                     } else {
@@ -307,8 +372,8 @@ fn assign_branch_columns(
             if let Some(end) = end {
                 if end.1 == idx {
                     let branch = &mut branches[end.0];
-                    let group = &mut occupied[branch.order_group];
-                    if let Some(column) = branch.column {
+                    let group = &mut occupied[branch.visual.order_group];
+                    if let Some(column) = branch.visual.column {
                         group[column] = false;
                     }
                 } else {
@@ -330,13 +395,13 @@ fn assign_branch_columns(
         .collect();
 
     for branch in branches {
-        if let Some(column) = branch.column {
-            let offset = if branch.order_group == 0 {
+        if let Some(column) = branch.visual.column {
+            let offset = if branch.visual.order_group == 0 {
                 0
             } else {
-                group_offset[branch.order_group - 1]
+                group_offset[branch.visual.order_group - 1]
             };
-            branch.column = Some(column + offset);
+            branch.visual.column = Some(column + offset);
         }
     }
 }
@@ -345,6 +410,15 @@ fn branch_order(name: &str, order: &[String]) -> usize {
     order
         .iter()
         .position(|b| {
+            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
+        })
+        .unwrap_or(order.len())
+}
+
+fn branch_color(name: &str, order: &[(String, String)]) -> usize {
+    order
+        .iter()
+        .position(|(b, _)| {
             name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
         })
         .unwrap_or(order.len())

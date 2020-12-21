@@ -27,6 +27,16 @@ impl Settings {
                     "develop".to_string(),
                     "dev".to_string(),
                 ],
+                color: vec![
+                    ("master".to_string(), "blue".to_string()),
+                    ("main".to_string(), "blue".to_string()),
+                    ("develop".to_string(), "orange".to_string()),
+                    ("dev".to_string(), "orange".to_string()),
+                    ("feature".to_string(), "purple".to_string()),
+                    ("release".to_string(), "green".to_string()),
+                    ("hotfix".to_string(), "red".to_string()),
+                    ("bugfix".to_string(), "red".to_string()),
+                ],
             },
         }
     }
@@ -39,4 +49,6 @@ pub struct BranchSettings {
     pub persistence: Vec<String>,
     /// Branch ordering
     pub order: Vec<String>,
+    /// Branch colors
+    pub color: Vec<(String, String)>,
 }
