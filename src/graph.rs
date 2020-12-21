@@ -70,9 +70,8 @@ pub struct BranchInfo {
     pub target: Oid,
     pub name: String,
     pub is_remote: bool,
-    pub order_group: usize,
-    pub color_group: usize,
-    pub column: Option<usize>,
+    pub is_merged: bool,
+    pub visual: BranchVis,
     pub deleted: bool,
     pub range: (Option<usize>, Option<usize>),
 }
@@ -81,8 +80,8 @@ impl BranchInfo {
         target: Oid,
         name: String,
         is_remote: bool,
-        order_group: usize,
-        color_group: usize,
+        is_merged: bool,
+        visual: BranchVis,
         deleted: bool,
         end_index: Option<usize>,
     ) -> Self {
@@ -90,11 +89,26 @@ impl BranchInfo {
             target,
             name,
             is_remote,
+            is_merged,
+            visual,
+            deleted,
+            range: (end_index, None),
+        }
+    }
+}
+
+pub struct BranchVis {
+    pub order_group: usize,
+    pub color_group: usize,
+    pub column: Option<usize>,
+}
+
+impl BranchVis {
+    fn new(order_group: usize, color_group: usize) -> Self {
+        BranchVis {
             order_group,
             color_group,
             column: None,
-            deleted,
-            range: (end_index, None),
         }
     }
 }
@@ -170,8 +184,11 @@ fn extract_branches(
                         t,
                         name.to_string(),
                         &BranchType::Remote == tp,
-                        branch_order(name, &settings.order),
-                        branch_color(name, &settings.color),
+                        false,
+                        BranchVis::new(
+                            branch_order(name, &settings.order),
+                            branch_color(name, &settings.color),
+                        ),
                         false,
                         end_index,
                     )
@@ -182,12 +199,13 @@ fn extract_branches(
 
     for (idx, info) in commits.iter().enumerate() {
         let commit = repository.find_commit(info.oid)?;
-        if commit.parent_count() > 1 {
+        if info.is_merge {
             if let Some(summary) = commit.summary() {
                 let parent_oid = commit.parent_id(1)?;
 
                 let branches = text::parse_merge_summary(summary);
                 let branch_name = branches.1.unwrap_or_else(|| "unknown".to_string());
+
                 let pos = branch_order(&branch_name, &settings.order);
                 let col = branch_color(&branch_name, &settings.color);
 
@@ -195,8 +213,8 @@ fn extract_branches(
                     parent_oid,
                     branch_name,
                     false,
-                    pos,
-                    col,
+                    true,
+                    BranchVis::new(pos, col),
                     true,
                     Some(idx + 1),
                 );
@@ -205,7 +223,12 @@ fn extract_branches(
         }
     }
 
-    valid_branches.sort_by_cached_key(|branch| branch_order(&branch.name, &settings.persistence));
+    valid_branches.sort_by_cached_key(|branch| {
+        (
+            branch_order(&branch.name, &settings.persistence),
+            !branch.is_merged,
+        )
+    });
 
     Ok(valid_branches)
 }
@@ -219,17 +242,22 @@ fn trace_branch<'repo>(
     branch_index: usize,
 ) -> Result<bool, Error> {
     let mut curr_oid = oid;
+    let mut prev_index: Option<usize> = None;
     let start_index: i32;
     let mut any_assigned = false;
     loop {
         let index = indices[&curr_oid];
         let info = &mut commits[index];
         if info.branch_trace.is_some() {
-            // TODO: remove exception (see TODO below)
-            if index > 0 || !any_assigned {
-                start_index = index as i32 - 1;
-            } else {
-                start_index = index as i32
+            match prev_index {
+                None => start_index = index as i32 - 1,
+                Some(prev_index) => {
+                    if commits[prev_index].is_merge {
+                        start_index = prev_index as i32;
+                    } else {
+                        start_index = index as i32 - 1;
+                    }
+                }
             }
             break;
         } else {
@@ -243,6 +271,7 @@ fn trace_branch<'repo>(
                 break;
             }
             _ => {
+                prev_index = Some(index);
                 curr_oid = commit.parent_id(0)?;
             }
         }
@@ -290,13 +319,13 @@ fn assign_branch_columns(
             if let Some(start) = start {
                 if start.1 == idx {
                     let branch = &mut branches[start.0];
-                    let group = &mut occupied[branch.order_group];
+                    let group = &mut occupied[branch.visual.order_group];
                     let column = group
                         .iter()
                         .find_position(|val| !**val)
                         .unwrap_or_else(|| (group.len(), &false))
                         .0;
-                    branch.column = Some(column);
+                    branch.visual.column = Some(column);
                     if column < group.len() {
                         group[column] = true;
                     } else {
@@ -316,8 +345,8 @@ fn assign_branch_columns(
             if let Some(end) = end {
                 if end.1 == idx {
                     let branch = &mut branches[end.0];
-                    let group = &mut occupied[branch.order_group];
-                    if let Some(column) = branch.column {
+                    let group = &mut occupied[branch.visual.order_group];
+                    if let Some(column) = branch.visual.column {
                         group[column] = false;
                     }
                 } else {
@@ -339,13 +368,13 @@ fn assign_branch_columns(
         .collect();
 
     for branch in branches {
-        if let Some(column) = branch.column {
-            let offset = if branch.order_group == 0 {
+        if let Some(column) = branch.visual.column {
+            let offset = if branch.visual.order_group == 0 {
                 0
             } else {
-                group_offset[branch.order_group - 1]
+                group_offset[branch.visual.order_group - 1]
             };
-            branch.column = Some(column + offset);
+            branch.visual.column = Some(column + offset);
         }
     }
 }

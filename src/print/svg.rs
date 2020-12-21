@@ -19,12 +19,12 @@ pub fn print_svg(graph: &GitGraph, settings: &BranchSettings) -> Result<String, 
         let branch = &graph.branches[info.branch_trace.unwrap()];
         let branch_color = &settings
             .color
-            .get(branch.color_group)
+            .get(branch.visual.color_group)
             .unwrap_or(&COLOR_UNKNOWN)
             .1;
 
-        if branch.column.unwrap() > max_column {
-            max_column = branch.column.unwrap();
+        if branch.visual.column.unwrap() > max_column {
+            max_column = branch.visual.column.unwrap();
         }
 
         for p in 0..2 {
@@ -36,27 +36,27 @@ pub fn print_svg(graph: &GitGraph, settings: &BranchSettings) -> Result<String, 
                 let color = if info.is_merge {
                     &settings
                         .color
-                        .get(par_branch.color_group)
+                        .get(par_branch.visual.color_group)
                         .unwrap_or(&COLOR_UNKNOWN)
                         .1
                 } else {
                     branch_color
                 };
 
-                if branch.column == par_branch.column {
+                if branch.visual.column == par_branch.visual.column {
                     document = document.add(line(
                         idx,
-                        branch.column.unwrap(),
+                        branch.visual.column.unwrap(),
                         par_idx,
-                        par_branch.column.unwrap(),
+                        par_branch.visual.column.unwrap(),
                         color,
                     ));
                 } else {
                     document = document.add(path(
                         idx,
-                        branch.column.unwrap(),
+                        branch.visual.column.unwrap(),
                         par_idx,
-                        par_branch.column.unwrap(),
+                        par_branch.visual.column.unwrap(),
                         info.is_merge,
                         color,
                     ));
@@ -66,7 +66,7 @@ pub fn print_svg(graph: &GitGraph, settings: &BranchSettings) -> Result<String, 
 
         document = document.add(commit_dot(
             idx,
-            branch.column.unwrap(),
+            branch.visual.column.unwrap(),
             branch_color,
             !info.is_merge,
         ));

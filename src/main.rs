@@ -18,10 +18,11 @@ fn run(settings: &Settings) -> Result<(), Error> {
 
     for branch in &graph.branches {
         eprintln!(
-            "{} (col {}) ({:?})",
+            "{} (col {}) ({:?}) {}",
             branch.name,
-            branch.column.unwrap_or(99),
-            branch.range
+            branch.visual.column.unwrap_or(99),
+            branch.range,
+            if branch.is_merged { "m" } else { "" }
         );
     }
     eprintln!("---------------------------------------------");
@@ -62,7 +63,7 @@ fn print_commit_short(graph: &GitGraph, info: &CommitInfo) -> Result<(), Error> 
                 trace,
             ),
             std::iter::repeat(" ")
-                .take(branch.column.unwrap())
+                .take(branch.visual.column.unwrap())
                 .collect::<String>(),
         )
     } else {
