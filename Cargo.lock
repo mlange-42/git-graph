@@ -58,7 +58,6 @@ version = "0.1.0"
 dependencies = [
  "git2",
  "itertools",
- "lazy_static",
  "regex",
  "svg",
 ]

@@ -1,14 +1,9 @@
 use crate::graph::GitGraph;
 use crate::settings::BranchSettings;
-use lazy_static::lazy_static;
 use std::cmp::max;
 use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
-
-lazy_static! {
-    static ref COLOR_UNKNOWN: (String, String) = (String::new(), "grey".to_string());
-}
 
 pub fn print_svg(
     graph: &GitGraph,
@@ -34,13 +29,15 @@ pub fn print_svg(
         }
     }
 
+    let color_unknown = (String::new(), settings.color_unknown.to_owned());
+
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
             let branch = &graph.branches[trace];
             let branch_color = &settings
                 .color
                 .get(branch.visual.color_group)
-                .unwrap_or(&COLOR_UNKNOWN)
+                .unwrap_or(&color_unknown)
                 .1;
 
             if branch.visual.column.unwrap() > max_column {
@@ -57,7 +54,7 @@ pub fn print_svg(
                         &settings
                             .color
                             .get(par_branch.visual.color_group)
-                            .unwrap_or(&COLOR_UNKNOWN)
+                            .unwrap_or(&color_unknown)
                             .1
                     } else {
                         branch_color

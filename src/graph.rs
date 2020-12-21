@@ -1,9 +1,10 @@
-use crate::settings::{BranchSettings, Settings};
+use crate::settings::{BranchSettings, MergePatterns, Settings};
 use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Repository};
 use itertools::Itertools;
 use std::collections::{HashMap, VecDeque};
 
+/// Represents a git history graph.
 pub struct GitGraph {
     pub repository: Repository,
     pub commits: Vec<CommitInfo>,
@@ -29,8 +30,13 @@ impl GitGraph {
         }
         assign_children(&mut commits, &indices);
 
-        let mut branches =
-            assign_branches(&repository, &mut commits, &indices, &settings.branches)?;
+        let mut branches = assign_branches(
+            &repository,
+            &mut commits,
+            &indices,
+            &settings.branches,
+            &settings.merge_patterns,
+        )?;
         assign_branch_columns(&commits, &mut branches, &settings.branches);
 
         let graph = if settings.branches.include_remote {
@@ -92,6 +98,7 @@ impl GitGraph {
     }
 }
 
+/// Represents a commit.
 pub struct CommitInfo {
     pub oid: Oid,
     pub is_merge: bool,
@@ -114,6 +121,7 @@ impl CommitInfo {
     }
 }
 
+/// Represents a branch (real or derived from merge summary).
 pub struct BranchInfo {
     pub target: Oid,
     pub name: String,
@@ -145,6 +153,7 @@ impl BranchInfo {
     }
 }
 
+/// Branch properties for visualization.
 pub struct BranchVis {
     pub order_group: usize,
     pub color_group: usize,
@@ -161,6 +170,7 @@ impl BranchVis {
     }
 }
 
+/// Walks through the commits and adds each commit's Oid to the children of its parents.
 fn assign_children(commits: &mut [CommitInfo], indices: &HashMap<Oid, usize>) {
     for idx in 0..commits.len() {
         let (oid, parents) = {
@@ -176,7 +186,7 @@ fn assign_children(commits: &mut [CommitInfo], indices: &HashMap<Oid, usize>) {
     }
 }
 
-/// Extract braches from repository and merge summaries, assigns branches and branch traces to commits.
+/// Extracts branches from repository and merge summaries, assigns branches and branch traces to commits.
 ///
 /// Algorithm:
 /// * Find all actual branches (incl. target oid) and all extract branches from merge summaries (incl. parent oid)
@@ -187,41 +197,45 @@ fn assign_branches(
     commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &BranchSettings,
+    merge_patterns: &MergePatterns,
 ) -> Result<Vec<BranchInfo>, Error> {
     let mut branch_idx = 0;
-    let branches_ordered = extract_branches(repository, commits, &indices, settings)?
-        .into_iter()
-        .filter_map(|mut branch| {
-            if let Some(&idx) = &indices.get(&branch.target) {
-                let info = &mut commits[idx];
-                if !branch.deleted {
-                    info.branches.push(branch_idx);
-                }
-                let oid = info.oid;
-                let any_assigned =
-                    trace_branch(repository, commits, &indices, oid, &mut branch, branch_idx)
-                        .ok()?;
+    let branches_ordered =
+        extract_branches(repository, commits, &indices, settings, merge_patterns)?
+            .into_iter()
+            .filter_map(|mut branch| {
+                if let Some(&idx) = &indices.get(&branch.target) {
+                    let info = &mut commits[idx];
+                    if !branch.deleted {
+                        info.branches.push(branch_idx);
+                    }
+                    let oid = info.oid;
+                    let any_assigned =
+                        trace_branch(repository, commits, &indices, oid, &mut branch, branch_idx)
+                            .ok()?;
 
-                if any_assigned || !branch.deleted {
-                    branch_idx += 1;
-                    Some(branch)
+                    if any_assigned || !branch.deleted {
+                        branch_idx += 1;
+                        Some(branch)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
-            } else {
-                None
-            }
-        })
-        .collect();
+            })
+            .collect();
 
     Ok(branches_ordered)
 }
 
+/// Extracts (real or derived from merge summary) and assigns basic properties.
 fn extract_branches(
     repository: &Repository,
     commits: &[CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &BranchSettings,
+    merge_patterns: &MergePatterns,
 ) -> Result<Vec<BranchInfo>, Error> {
     let filter = if settings.include_remote {
         None
@@ -266,8 +280,8 @@ fn extract_branches(
             if let Some(summary) = commit.summary() {
                 let parent_oid = commit.parent_id(1)?;
 
-                let branches = text::parse_merge_summary(summary);
-                let branch_name = branches.1.unwrap_or_else(|| "unknown".to_string());
+                let branch_name = text::parse_merge_summary(summary, merge_patterns)
+                    .unwrap_or_else(|| "unknown".to_string());
 
                 let pos = branch_order(&branch_name, &settings.order);
                 let col = branch_color(&branch_name, &settings.color);
@@ -296,6 +310,8 @@ fn extract_branches(
     Ok(valid_branches)
 }
 
+/// Traces brack branches by following 1st commit parent,
+/// until a commit is reached that already has a trace.
 fn trace_branch<'repo>(
     repository: &'repo Repository,
     commits: &mut [CommitInfo],
@@ -361,6 +377,8 @@ fn trace_branch<'repo>(
     Ok(any_assigned)
 }
 
+/// Sorts branches into columns for visualization, that all branches can be visualizes linearly
+/// and without overlaps.
 fn assign_branch_columns(
     commits: &[CommitInfo],
     branches: &mut [BranchInfo],
@@ -451,6 +469,7 @@ fn assign_branch_columns(
     }
 }
 
+/// Finds the index for a branch name from a slice of prefixes
 fn branch_order(name: &str, order: &[String]) -> usize {
     order
         .iter()
@@ -460,6 +479,7 @@ fn branch_order(name: &str, order: &[String]) -> usize {
         .unwrap_or(order.len())
 }
 
+/// Finds the index for a branch name from a slice of (prefix, color) tuples.
 fn branch_color(name: &str, order: &[(String, String)]) -> usize {
     order
         .iter()

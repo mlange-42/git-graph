@@ -1,13 +1,19 @@
 use git2::Error;
 use git_graph::graph::{CommitInfo, GitGraph};
 use git_graph::print::svg::print_svg;
-use git_graph::settings::Settings;
+use git_graph::settings::{BranchSettings, MergePatterns, Settings};
 
 struct Args {}
 
 fn main() -> Result<(), Error> {
     let _args = Args {};
-    let settings = Settings::git_flow();
+
+    let settings = Settings {
+        debug: true,
+        branches: BranchSettings::git_flow(),
+        merge_patterns: MergePatterns::default(),
+    };
+
     run(&settings)?;
     Ok(())
 }
@@ -16,22 +22,29 @@ fn run(settings: &Settings) -> Result<(), Error> {
     let path = ".";
     let graph = GitGraph::new(path, settings)?;
 
-    for branch in &graph.branches {
-        eprintln!(
-            "{} (col {}) ({:?}) {}",
-            branch.name,
-            branch.visual.column.unwrap_or(99),
-            branch.range,
-            if branch.is_merged { "m" } else { "" }
-        );
-    }
-    eprintln!("---------------------------------------------");
-    for info in &graph.commits {
-        if info.branch_trace.is_some() {
-            print_commit_short(&graph, &info)?;
+    if settings.debug {
+        for branch in &graph.branches {
+            eprintln!(
+                "{} (col {}) ({:?}) {}",
+                branch.name,
+                branch.visual.column.unwrap_or(99),
+                branch.range,
+                if branch.is_merged { "m" } else { "" }
+            );
+        }
+        eprintln!("---------------------------------------------");
+        for info in &graph.commits {
+            if info.branch_trace.is_some() {
+                print_commit_short(&graph, &info)?;
+            }
         }
     }
-    println!("{}", print_svg(&graph, &settings.branches, true).unwrap());
+
+    println!(
+        "{}",
+        print_svg(&graph, &settings.branches, settings.debug).unwrap()
+    );
+
     Ok(())
 }
 

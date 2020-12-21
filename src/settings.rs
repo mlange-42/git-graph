@@ -1,45 +1,13 @@
+use regex::Regex;
+
 /// Top-level settings
 pub struct Settings {
+    /// Debug printing and drawing
+    pub debug: bool,
     /// Settings for branches
     pub branches: BranchSettings,
-}
-
-impl Settings {
-    pub fn git_flow() -> Self {
-        Self {
-            branches: BranchSettings {
-                include_remote: true,
-                persistence: vec![
-                    "master".to_string(),
-                    "main".to_string(),
-                    "develop".to_string(),
-                    "dev".to_string(),
-                    "feature".to_string(),
-                    "release".to_string(),
-                    "hotfix".to_string(),
-                    "bugfix".to_string(),
-                ],
-                order: vec![
-                    "master".to_string(),
-                    "main".to_string(),
-                    "hotfix".to_string(),
-                    "release".to_string(),
-                    "develop".to_string(),
-                    "dev".to_string(),
-                ],
-                color: vec![
-                    ("master".to_string(), "blue".to_string()),
-                    ("main".to_string(), "blue".to_string()),
-                    ("develop".to_string(), "orange".to_string()),
-                    ("dev".to_string(), "orange".to_string()),
-                    ("feature".to_string(), "purple".to_string()),
-                    ("release".to_string(), "green".to_string()),
-                    ("hotfix".to_string(), "red".to_string()),
-                    ("bugfix".to_string(), "red".to_string()),
-                ],
-            },
-        }
-    }
+    /// Regex patterns for finding branch names in merge commit summaries
+    pub merge_patterns: MergePatterns,
 }
 
 pub struct BranchSettings {
@@ -51,4 +19,68 @@ pub struct BranchSettings {
     pub order: Vec<String>,
     /// Branch colors
     pub color: Vec<(String, String)>,
+    /// Color for branches not matching any of `colors`
+    pub color_unknown: String,
+}
+
+impl BranchSettings {
+    pub fn git_flow() -> Self {
+        BranchSettings {
+            include_remote: true,
+            persistence: vec![
+                "master".to_string(),
+                "main".to_string(),
+                "develop".to_string(),
+                "dev".to_string(),
+                "feature".to_string(),
+                "release".to_string(),
+                "hotfix".to_string(),
+                "bugfix".to_string(),
+            ],
+            order: vec![
+                "master".to_string(),
+                "main".to_string(),
+                "hotfix".to_string(),
+                "release".to_string(),
+                "develop".to_string(),
+                "dev".to_string(),
+            ],
+            color: vec![
+                ("master".to_string(), "blue".to_string()),
+                ("main".to_string(), "blue".to_string()),
+                ("develop".to_string(), "orange".to_string()),
+                ("dev".to_string(), "orange".to_string()),
+                ("feature".to_string(), "purple".to_string()),
+                ("release".to_string(), "green".to_string()),
+                ("hotfix".to_string(), "red".to_string()),
+                ("bugfix".to_string(), "red".to_string()),
+            ],
+            color_unknown: "grey".to_string(),
+        }
+    }
+}
+
+pub struct MergePatterns {
+    pub patterns: Vec<Regex>,
+}
+
+impl Default for MergePatterns {
+    fn default() -> Self {
+        MergePatterns {
+            patterns: vec![
+                // GitLab pull rewuest
+                Regex::new(r"^Merge branch '(.+)' into '.+'$").unwrap(),
+                // Git default
+                Regex::new(r"^Merge branch '(.+)' into .+$").unwrap(),
+                // Git default into main branch
+                Regex::new(r"^Merge branch '(.+)'$").unwrap(),
+                // GitHub pull request
+                Regex::new(r"^Merge pull request #[0-9]+ from .[^/]+/(.+)$").unwrap(),
+                // GitHub pull request (from fork?)
+                Regex::new(r"^Merge branch '(.+)' of .+$").unwrap(),
+                // BitBucket pull request
+                Regex::new(r"^Merged in (.+) \(pull request #[0-9]+\)$").unwrap(),
+            ],
+        }
+    }
 }
