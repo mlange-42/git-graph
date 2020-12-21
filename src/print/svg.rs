@@ -35,73 +35,80 @@ pub fn print_svg(
     }
 
     for (idx, info) in graph.commits.iter().enumerate() {
-        let branch = &graph.branches[info.branch_trace.unwrap()];
-        let branch_color = &settings
-            .color
-            .get(branch.visual.color_group)
-            .unwrap_or(&COLOR_UNKNOWN)
-            .1;
+        if let Some(trace) = info.branch_trace {
+            let branch = &graph.branches[trace];
+            let branch_color = &settings
+                .color
+                .get(branch.visual.color_group)
+                .unwrap_or(&COLOR_UNKNOWN)
+                .1;
 
-        if branch.visual.column.unwrap() > max_column {
-            max_column = branch.visual.column.unwrap();
-        }
+            if branch.visual.column.unwrap() > max_column {
+                max_column = branch.visual.column.unwrap();
+            }
 
-        for p in 0..2 {
-            if let Some(par_oid) = info.parents[p] {
-                let par_idx = graph.indices[&par_oid];
-                let par_info = &graph.commits[par_idx];
-                let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
+            for p in 0..2 {
+                if let Some(par_oid) = info.parents[p] {
+                    let par_idx = graph.indices[&par_oid];
+                    let par_info = &graph.commits[par_idx];
+                    let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
 
-                let color = if info.is_merge {
-                    &settings
-                        .color
-                        .get(par_branch.visual.color_group)
-                        .unwrap_or(&COLOR_UNKNOWN)
-                        .1
-                } else {
-                    branch_color
-                };
+                    let color = if info.is_merge {
+                        &settings
+                            .color
+                            .get(par_branch.visual.color_group)
+                            .unwrap_or(&COLOR_UNKNOWN)
+                            .1
+                    } else {
+                        branch_color
+                    };
 
-                if branch.visual.column == par_branch.visual.column {
-                    document = document.add(line(
-                        idx,
-                        branch.visual.column.unwrap(),
-                        par_idx,
-                        par_branch.visual.column.unwrap(),
-                        color,
-                    ));
-                } else {
-                    let mut min_split_idx = idx;
-                    for sibling_oid in &graph.commits[par_idx].children {
-                        let sibling_index = graph.indices[&sibling_oid];
-                        let sibling_branch =
-                            &graph.branches[graph.commits[sibling_index].branch_trace.unwrap()];
-                        if sibling_oid != &info.oid
-                            && sibling_branch.visual.column == par_branch.visual.column
-                            && sibling_index > min_split_idx
-                        {
-                            min_split_idx = sibling_index;
+                    if branch.visual.column == par_branch.visual.column {
+                        document = document.add(line(
+                            idx,
+                            branch.visual.column.unwrap(),
+                            par_idx,
+                            par_branch.visual.column.unwrap(),
+                            color,
+                        ));
+                    } else {
+                        let mut min_split_idx = idx;
+                        for sibling_oid in &graph.commits[par_idx].children {
+                            if let Some(&sibling_index) = graph.indices.get(sibling_oid) {
+                                if let Some(sibling) = graph.commits.get(sibling_index) {
+                                    if let Some(sibling_trace) = sibling.branch_trace {
+                                        let sibling_branch = &graph.branches[sibling_trace];
+                                        if sibling_oid != &info.oid
+                                            && sibling_branch.visual.column
+                                                == par_branch.visual.column
+                                            && sibling_index > min_split_idx
+                                        {
+                                            min_split_idx = sibling_index;
+                                        }
+                                    }
+                                }
+                            }
                         }
+                        document = document.add(path(
+                            idx,
+                            branch.visual.column.unwrap(),
+                            par_idx,
+                            par_branch.visual.column.unwrap(),
+                            info.is_merge,
+                            min_split_idx,
+                            color,
+                        ));
                     }
-                    document = document.add(path(
-                        idx,
-                        branch.visual.column.unwrap(),
-                        par_idx,
-                        par_branch.visual.column.unwrap(),
-                        info.is_merge,
-                        min_split_idx,
-                        color,
-                    ));
                 }
             }
-        }
 
-        document = document.add(commit_dot(
-            idx,
-            branch.visual.column.unwrap(),
-            branch_color,
-            !info.is_merge,
-        ));
+            document = document.add(commit_dot(
+                idx,
+                branch.visual.column.unwrap(),
+                branch_color,
+                !info.is_merge,
+            ));
+        }
     }
     let (x_max, y_max) = commit_coord_u(max_idx + 1, max_column + 1);
     document = document

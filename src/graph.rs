@@ -32,11 +32,56 @@ impl GitGraph {
         let mut branches =
             assign_branches(&repository, &mut commits, &indices, &settings.branches)?;
         assign_branch_columns(&commits, &mut branches, &settings.branches);
-        let graph = GitGraph {
-            repository,
-            commits,
-            indices,
-            branches,
+
+        let graph = if settings.branches.include_remote {
+            GitGraph {
+                repository,
+                commits,
+                indices,
+                branches,
+            }
+        } else {
+            let filtered_commits: Vec<CommitInfo> = commits
+                .into_iter()
+                .filter(|info| info.branch_trace.is_some())
+                .collect();
+            let filtered_indices: HashMap<Oid, usize> = filtered_commits
+                .iter()
+                .enumerate()
+                .map(|(idx, info)| (info.oid, idx))
+                .collect();
+
+            let index_map: HashMap<usize, Option<&usize>> = indices
+                .iter()
+                .map(|(oid, index)| (*index, filtered_indices.get(oid)))
+                .collect();
+
+            for branch in branches.iter_mut() {
+                eprintln!("{}", branch.name);
+                if let Some(mut start_idx) = branch.range.0 {
+                    let mut idx0 = index_map[&start_idx];
+                    while idx0.is_none() {
+                        start_idx += 1;
+                        idx0 = index_map[&start_idx];
+                    }
+                    branch.range.0 = Some(*idx0.unwrap());
+                }
+                if let Some(mut end_idx) = branch.range.1 {
+                    let mut idx0 = index_map[&end_idx];
+                    while idx0.is_none() {
+                        end_idx -= 1;
+                        idx0 = index_map[&end_idx];
+                    }
+                    branch.range.1 = Some(*idx0.unwrap());
+                }
+            }
+
+            GitGraph {
+                repository,
+                commits: filtered_commits,
+                indices: filtered_indices,
+                branches,
+            }
         };
 
         Ok(graph)
