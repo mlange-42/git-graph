@@ -27,6 +27,7 @@ impl GitGraph {
             commits.push(CommitInfo::new(&commit));
             indices.insert(oid, idx);
         }
+        assign_children(&mut commits, &indices);
 
         let mut branches =
             assign_branches(&repository, &mut commits, &indices, &settings.branches)?;
@@ -50,6 +51,7 @@ pub struct CommitInfo {
     pub oid: Oid,
     pub is_merge: bool,
     pub parents: [Option<Oid>; 2],
+    pub children: Vec<Oid>,
     pub branches: Vec<usize>,
     pub branch_trace: Option<usize>,
 }
@@ -60,6 +62,7 @@ impl CommitInfo {
             oid: commit.id(),
             is_merge: commit.parent_count() > 1,
             parents: [commit.parent_id(0).ok(), commit.parent_id(1).ok()],
+            children: Vec::new(),
             branches: Vec::new(),
             branch_trace: None,
         }
@@ -113,6 +116,21 @@ impl BranchVis {
     }
 }
 
+fn assign_children(commits: &mut [CommitInfo], indices: &HashMap<Oid, usize>) {
+    for idx in 0..commits.len() {
+        let (oid, parents) = {
+            let info = &commits[idx];
+            (info.oid, info.parents)
+        };
+        for par_oid in &parents {
+            if let Some(par_oid) = par_oid {
+                let par_idx = indices[par_oid];
+                commits[par_idx].children.push(oid);
+            }
+        }
+    }
+}
+
 /// Extract braches from repository and merge summaries, assigns branches and branch traces to commits.
 ///
 /// Algorithm:
@@ -121,7 +139,7 @@ impl BranchVis {
 /// * Iterating over all branches in persistence order, trace back over commit parents until a trace is already assigned
 fn assign_branches(
     repository: &Repository,
-    commits: &mut Vec<CommitInfo>,
+    commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &BranchSettings,
 ) -> Result<Vec<BranchInfo>, Error> {
@@ -235,7 +253,7 @@ fn extract_branches(
 
 fn trace_branch<'repo>(
     repository: &'repo Repository,
-    commits: &mut Vec<CommitInfo>,
+    commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
     oid: Oid,
     branch: &mut BranchInfo,
