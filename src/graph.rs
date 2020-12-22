@@ -36,10 +36,18 @@ impl GitGraph {
             BranchOrder::FirstComeFirstServed(forward) => {
                 assign_branch_columns_fcfs(&commits, &mut branches, &settings.branches, forward)
             }
-            BranchOrder::ShortestFirst(forward) => assign_branch_columns_shortest_first(
+            BranchOrder::ShortestFirst(forward) => assign_branch_columns_branch_length(
                 &commits,
                 &mut branches,
                 &settings.branches,
+                true,
+                forward,
+            ),
+            BranchOrder::LongestFirst(forward) => assign_branch_columns_branch_length(
+                &commits,
+                &mut branches,
+                &settings.branches,
+                false,
                 forward,
             ),
         }
@@ -482,15 +490,17 @@ fn assign_branch_columns_fcfs(
 
 /// Sorts branches into columns for visualization, that all branches can be
 /// visualizes linearly and without overlaps. Uses Shortest-First scheduling.
-fn assign_branch_columns_shortest_first(
+fn assign_branch_columns_branch_length(
     _commits: &[CommitInfo],
     branches: &mut [BranchInfo],
     settings: &BranchSettings,
+    shortest_first: bool,
     forward: bool,
 ) {
     let mut occupied: Vec<Vec<Vec<(usize, usize)>>> = vec![vec![]; settings.order.len() + 1];
 
-    let sort_factor = if forward { 1 } else { -1 };
+    let length_sort_factor = if shortest_first { 1 } else { -1 };
+    let start_sort_factor = if forward { 1 } else { -1 };
 
     let branches_sort: VecDeque<_> = branches
         .iter()
@@ -503,7 +513,12 @@ fn assign_branch_columns_shortest_first(
                 br.range.1.unwrap_or(branches.len() - 1),
             )
         })
-        .sorted_by_key(|tup| (tup.2 as i32 - tup.1 as i32, tup.1 as i32 * sort_factor))
+        .sorted_by_key(|tup| {
+            (
+                (tup.2 as i32 - tup.1 as i32) * length_sort_factor,
+                tup.1 as i32 * start_sort_factor,
+            )
+        })
         .collect();
 
     for (branch_idx, start, end) in branches_sort {

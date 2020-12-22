@@ -7,6 +7,11 @@ pub enum BranchOrder {
     /// For branches with equal length, branches ending last are inserted first.
     /// Reverse (arg = false): Branches ending first are inserted first.
     ShortestFirst(bool),
+    /// Longest branches are inserted left-most.
+    ///
+    /// For branches with equal length, branches ending last are inserted first.
+    /// Reverse (arg = false): Branches ending first are inserted first.
+    LongestFirst(bool),
     /// Branches ending last are inserted left-most.
     ///
     /// Reverse (arg = false): Branches starting first are inserted left-most.

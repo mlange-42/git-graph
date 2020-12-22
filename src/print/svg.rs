@@ -1,6 +1,5 @@
 use crate::graph::GitGraph;
 use crate::settings::BranchSettings;
-use std::cmp::max;
 use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
@@ -69,30 +68,13 @@ pub fn print_svg(
                             color,
                         ));
                     } else {
-                        let mut min_split_idx = idx;
-                        for sibling_oid in &graph.commits[par_idx].children {
-                            if let Some(&sibling_index) = graph.indices.get(sibling_oid) {
-                                if let Some(sibling) = graph.commits.get(sibling_index) {
-                                    if let Some(sibling_trace) = sibling.branch_trace {
-                                        let sibling_branch = &graph.branches[sibling_trace];
-                                        if sibling_oid != &info.oid
-                                            && sibling_branch.visual.column
-                                                == par_branch.visual.column
-                                            && sibling_index > min_split_idx
-                                        {
-                                            min_split_idx = sibling_index;
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        let split_index = super::get_deviate_index(&graph, idx, par_idx);
                         document = document.add(path(
                             idx,
                             branch.visual.column.unwrap(),
                             par_idx,
                             par_branch.visual.column.unwrap(),
-                            info.is_merge,
-                            min_split_idx,
+                            split_index,
                             color,
                         ));
                     }
@@ -107,7 +89,7 @@ pub fn print_svg(
             ));
         }
     }
-    let (x_max, y_max) = commit_coord_u(max_idx + 1, max_column + 1);
+    let (x_max, y_max) = commit_coord(max_idx + 1, max_column + 1);
     document = document
         .set("viewBox", (0, 0, x_max, y_max))
         .set("width", x_max)
@@ -124,7 +106,7 @@ pub fn print_svg(
 }
 
 fn commit_dot(index: usize, column: usize, color: &str, filled: bool) -> Circle {
-    let (x, y) = commit_coord_u(index, column);
+    let (x, y) = commit_coord(index, column);
     Circle::new()
         .set("cx", x)
         .set("cy", y)
@@ -135,8 +117,8 @@ fn commit_dot(index: usize, column: usize, color: &str, filled: bool) -> Circle 
 }
 
 fn line(index1: usize, column1: usize, index2: usize, column2: usize, color: &str) -> Line {
-    let (x1, y1) = commit_coord_u(index1, column1);
-    let (x2, y2) = commit_coord_u(index2, column2);
+    let (x1, y1) = commit_coord(index1, column1);
+    let (x2, y2) = commit_coord(index2, column2);
     Line::new()
         .set("x1", x1)
         .set("y1", y1)
@@ -147,8 +129,8 @@ fn line(index1: usize, column1: usize, index2: usize, column2: usize, color: &st
 }
 
 fn bold_line(index1: usize, column1: usize, index2: usize, column2: usize, color: &str) -> Line {
-    let (x1, y1) = commit_coord_u(index1, column1);
-    let (x2, y2) = commit_coord_u(index2, column2);
+    let (x1, y1) = commit_coord(index1, column1);
+    let (x2, y2) = commit_coord(index2, column2);
     Line::new()
         .set("x1", x1)
         .set("y1", y1)
@@ -163,22 +145,15 @@ fn path(
     column1: usize,
     index2: usize,
     column2: usize,
-    is_merge: bool,
-    min_split_idx: usize,
+    split_idx: usize,
     color: &str,
 ) -> Path {
-    let c0 = commit_coord_u(index1, column1);
-    let c1 = if is_merge {
-        commit_coord_u(max(index1, min_split_idx), column1)
-    } else {
-        commit_coord_i(index2 as i32 - 1, column1 as i32)
-    };
-    let c2 = if is_merge {
-        commit_coord_u(max(index1, min_split_idx) + 1, column2)
-    } else {
-        commit_coord_u(index2, column2)
-    };
-    let c3 = commit_coord_u(index2, column2);
+    let c0 = commit_coord(index1, column1);
+
+    let c1 = commit_coord(split_idx, column1);
+    let c2 = commit_coord(split_idx + 1, column2);
+
+    let c3 = commit_coord(index2, column2);
 
     let m = (0.5 * (c1.0 + c2.0), 0.5 * (c1.1 + c2.1));
 
@@ -196,9 +171,6 @@ fn path(
         .set("stroke-width", 1)
 }
 
-fn commit_coord_u(index: usize, column: usize) -> (f32, f32) {
-    (15.0 * (column as f32 + 1.0), 15.0 * (index as f32 + 1.0))
-}
-fn commit_coord_i(index: i32, column: i32) -> (f32, f32) {
+fn commit_coord(index: usize, column: usize) -> (f32, f32) {
     (15.0 * (column as f32 + 1.0), 15.0 * (index as f32 + 1.0))
 }
