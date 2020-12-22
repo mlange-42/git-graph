@@ -2,6 +2,7 @@ use crate::graph::GitGraph;
 use std::cmp::max;
 
 pub mod svg;
+pub mod unicode;
 
 /// Find the index at which a between-branch connection
 /// has to deviate from the current branch's column.

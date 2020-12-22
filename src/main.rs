@@ -1,6 +1,6 @@
 use git2::Error;
 use git_graph::graph::{CommitInfo, GitGraph};
-use git_graph::print::svg::print_svg;
+use git_graph::print::unicode::print_unicode;
 use git_graph::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};
 use std::time::Instant;
 
@@ -47,10 +47,13 @@ fn run(settings: &Settings) -> Result<(), Error> {
     }
 
     let now = Instant::now();
+
+    //print_svg(&graph, &settings.branches, settings.debug).unwrap()
     println!(
         "{}",
-        print_svg(&graph, &settings.branches, settings.debug).unwrap()
+        print_unicode(&graph, &settings.branches, settings.debug)
     );
+
     let duration_print = now.elapsed().as_micros();
 
     eprintln!(
