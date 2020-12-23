@@ -4,11 +4,7 @@ use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
 
-pub fn print_svg(
-    graph: &GitGraph,
-    settings: &BranchSettings,
-    debug: bool,
-) -> Result<String, String> {
+pub fn print_svg(graph: &GitGraph, settings: &BranchSettings, debug: bool) -> Result<(), String> {
     let mut document = Document::new();
 
     let max_idx = graph.commits.len();
@@ -28,7 +24,11 @@ pub fn print_svg(
         }
     }
 
-    let color_unknown = (String::new(), settings.color_unknown.to_owned());
+    let color_unknown = (
+        String::new(),
+        settings.color_unknown.0.to_owned(),
+        settings.color_unknown.1.to_owned(),
+    );
 
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
@@ -102,7 +102,9 @@ pub fn print_svg(
             return Err(err.to_string());
         }
     }
-    String::from_utf8(out).map_err(|err| err.to_string())
+    println!("{}", String::from_utf8(out).map_err(|err| err.to_string())?);
+
+    Ok(())
 }
 
 fn commit_dot(index: usize, column: usize, color: &str, filled: bool) -> Circle {

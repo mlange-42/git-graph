@@ -358,10 +358,11 @@ fn trace_branch<'repo>(
                 }
             }
             break;
-        } else {
-            info.branch_trace = Some(branch_index);
-            any_assigned = true;
         }
+
+        info.branch_trace = Some(branch_index);
+        any_assigned = true;
+
         let commit = repository.find_commit(curr_oid)?;
         match commit.parent_count() {
             0 => {
@@ -578,10 +579,10 @@ fn branch_order(name: &str, order: &[String]) -> usize {
 }
 
 /// Finds the index for a branch name from a slice of (prefix, color) tuples.
-fn branch_color(name: &str, order: &[(String, String)]) -> usize {
+fn branch_color(name: &str, order: &[(String, String, String)]) -> usize {
     order
         .iter()
-        .position(|(b, _)| {
+        .position(|(b, _, _)| {
             name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
         })
         .unwrap_or(order.len())

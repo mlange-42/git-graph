@@ -38,9 +38,9 @@ pub struct BranchSettings {
     /// Branch ordering
     pub order: Vec<String>,
     /// Branch colors
-    pub color: Vec<(String, String)>,
+    pub color: Vec<(String, String, String)>,
     /// Color for branches not matching any of `colors`
-    pub color_unknown: String,
+    pub color_unknown: (String, String),
 }
 
 impl BranchSettings {
@@ -65,16 +65,32 @@ impl BranchSettings {
                 "dev".to_string(),
             ],
             color: vec![
-                ("master".to_string(), "blue".to_string()),
-                ("main".to_string(), "blue".to_string()),
-                ("develop".to_string(), "orange".to_string()),
-                ("dev".to_string(), "orange".to_string()),
-                ("feature".to_string(), "purple".to_string()),
-                ("release".to_string(), "green".to_string()),
-                ("hotfix".to_string(), "red".to_string()),
-                ("bugfix".to_string(), "red".to_string()),
+                ("master".to_string(), "blue".to_string(), "blue".to_string()),
+                ("main".to_string(), "blue".to_string(), "blue".to_string()),
+                (
+                    "develop".to_string(),
+                    "orange".to_string(),
+                    "yellow".to_string(),
+                ),
+                (
+                    "dev".to_string(),
+                    "orange".to_string(),
+                    "yellow".to_string(),
+                ),
+                (
+                    "feature".to_string(),
+                    "purple".to_string(),
+                    "magenta".to_string(),
+                ),
+                (
+                    "release".to_string(),
+                    "green".to_string(),
+                    "green".to_string(),
+                ),
+                ("hotfix".to_string(), "red".to_string(), "red".to_string()),
+                ("bugfix".to_string(), "red".to_string(), "red".to_string()),
             ],
-            color_unknown: "grey".to_string(),
+            color_unknown: ("gray".to_string(), "white".to_string()),
         }
     }
 }

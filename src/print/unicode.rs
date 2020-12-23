@@ -1,8 +1,10 @@
 use crate::graph::GitGraph;
+use crate::print::colors::to_term_color;
 use crate::settings::BranchSettings;
-use itertools::join;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
+use term_painter::Color::Custom;
+use term_painter::ToStyle;
 
 const SPACE: char = ' ';
 
@@ -24,7 +26,14 @@ const CIRCLE: char = '○';
 const ARR_L: char = '<';
 const ARR_R: char = '>';
 
-pub fn print_unicode(graph: &GitGraph, _settings: &BranchSettings, _debug: bool) -> String {
+const WHITE: u8 = 7;
+
+pub fn print_unicode(
+    graph: &GitGraph,
+    settings: &BranchSettings,
+    color: bool,
+    _debug: bool,
+) -> Result<(), String> {
     let num_cols = 2 * graph
         .branches
         .iter()
@@ -32,6 +41,12 @@ pub fn print_unicode(graph: &GitGraph, _settings: &BranchSettings, _debug: bool)
         .max()
         .unwrap()
         + 1;
+
+    let color_list = settings
+        .color
+        .iter()
+        .map(|(_, _, color)| to_term_color(color))
+        .collect::<Result<Vec<u8>, String>>()?;
 
     let inserts = get_inserts(graph);
 
@@ -53,15 +68,20 @@ pub fn print_unicode(graph: &GitGraph, _settings: &BranchSettings, _debug: bool)
         }
     }
 
-    let mut grid = CharGrid::new(num_cols, graph.commits.len() + offset);
+    let mut grid = Grid::new(num_cols, graph.commits.len() + offset, SPACE);
+    let mut colors = Grid::new(num_cols, graph.commits.len() + offset, WHITE);
+
+    let color_unknown = to_term_color(&settings.color_unknown.1)?;
 
     for (idx, info) in graph.commits.iter().enumerate() {
         let branch = &graph.branches[info.branch_trace.unwrap()];
-        grid.set(
-            branch.visual.column.unwrap() * 2,
-            index_map[idx],
-            if info.is_merge { CIRCLE } else { DOT },
-        );
+        let column = branch.visual.column.unwrap() * 2;
+        let draw_idx = index_map[idx];
+        let branch_color = color_list
+            .get(branch.visual.color_group)
+            .unwrap_or(&color_unknown);
+        grid.set(column, draw_idx, if info.is_merge { CIRCLE } else { DOT });
+        colors.set(column, draw_idx, *branch_color);
     }
 
     for (idx, info) in graph.commits.iter().enumerate() {
@@ -69,6 +89,10 @@ pub fn print_unicode(graph: &GitGraph, _settings: &BranchSettings, _debug: bool)
             let branch = &graph.branches[trace];
             let column = branch.visual.column.unwrap();
             let idx_map = index_map[idx];
+
+            let branch_color = color_list
+                .get(branch.visual.color_group)
+                .unwrap_or(&color_unknown);
 
             for p in 0..2 {
                 if let Some(par_oid) = info.parents[p] {
@@ -78,9 +102,23 @@ pub fn print_unicode(graph: &GitGraph, _settings: &BranchSettings, _debug: bool)
                     let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
                     let par_column = par_branch.visual.column.unwrap();
 
+                    let color = if info.is_merge {
+                        color_list
+                            .get(par_branch.visual.color_group)
+                            .unwrap_or(&color_unknown)
+                    } else {
+                        branch_color
+                    };
+
                     if branch.visual.column == par_branch.visual.column {
                         if par_idx_map > idx_map + 1 {
-                            vline(&mut grid, (idx_map, par_idx_map), column);
+                            vline(
+                                &mut grid,
+                                &mut colors,
+                                (idx_map, par_idx_map),
+                                column,
+                                *color,
+                            );
                         }
                     } else {
                         let split_index = super::get_deviate_index(&graph, idx, par_idx);
@@ -94,19 +132,25 @@ pub fn print_unicode(graph: &GitGraph, _settings: &BranchSettings, _debug: bool)
                                         if *i1 == idx && *i2 == par_idx {
                                             vline(
                                                 &mut grid,
+                                                &mut colors,
                                                 (idx_map, split_idx_map + insert_idx),
                                                 column,
-                                            );
-                                            vline(
-                                                &mut grid,
-                                                (split_idx_map + insert_idx, par_idx_map),
-                                                par_column,
+                                                *color,
                                             );
                                             hline(
                                                 &mut grid,
+                                                &mut colors,
                                                 split_idx_map + insert_idx,
                                                 (par_column, column),
                                                 info.is_merge && p > 0,
+                                                *color,
+                                            );
+                                            vline(
+                                                &mut grid,
+                                                &mut colors,
+                                                (split_idx_map + insert_idx, par_idx_map),
+                                                par_column,
+                                                *color,
                                             );
                                         }
                                     }
@@ -119,23 +163,58 @@ pub fn print_unicode(graph: &GitGraph, _settings: &BranchSettings, _debug: bool)
         }
     }
 
-    grid.to_string_block()
+    if color {
+        grid.print_colored(&colors);
+    } else {
+        grid.print();
+    }
+
+    Ok(())
 }
 
-fn vline(grid: &mut CharGrid, (from, to): (usize, usize), column: usize) {
+fn vline(
+    grid: &mut Grid<char>,
+    colors: &mut Grid<u8>,
+    (from, to): (usize, usize),
+    column: usize,
+    color: u8,
+) {
     for i in (from + 1)..to {
         let curr = grid.get(column * 2, i);
         match curr {
-            HOR => grid.set(column * 2, i, CROSS),
-            HOR_U | HOR_D | CROSS => {}
-            L_D | L_U => grid.set(column * 2, i, VER_L),
-            R_D | R_U => grid.set(column * 2, i, VER_R),
-            _ => grid.set(column * 2, i, VER),
+            HOR => {
+                grid.set(column * 2, i, CROSS);
+                colors.set(column * 2, i, color);
+            }
+            HOR_U | HOR_D => {
+                grid.set(column * 2, i, CROSS);
+                colors.set(column * 2, i, color);
+            }
+            CROSS | VER | VER_L | VER_R => {}
+            L_D | L_U => {
+                grid.set(column * 2, i, VER_L);
+                colors.set(column * 2, i, color);
+            }
+            R_D | R_U => {
+                grid.set(column * 2, i, VER_R);
+                colors.set(column * 2, i, color);
+            }
+            _ => {
+                grid.set(column * 2, i, VER);
+                colors.set(column * 2, i, color);
+            }
         }
     }
 }
 
-fn hline(grid: &mut CharGrid, index: usize, (from, to): (usize, usize), merge: bool) {
+fn hline(
+    grid: &mut Grid<char>,
+    colors: &mut Grid<u8>,
+    index: usize,
+    (from, to): (usize, usize),
+    merge: bool,
+    color: u8,
+) {
     if from == to {
         return;
     }
@@ -145,6 +224,7 @@ fn hline(grid: &mut CharGrid, index: usize, (from, to): (usize, usize), merge: b
         for column in (from_2 + 1)..to_2 {
             if merge && column == to_2 - 1 {
                 grid.set(column, index, ARR_R);
+                colors.set(column, index, color);
             } else {
                 let curr = grid.get(column, index);
                 match curr {
@@ -152,7 +232,10 @@ fn hline(grid: &mut CharGrid, index: usize, (from, to): (usize, usize), merge: b
                     HOR | CROSS | HOR_U | HOR_D => {}
                     L_U | R_U => grid.set(column, index, HOR_U),
                     L_D | R_D => grid.set(column, index, HOR_D),
-                    _ => grid.set(column, index, HOR),
+                    _ => {
+                        grid.set(column, index, HOR);
+                        colors.set(column, index, color);
+                    }
                 }
             }
         }
@@ -161,19 +244,26 @@ fn hline(grid: &mut CharGrid, index: usize, (from, to): (usize, usize), merge: b
             VER => grid.set(from_2, index, VER_R),
             VER_R => {}
             HOR | L_U => grid.set(from_2, index, HOR_U),
-            _ => grid.set(from_2, index, R_D),
+            _ => {
+                grid.set(from_2, index, R_D);
+                colors.set(from_2, index, color);
+            }
         }
         let right = grid.get(to_2, index);
         match right {
             VER => grid.set(to_2, index, VER_L),
             VER_L | HOR_U => {}
             HOR | R_U => grid.set(to_2, index, HOR_U),
-            _ => grid.set(to_2, index, L_U),
+            _ => {
+                grid.set(to_2, index, L_U);
+                colors.set(to_2, index, color);
+            }
         }
     } else {
         for column in (to_2 + 1)..from_2 {
             if merge && column == to_2 + 1 {
                 grid.set(column, index, ARR_L);
+                colors.set(column, index, color);
             } else {
                 let curr = grid.get(column, index);
                 match curr {
@@ -181,7 +271,10 @@ fn hline(grid: &mut CharGrid, index: usize, (from, to): (usize, usize), merge: b
                     HOR | CROSS | HOR_U | HOR_D => {}
                     L_U | R_U => grid.set(column, index, HOR_U),
                     L_D | R_D => grid.set(column, index, HOR_D),
-                    _ => grid.set(column, index, HOR),
+                    _ => {
+                        grid.set(column, index, HOR);
+                        colors.set(column, index, color);
+                    }
                 }
             }
         }
@@ -190,14 +283,20 @@ fn hline(grid: &mut CharGrid, index: usize, (from, to): (usize, usize), merge: b
             VER => grid.set(to_2, index, VER_R),
             VER_R => {}
             HOR | L_U => grid.set(to_2, index, HOR_U),
-            _ => grid.set(to_2, index, R_U),
+            _ => {
+                grid.set(to_2, index, R_U);
+                colors.set(to_2, index, color);
+            }
         }
         let right = grid.get(from_2, index);
         match right {
             VER => grid.set(from_2, index, VER_L),
             VER_L => {}
             HOR | R_D => grid.set(from_2, index, HOR_D),
-            _ => grid.set(from_2, index, L_D),
+            _ => {
+                grid.set(from_2, index, L_D);
+                colors.set(from_2, index, color);
+            }
         }
     }
 }
@@ -290,6 +389,17 @@ fn get_inserts(graph: &GitGraph) -> HashMap<usize, Vec<Vec<Occ>>> {
     inserts
 }
 
+fn print_colored_char(character: char, color: u8) {
+    let str = Custom(color as u32).paint(character);
+    print!("{}", str);
+}
+
+#[allow(dead_code)]
+fn print_colored_str(string: &str, color: u8) {
+    let str = Custom(color as u32).paint(string);
+    print!("{}", str);
+}
+
 #[derive(Debug)]
 enum Occ {
     Commit(usize, usize),
@@ -314,35 +424,57 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
 }
 
 #[allow(dead_code)]
-pub struct CharGrid {
+pub struct Grid<T> {
     width: usize,
     height: usize,
-    data: Vec<char>,
+    data: Vec<T>,
 }
 
-impl CharGrid {
-    pub fn new(width: usize, height: usize) -> Self {
-        CharGrid {
+impl<T: Copy> Grid<T> {
+    pub fn new(width: usize, height: usize, initial: T) -> Self {
+        Grid {
             width,
             height,
-            data: vec![SPACE; width * height],
+            data: vec![initial; width * height],
         }
     }
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }
-    pub fn get(&self, x: usize, y: usize) -> char {
+    pub fn get(&self, x: usize, y: usize) -> T {
         self.data[self.index(x, y)]
     }
-    pub fn set(&mut self, x: usize, y: usize, value: char) {
+    pub fn set(&mut self, x: usize, y: usize, value: T) {
         let idx = self.index(x, y);
         self.data[idx] = value;
     }
-    pub fn to_string_block(&self) -> String {
+}
+
+impl Grid<char> {
+    pub fn print(&self) {
         let rows = self
             .data
             .chunks(self.width)
             .map(|row| row.iter().collect::<String>());
-        join(rows, "\n")
+        for row in rows {
+            println!(" {}", row);
+        }
+    }
+
+    pub fn print_colored(&self, color: &Grid<u8>) {
+        let rows = self.data.chunks(self.width);
+        let col_rows = color.data.chunks(self.width);
+
+        for (row, cols) in rows.zip(col_rows) {
+            print!(" ");
+            for (&c, col) in row.iter().zip(cols) {
+                if c == SPACE {
+                    print!(" ");
+                } else {
+                    print_colored_char(c, *col);
+                }
+            }
+            println!();
+        }
     }
 }

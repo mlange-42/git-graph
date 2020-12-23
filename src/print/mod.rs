@@ -1,6 +1,7 @@
 use crate::graph::GitGraph;
 use std::cmp::max;
 
+pub mod colors;
 pub mod svg;
 pub mod unicode;
 
