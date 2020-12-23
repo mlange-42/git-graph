@@ -163,13 +163,21 @@ pub fn print_unicode(
         }
     }
 
-    if color {
-        grid.print_colored(&colors);
-    } else {
-        grid.print();
-    }
+    let index_map_inv: HashMap<usize, usize> = index_map
+        .iter()
+        .enumerate()
+        .map(|(idx, line)| (*line, idx))
+        .collect();
 
-    Ok(())
+    print_graph(
+        &graph,
+        &index_map_inv,
+        &color_list,
+        color_unknown,
+        &grid,
+        &colors,
+        color,
+    )
 }
 
 fn vline(
@@ -389,18 +397,101 @@ fn get_inserts(graph: &GitGraph) -> HashMap<usize, Vec<Vec<Occ>>> {
     inserts
 }
 
+fn print_graph(
+    graph: &GitGraph,
+    line_to_index: &HashMap<usize, usize>,
+    colors: &[u8],
+    color_unknown: u8,
+    grid: &Grid<char>,
+    color_grid: &Grid<u8>,
+    color: bool,
+) -> Result<(), String> {
+    if color {
+        let rows = grid.data.chunks(grid.width);
+        let col_rows = color_grid.data.chunks(grid.width);
+
+        for (line_idx, (row, cols)) in rows.zip(col_rows).enumerate() {
+            let index = line_to_index.get(&line_idx);
+            print_pre(&graph, index);
+            for (&c, col) in row.iter().zip(cols) {
+                if c == SPACE {
+                    print!(" ");
+                } else {
+                    print_colored_char(c, *col);
+                }
+            }
+            print_post(&graph, colors, color_unknown, index, color)?;
+            println!();
+        }
+    } else {
+        for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
+            let index = line_to_index.get(&line_idx);
+            print_pre(&graph, index);
+            let str = row.iter().collect::<String>();
+            print!("{}", str);
+            print_post(&graph, colors, color_unknown, index, color)?;
+            println!();
+        }
+    }
+    Ok(())
+}
+
+fn print_pre(graph: &GitGraph, index: Option<&usize>) {
+    if let Some(index) = index {
+        let info = &graph.commits[*index];
+        print!(" {} ", &info.oid.to_string()[..7]);
+    } else {
+        print!("         ");
+    }
+}
+
+fn print_post(
+    graph: &GitGraph,
+    colors: &[u8],
+    color_unknown: u8,
+    index: Option<&usize>,
+    color: bool,
+) -> Result<(), String> {
+    if let Some(index) = index {
+        let info = &graph.commits[*index];
+        let commit = match graph.repository.find_commit(info.oid) {
+            Ok(c) => c,
+            Err(err) => return Err(err.to_string()),
+        };
+        print!("  ");
+        if !info.branches.is_empty() {
+            print!("(");
+            for (idx, branch_index) in info.branches.iter().enumerate() {
+                let branch = &graph.branches[*branch_index];
+                let branch_color = colors
+                    .get(branch.visual.color_group)
+                    .unwrap_or(&color_unknown);
+                if color {
+                    print_colored_str(&branch.name, *branch_color);
+                } else {
+                    print!("{}", &branch.name);
+                }
+                if idx < info.branches.len() - 1 {
+                    print!(", ");
+                }
+            }
+            print!(") ");
+        }
+        print!("{}", commit.summary().unwrap_or(""));
+    }
+    Ok(())
+}
+
 fn print_colored_char(character: char, color: u8) {
     let str = Custom(color as u32).paint(character);
     print!("{}", str);
 }
 
-#[allow(dead_code)]
 fn print_colored_str(string: &str, color: u8) {
     let str = Custom(color as u32).paint(string);
     print!("{}", str);
 }
 
-#[derive(Debug)]
 enum Occ {
     Commit(usize, usize),
     Range(usize, usize, usize, usize),
@@ -423,10 +514,8 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     }
 }
 
-#[allow(dead_code)]
 pub struct Grid<T> {
     width: usize,
-    height: usize,
     data: Vec<T>,
 }
 
@@ -434,7 +523,6 @@ impl<T: Copy> Grid<T> {
     pub fn new(width: usize, height: usize, initial: T) -> Self {
         Grid {
             width,
-            height,
             data: vec![initial; width * height],
         }
     }
@@ -447,34 +535,5 @@ impl<T: Copy> Grid<T> {
     pub fn set(&mut self, x: usize, y: usize, value: T) {
         let idx = self.index(x, y);
         self.data[idx] = value;
-    }
-}
-
-impl Grid<char> {
-    pub fn print(&self) {
-        let rows = self
-            .data
-            .chunks(self.width)
-            .map(|row| row.iter().collect::<String>());
-        for row in rows {
-            println!(" {}", row);
-        }
-    }
-
-    pub fn print_colored(&self, color: &Grid<u8>) {
-        let rows = self.data.chunks(self.width);
-        let col_rows = color.data.chunks(self.width);
-
-        for (row, cols) in rows.zip(col_rows) {
-            print!(" ");
-            for (&c, col) in row.iter().zip(cols) {
-                if c == SPACE {
-                    print!(" ");
-                } else {
-                    print_colored_char(c, *col);
-                }
-            }
-            println!();
-        }
     }
 }

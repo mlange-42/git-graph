@@ -50,7 +50,7 @@ fn main() {
         merge_patterns: MergePatterns::default(),
     };
 
-    std::process::exit(match run(&settings, svg, color) {
+    std::process::exit(match run(&settings, svg, color, debug) {
         Ok(_) => 0,
         Err(err) => {
             eprintln!("{}", err);
@@ -59,7 +59,7 @@ fn main() {
     });
 }
 
-fn run(settings: &Settings, svg: bool, color: bool) -> Result<(), String> {
+fn run(settings: &Settings, svg: bool, color: bool, debug: bool) -> Result<(), String> {
     let path = ".";
 
     let now = Instant::now();
@@ -100,13 +100,14 @@ fn run(settings: &Settings, svg: bool, color: bool) -> Result<(), String> {
 
     let duration_print = now.elapsed().as_micros();
 
-    eprintln!(
-        "Graph construction: {:.1} ms, printing: {:.1} ms ({} commits)",
-        duration_graph as f32 / 1000.0,
-        duration_print as f32 / 1000.0,
-        graph.commits.len()
-    );
-
+    if debug {
+        eprintln!(
+            "Graph construction: {:.1} ms, printing: {:.1} ms ({} commits)",
+            duration_graph as f32 / 1000.0,
+            duration_print as f32 / 1000.0,
+            graph.commits.len()
+        );
+    }
     Ok(())
 }
 
