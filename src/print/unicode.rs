@@ -1,6 +1,6 @@
 use crate::graph::GitGraph;
 use crate::print::colors::to_term_color;
-use crate::settings::BranchSettings;
+use crate::settings::Settings;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use term_painter::Color::Custom;
@@ -28,12 +28,7 @@ const ARR_R: char = '>';
 
 const WHITE: u8 = 7;
 
-pub fn print_unicode(
-    graph: &GitGraph,
-    settings: &BranchSettings,
-    color: bool,
-    _debug: bool,
-) -> Result<(), String> {
+pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String> {
     let num_cols = 2 * graph
         .branches
         .iter()
@@ -43,12 +38,13 @@ pub fn print_unicode(
         + 1;
 
     let color_list = settings
+        .branches
         .color
         .iter()
         .map(|(_, _, color)| to_term_color(color))
         .collect::<Result<Vec<u8>, String>>()?;
 
-    let inserts = get_inserts(graph);
+    let inserts = get_inserts(graph, settings.compact);
 
     let mut index_map = vec![];
 
@@ -71,7 +67,7 @@ pub fn print_unicode(
     let mut grid = Grid::new(num_cols, graph.commits.len() + offset, SPACE);
     let mut colors = Grid::new(num_cols, graph.commits.len() + offset, WHITE);
 
-    let color_unknown = to_term_color(&settings.color_unknown.1)?;
+    let color_unknown = to_term_color(&settings.branches.color_unknown.1)?;
 
     for (idx, info) in graph.commits.iter().enumerate() {
         let branch = &graph.branches[info.branch_trace.unwrap()];
@@ -176,7 +172,7 @@ pub fn print_unicode(
         color_unknown,
         &grid,
         &colors,
-        color,
+        settings.colored,
     )
 }
 
@@ -260,7 +256,7 @@ fn hline(
         let right = grid.get(to_2, index);
         match right {
             VER => grid.set(to_2, index, VER_L),
-            VER_L | HOR_U => {}
+            VER_L | HOR_U | CIRCLE | DOT => {}
             HOR | R_U => grid.set(to_2, index, HOR_U),
             _ => {
                 grid.set(to_2, index, L_U);
@@ -289,7 +285,7 @@ fn hline(
         let left = grid.get(to_2, index);
         match left {
             VER => grid.set(to_2, index, VER_R),
-            VER_R => {}
+            VER_R | CIRCLE | DOT => {}
             HOR | L_U => grid.set(to_2, index, HOR_U),
             _ => {
                 grid.set(to_2, index, R_U);
@@ -309,7 +305,7 @@ fn hline(
     }
 }
 
-fn get_inserts(graph: &GitGraph) -> HashMap<usize, Vec<Vec<Occ>>> {
+fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>> {
     let mut inserts: HashMap<usize, Vec<Vec<Occ>>> = HashMap::new();
 
     for (idx, info) in graph.commits.iter().enumerate() {
@@ -344,9 +340,14 @@ fn get_inserts(graph: &GitGraph) -> HashMap<usize, Vec<Vec<Occ>>> {
                                     for other_range in sub_entry {
                                         if other_range.overlaps(&column_range) {
                                             match other_range {
-                                                Occ::Commit(_, _) => {
-                                                    occ = true;
-                                                    break;
+                                                Occ::Commit(target_index, _) => {
+                                                    if !compact
+                                                        || !info.is_merge
+                                                        || idx != *target_index
+                                                    {
+                                                        occ = true;
+                                                        break;
+                                                    }
                                                 }
                                                 Occ::Range(o_idx, o_par_idx, _, _) => {
                                                     if idx != *o_idx && par_idx != *o_par_idx {

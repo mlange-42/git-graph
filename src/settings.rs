@@ -22,6 +22,10 @@ pub enum BranchOrder {
 pub struct Settings {
     /// Debug printing and drawing
     pub debug: bool,
+    /// Compact text-based graph
+    pub compact: bool,
+    /// Colored text-based graph
+    pub colored: bool,
     /// Include remote branches?
     pub include_remote: bool,
     /// Branch column sorting algorithm

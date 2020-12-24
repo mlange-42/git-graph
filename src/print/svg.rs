@@ -1,16 +1,16 @@
 use crate::graph::GitGraph;
-use crate::settings::BranchSettings;
+use crate::settings::Settings;
 use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
 
-pub fn print_svg(graph: &GitGraph, settings: &BranchSettings, debug: bool) -> Result<(), String> {
+pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<(), String> {
     let mut document = Document::new();
 
     let max_idx = graph.commits.len();
     let mut max_column = 0;
 
-    if debug {
+    if settings.debug {
         for branch in &graph.branches {
             if let (Some(start), Some(end)) = branch.range {
                 document = document.add(bold_line(
@@ -26,14 +26,15 @@ pub fn print_svg(graph: &GitGraph, settings: &BranchSettings, debug: bool) -> Re
 
     let color_unknown = (
         String::new(),
-        settings.color_unknown.0.to_owned(),
-        settings.color_unknown.1.to_owned(),
+        settings.branches.color_unknown.0.to_owned(),
+        settings.branches.color_unknown.1.to_owned(),
     );
 
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
             let branch = &graph.branches[trace];
             let branch_color = &settings
+                .branches
                 .color
                 .get(branch.visual.color_group)
                 .unwrap_or(&color_unknown)
@@ -51,6 +52,7 @@ pub fn print_svg(graph: &GitGraph, settings: &BranchSettings, debug: bool) -> Re
 
                     let color = if info.is_merge {
                         &settings
+                            .branches
                             .color
                             .get(par_branch.visual.color_group)
                             .unwrap_or(&color_unknown)

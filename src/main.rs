@@ -10,13 +10,13 @@ fn main() {
     let app = App::new("git-graph")
         .version(crate_version!())
         .about(
-            "Structured Git graphs for your branching model\n  \
+            "Structured Git graphs for your branching model.\n  \
                   https://github.com/mlange-42/git-graph",
         )
         .arg(
             Arg::with_name("svg")
                 .long("svg")
-                .help("Render graph as SVG instead of text-based")
+                .help("Render graph as SVG instead of text-based.")
                 .required(false)
                 .takes_value(false),
         )
@@ -24,7 +24,15 @@ fn main() {
             Arg::with_name("debug")
                 .long("debug")
                 .short("d")
-                .help("Additional debug output and graphics")
+                .help("Additional debug output and graphics.")
+                .required(false)
+                .takes_value(false),
+        )
+        .arg(
+            Arg::with_name("compact")
+                .long("compact")
+                .short("c")
+                .help("Print compact graph: merges point to merge commits rather than connecting lines.")
                 .required(false)
                 .takes_value(false),
         )
@@ -32,25 +40,28 @@ fn main() {
             Arg::with_name("no-color")
                 .long("no-color")
                 .short("n")
-                .help("Print without colors")
+                .help("Print without colors.")
                 .required(false)
                 .takes_value(false),
         );
 
     let matches = app.clone().get_matches();
     let svg = matches.is_present("svg");
-    let color = !matches.is_present("no-color");
+    let colored = !matches.is_present("no-color");
+    let compact = matches.is_present("compact");
     let debug = matches.is_present("debug");
 
     let settings = Settings {
         debug,
+        colored,
+        compact,
         include_remote: true,
         branch_order: BranchOrder::ShortestFirst(true),
         branches: BranchSettings::git_flow(),
         merge_patterns: MergePatterns::default(),
     };
 
-    std::process::exit(match run(&settings, svg, color, debug) {
+    std::process::exit(match run(&settings, svg) {
         Ok(_) => 0,
         Err(err) => {
             eprintln!("{}", err);
@@ -59,7 +70,7 @@ fn main() {
     });
 }
 
-fn run(settings: &Settings, svg: bool, color: bool, debug: bool) -> Result<(), String> {
+fn run(settings: &Settings, svg: bool) -> Result<(), String> {
     let path = ".";
 
     let now = Instant::now();
@@ -93,14 +104,14 @@ fn run(settings: &Settings, svg: bool, color: bool, debug: bool) -> Result<(), S
     let now = Instant::now();
 
     if svg {
-        print_svg(&graph, &settings.branches, settings.debug)?
+        print_svg(&graph, &settings)?
     } else {
-        print_unicode(&graph, &settings.branches, color, settings.debug)?
+        print_unicode(&graph, &settings)?
     };
 
     let duration_print = now.elapsed().as_micros();
 
-    if debug {
+    if settings.debug {
         eprintln!(
             "Graph construction: {:.1} ms, printing: {:.1} ms ({} commits)",
             duration_graph as f32 / 1000.0,

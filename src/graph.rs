@@ -341,6 +341,8 @@ fn trace_branch<'repo>(
             match prev_index {
                 None => start_index = index as i32 - 1,
                 Some(prev_index) => {
+                    // TODO: in cases where no crossings occur, the rule for merge commits can also be applied to normal commits
+                    // see also print::get_deviate_index()
                     if commits[prev_index].is_merge {
                         let mut temp_index = prev_index;
                         for sibling_oid in &commits[index].children {
