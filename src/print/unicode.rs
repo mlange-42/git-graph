@@ -1,30 +1,28 @@
 use crate::graph::GitGraph;
 use crate::print::colors::to_term_color;
-use crate::settings::Settings;
+use crate::settings::{Characters, Settings};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use term_painter::Color::Custom;
 use term_painter::ToStyle;
 
-const SPACE: char = ' ';
+const SPACE: u8 = 0;
+const DOT: u8 = 1;
+const CIRCLE: u8 = 2;
+const VER: u8 = 3;
+const HOR: u8 = 4;
+const CROSS: u8 = 5;
+const R_U: u8 = 6;
+const R_D: u8 = 7;
+const L_D: u8 = 8;
+const L_U: u8 = 9;
+const VER_L: u8 = 10;
+const VER_R: u8 = 11;
+const HOR_U: u8 = 12;
+const HOR_D: u8 = 13;
 
-const VER: char = '│';
-const VER_L: char = '┤';
-const VER_R: char = '├';
-const HOR: char = '─';
-const CROSS: char = '┼';
-const HOR_U: char = '┴';
-const HOR_D: char = '┬';
-const L_U: char = '┘';
-const L_D: char = '┐';
-const R_U: char = '└';
-const R_D: char = '┌';
-
-const DOT: char = '●';
-const CIRCLE: char = '○';
-
-const ARR_L: char = '<';
-const ARR_R: char = '>';
+const ARR_L: u8 = 14;
+const ARR_R: u8 = 15;
 
 const WHITE: u8 = 7;
 
@@ -64,8 +62,11 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
         }
     }
 
-    let mut grid = Grid::new(num_cols, graph.commits.len() + offset, SPACE);
-    let mut colors = Grid::new(num_cols, graph.commits.len() + offset, WHITE);
+    let mut grid = Grid::new(
+        num_cols,
+        graph.commits.len() + offset,
+        [SPACE, WHITE, settings.branches.persistence.len() as u8 + 1],
+    );
 
     let color_unknown = to_term_color(&settings.branches.color_unknown.1)?;
 
@@ -76,8 +77,14 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
         let branch_color = color_list
             .get(branch.visual.color_group)
             .unwrap_or(&color_unknown);
-        grid.set(column, draw_idx, if info.is_merge { CIRCLE } else { DOT });
-        colors.set(column, draw_idx, *branch_color);
+
+        grid.set(
+            column,
+            draw_idx,
+            if info.is_merge { CIRCLE } else { DOT },
+            *branch_color,
+            branch.persistence,
+        );
     }
 
     for (idx, info) in graph.commits.iter().enumerate() {
@@ -98,23 +105,20 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
                     let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
                     let par_column = par_branch.visual.column.unwrap();
 
-                    let color = if info.is_merge {
-                        color_list
-                            .get(par_branch.visual.color_group)
-                            .unwrap_or(&color_unknown)
+                    let (color, pers) = if info.is_merge {
+                        (
+                            color_list
+                                .get(par_branch.visual.color_group)
+                                .unwrap_or(&color_unknown),
+                            par_branch.persistence,
+                        )
                     } else {
-                        branch_color
+                        (branch_color, branch.persistence)
                     };
 
                     if branch.visual.column == par_branch.visual.column {
                         if par_idx_map > idx_map + 1 {
-                            vline(
-                                &mut grid,
-                                &mut colors,
-                                (idx_map, par_idx_map),
-                                column,
-                                *color,
-                            );
+                            vline(&mut grid, (idx_map, par_idx_map), column, *color, pers);
                         }
                     } else {
                         let split_index = super::get_deviate_index(&graph, idx, par_idx);
@@ -128,25 +132,25 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
                                         if *i1 == idx && *i2 == par_idx {
                                             vline(
                                                 &mut grid,
-                                                &mut colors,
                                                 (idx_map, split_idx_map + insert_idx),
                                                 column,
                                                 *color,
+                                                pers,
                                             );
                                             hline(
                                                 &mut grid,
-                                                &mut colors,
                                                 split_idx_map + insert_idx,
                                                 (par_column, column),
                                                 info.is_merge && p > 0,
                                                 *color,
+                                                pers,
                                             );
                                             vline(
                                                 &mut grid,
-                                                &mut colors,
                                                 (split_idx_map + insert_idx, par_idx_map),
                                                 par_column,
                                                 *color,
+                                                pers,
                                             );
                                         }
                                     }
@@ -168,56 +172,50 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
     print_graph(
         &graph,
         &index_map_inv,
+        &settings.characters,
         &color_list,
         color_unknown,
         &grid,
-        &colors,
         settings.colored,
     )
 }
 
-fn vline(
-    grid: &mut Grid<char>,
-    colors: &mut Grid<u8>,
-    (from, to): (usize, usize),
-    column: usize,
-    color: u8,
-) {
+fn vline(grid: &mut Grid, (from, to): (usize, usize), column: usize, color: u8, pers: u8) {
     for i in (from + 1)..to {
-        let curr = grid.get(column * 2, i);
+        let (curr, _, old_pers) = grid.get_tuple(column * 2, i);
+        let (new_col, new_pers) = if pers < old_pers {
+            (Some(color), Some(pers))
+        } else {
+            (None, None)
+        };
         match curr {
             HOR => {
-                grid.set(column * 2, i, CROSS);
-                colors.set(column * 2, i, color);
+                grid.set_opt(column * 2, i, Some(CROSS), new_col, new_pers);
             }
             HOR_U | HOR_D => {
-                grid.set(column * 2, i, CROSS);
-                colors.set(column * 2, i, color);
+                grid.set_opt(column * 2, i, Some(CROSS), new_col, new_pers);
             }
             CROSS | VER | VER_L | VER_R => {}
             L_D | L_U => {
-                grid.set(column * 2, i, VER_L);
-                colors.set(column * 2, i, color);
+                grid.set_opt(column * 2, i, Some(VER_L), new_col, new_pers);
             }
             R_D | R_U => {
-                grid.set(column * 2, i, VER_R);
-                colors.set(column * 2, i, color);
+                grid.set_opt(column * 2, i, Some(VER_R), new_col, new_pers);
             }
             _ => {
-                grid.set(column * 2, i, VER);
-                colors.set(column * 2, i, color);
+                grid.set_opt(column * 2, i, Some(VER), new_col, new_pers);
             }
         }
     }
 }
 
 fn hline(
-    grid: &mut Grid<char>,
-    colors: &mut Grid<u8>,
+    grid: &mut Grid,
     index: usize,
     (from, to): (usize, usize),
     merge: bool,
     color: u8,
+    pers: u8,
 ) {
     if from == to {
         return;
@@ -227,79 +225,111 @@ fn hline(
     if from < to {
         for column in (from_2 + 1)..to_2 {
             if merge && column == to_2 - 1 {
-                grid.set(column, index, ARR_R);
-                colors.set(column, index, color);
+                grid.set(column, index, ARR_R, color, pers);
             } else {
-                let curr = grid.get(column, index);
+                let (curr, _, old_pers) = grid.get_tuple(column, index);
+                let (new_col, new_pers) = if pers < old_pers {
+                    (Some(color), Some(pers))
+                } else {
+                    (None, None)
+                };
                 match curr {
-                    VER => grid.set(column, index, CROSS),
-                    HOR | CROSS | HOR_U | HOR_D => {}
-                    L_U | R_U => grid.set(column, index, HOR_U),
-                    L_D | R_D => grid.set(column, index, HOR_D),
+                    VER => grid.set_opt(column, index, Some(CROSS), None, None),
+                    HOR | CROSS | HOR_U | HOR_D => {
+                        grid.set_opt(column, index, None, new_col, new_pers)
+                    }
+                    L_U | R_U => grid.set_opt(column, index, Some(HOR_U), new_col, new_pers),
+                    L_D | R_D => grid.set_opt(column, index, Some(HOR_D), new_col, new_pers),
                     _ => {
-                        grid.set(column, index, HOR);
-                        colors.set(column, index, color);
+                        grid.set_opt(column, index, Some(HOR), new_col, new_pers);
                     }
                 }
             }
         }
-        let left = grid.get(from_2, index);
+
+        let (left, _, old_pers) = grid.get_tuple(from_2, index);
+        let (new_col, new_pers) = if pers < old_pers {
+            (Some(color), Some(pers))
+        } else {
+            (None, None)
+        };
         match left {
-            VER => grid.set(from_2, index, VER_R),
+            VER => grid.set_opt(from_2, index, Some(VER_R), None, None),
             VER_R => {}
-            HOR | L_U => grid.set(from_2, index, HOR_U),
+            HOR | L_U => grid.set_opt(from_2, index, Some(HOR_U), new_col, new_pers),
             _ => {
-                grid.set(from_2, index, R_D);
-                colors.set(from_2, index, color);
+                grid.set_opt(from_2, index, Some(R_D), new_col, new_pers);
             }
         }
-        let right = grid.get(to_2, index);
+
+        let (right, _, old_pers) = grid.get_tuple(to_2, index);
+        let (new_col, new_pers) = if pers < old_pers {
+            (Some(color), Some(pers))
+        } else {
+            (None, None)
+        };
         match right {
-            VER => grid.set(to_2, index, VER_L),
-            VER_L | HOR_U | CIRCLE | DOT => {}
-            HOR | R_U => grid.set(to_2, index, HOR_U),
+            VER => grid.set_opt(to_2, index, Some(VER_L), None, None),
+            CIRCLE | DOT => {}
+            VER_L | HOR_U => grid.set_opt(to_2, index, None, new_col, new_pers),
+            HOR | R_U => grid.set_opt(to_2, index, Some(HOR_U), new_col, new_pers),
             _ => {
-                grid.set(to_2, index, L_U);
-                colors.set(to_2, index, color);
+                grid.set_opt(to_2, index, Some(L_U), new_col, new_pers);
             }
         }
     } else {
         for column in (to_2 + 1)..from_2 {
             if merge && column == to_2 + 1 {
-                grid.set(column, index, ARR_L);
-                colors.set(column, index, color);
+                grid.set(column, index, ARR_L, color, pers);
             } else {
-                let curr = grid.get(column, index);
+                let (curr, _, old_pers) = grid.get_tuple(column, index);
+                let (new_col, new_pers) = if pers < old_pers {
+                    (Some(color), Some(pers))
+                } else {
+                    (None, None)
+                };
                 match curr {
-                    VER => grid.set(column, index, CROSS),
-                    HOR | CROSS | HOR_U | HOR_D => {}
-                    L_U | R_U => grid.set(column, index, HOR_U),
-                    L_D | R_D => grid.set(column, index, HOR_D),
+                    VER => grid.set_opt(column, index, Some(CROSS), None, None),
+                    HOR | CROSS | HOR_U | HOR_D => {
+                        grid.set_opt(column, index, None, new_col, new_pers)
+                    }
+                    L_U | R_U => grid.set_opt(column, index, Some(HOR_U), new_col, new_pers),
+                    L_D | R_D => grid.set_opt(column, index, Some(HOR_D), new_col, new_pers),
                     _ => {
-                        grid.set(column, index, HOR);
-                        colors.set(column, index, color);
+                        grid.set_opt(column, index, Some(HOR), new_col, new_pers);
                     }
                 }
             }
         }
-        let left = grid.get(to_2, index);
+
+        let (left, _, old_pers) = grid.get_tuple(to_2, index);
+        let (new_col, new_pers) = if pers < old_pers {
+            (Some(color), Some(pers))
+        } else {
+            (None, None)
+        };
         match left {
-            VER => grid.set(to_2, index, VER_R),
-            VER_R | CIRCLE | DOT => {}
-            HOR | L_U => grid.set(to_2, index, HOR_U),
+            VER => grid.set_opt(to_2, index, Some(VER_R), None, None),
+            CIRCLE | DOT => {}
+            VER_R => grid.set_opt(to_2, index, None, new_col, new_pers),
+            HOR | L_U => grid.set_opt(to_2, index, Some(HOR_U), new_col, new_pers),
             _ => {
-                grid.set(to_2, index, R_U);
-                colors.set(to_2, index, color);
+                grid.set_opt(to_2, index, Some(R_U), new_col, new_pers);
             }
         }
-        let right = grid.get(from_2, index);
+
+        let (right, _, old_pers) = grid.get_tuple(from_2, index);
+        let (new_col, new_pers) = if pers < old_pers {
+            (Some(color), Some(pers))
+        } else {
+            (None, None)
+        };
         match right {
-            VER => grid.set(from_2, index, VER_L),
-            VER_L => {}
-            HOR | R_D => grid.set(from_2, index, HOR_D),
+            VER => grid.set_opt(from_2, index, Some(VER_L), None, None),
+            VER_L => grid.set_opt(from_2, index, None, new_col, new_pers),
+            HOR | R_D => grid.set_opt(from_2, index, Some(HOR_D), new_col, new_pers),
             _ => {
-                grid.set(from_2, index, L_D);
-                colors.set(from_2, index, color);
+                grid.set_opt(from_2, index, Some(L_D), new_col, new_pers);
             }
         }
     }
@@ -401,24 +431,21 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
 fn print_graph(
     graph: &GitGraph,
     line_to_index: &HashMap<usize, usize>,
+    characters: &Characters,
     colors: &[u8],
     color_unknown: u8,
-    grid: &Grid<char>,
-    color_grid: &Grid<u8>,
+    grid: &Grid,
     color: bool,
 ) -> Result<(), String> {
     if color {
-        let rows = grid.data.chunks(grid.width);
-        let col_rows = color_grid.data.chunks(grid.width);
-
-        for (line_idx, (row, cols)) in rows.zip(col_rows).enumerate() {
+        for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
             let index = line_to_index.get(&line_idx);
             print_pre(&graph, index);
-            for (&c, col) in row.iter().zip(cols) {
-                if c == SPACE {
-                    print!(" ");
+            for arr in row {
+                if arr[0] == SPACE {
+                    print!("{}", characters.chars[arr[0] as usize]);
                 } else {
-                    print_colored_char(c, *col);
+                    print_colored_char(characters.chars[arr[0] as usize], arr[1]);
                 }
             }
             print_post(&graph, colors, color_unknown, index, color)?;
@@ -428,7 +455,10 @@ fn print_graph(
         for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
             let index = line_to_index.get(&line_idx);
             print_pre(&graph, index);
-            let str = row.iter().collect::<String>();
+            let str = row
+                .iter()
+                .map(|arr| characters.chars[arr[0] as usize])
+                .collect::<String>();
             print!("{}", str);
             print_post(&graph, colors, color_unknown, index, color)?;
             println!();
@@ -515,13 +545,13 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     }
 }
 
-pub struct Grid<T> {
+pub struct Grid {
     width: usize,
-    data: Vec<T>,
+    data: Vec<[u8; 3]>,
 }
 
-impl<T: Copy> Grid<T> {
-    pub fn new(width: usize, height: usize, initial: T) -> Self {
+impl Grid {
+    pub fn new(width: usize, height: usize, initial: [u8; 3]) -> Self {
         Grid {
             width,
             data: vec![initial; width * height],
@@ -530,11 +560,45 @@ impl<T: Copy> Grid<T> {
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }
-    pub fn get(&self, x: usize, y: usize) -> T {
-        self.data[self.index(x, y)]
+    pub fn get(&self, x: usize, y: usize) -> &[u8; 3] {
+        &self.data[self.index(x, y)]
     }
-    pub fn set(&mut self, x: usize, y: usize, value: T) {
+    pub fn get_tuple(&self, x: usize, y: usize) -> (u8, u8, u8) {
+        let v = self.data[self.index(x, y)];
+        (v[0], v[1], v[2])
+    }
+    pub fn get_char(&self, x: usize, y: usize) -> u8 {
+        self.data[self.index(x, y)][0]
+    }
+    pub fn get_col(&self, x: usize, y: usize) -> u8 {
+        self.data[self.index(x, y)][1]
+    }
+    pub fn get_pers(&self, x: usize, y: usize) -> u8 {
+        self.data[self.index(x, y)][1]
+    }
+
+    pub fn set(&mut self, x: usize, y: usize, character: u8, color: u8, pers: u8) {
         let idx = self.index(x, y);
-        self.data[idx] = value;
+        self.data[idx] = [character, color, pers];
+    }
+    pub fn set_opt(
+        &mut self,
+        x: usize,
+        y: usize,
+        character: Option<u8>,
+        color: Option<u8>,
+        pers: Option<u8>,
+    ) {
+        let idx = self.index(x, y);
+        let arr = &mut self.data[idx];
+        if let Some(character) = character {
+            arr[0] = character;
+        }
+        if let Some(color) = color {
+            arr[1] = color;
+        }
+        if let Some(pers) = pers {
+            arr[2] = pers;
+        }
     }
 }

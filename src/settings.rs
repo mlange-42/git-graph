@@ -28,6 +28,8 @@ pub struct Settings {
     pub colored: bool,
     /// Include remote branches?
     pub include_remote: bool,
+    /// Characters to use for text-based graph
+    pub characters: Characters,
     /// Branch column sorting algorithm
     pub branch_order: BranchOrder,
     /// Settings for branches
@@ -120,6 +122,18 @@ impl Default for MergePatterns {
                 // BitBucket pull request
                 Regex::new(r"^Merged in (.+) \(pull request #[0-9]+\)$").unwrap(),
             ],
+        }
+    }
+}
+
+pub struct Characters {
+    pub chars: Vec<char>,
+}
+
+impl Characters {
+    pub fn thin() -> Self {
+        Characters {
+            chars: " ●○│─┼└┌┐┘┤├┴┬<>".chars().collect(),
         }
     }
 }

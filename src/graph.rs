@@ -138,6 +138,7 @@ impl CommitInfo {
 pub struct BranchInfo {
     pub target: Oid,
     pub name: String,
+    pub persistence: u8,
     pub is_remote: bool,
     pub is_merged: bool,
     pub visual: BranchVis,
@@ -148,6 +149,7 @@ impl BranchInfo {
     fn new(
         target: Oid,
         name: String,
+        persistence: u8,
         is_remote: bool,
         is_merged: bool,
         visual: BranchVis,
@@ -157,6 +159,7 @@ impl BranchInfo {
         BranchInfo {
             target,
             name,
+            persistence,
             is_remote,
             is_merged,
             visual,
@@ -270,6 +273,7 @@ fn extract_branches(
                     BranchInfo::new(
                         t,
                         name.to_string(),
+                        branch_order(name, &settings.branches.persistence) as u8,
                         &BranchType::Remote == tp,
                         false,
                         BranchVis::new(
@@ -292,6 +296,7 @@ fn extract_branches(
 
                 let branch_name = text::parse_merge_summary(summary, &settings.merge_patterns)
                     .unwrap_or_else(|| "unknown".to_string());
+                let persistence = branch_order(&branch_name, &settings.branches.persistence) as u8;
 
                 let pos = branch_order(&branch_name, &settings.branches.order);
                 let col = branch_color(&branch_name, &settings.branches.color);
@@ -299,6 +304,7 @@ fn extract_branches(
                 let branch_info = BranchInfo::new(
                     parent_oid,
                     branch_name,
+                    persistence,
                     false,
                     true,
                     BranchVis::new(pos, col),
@@ -310,12 +316,7 @@ fn extract_branches(
         }
     }
 
-    valid_branches.sort_by_cached_key(|branch| {
-        (
-            branch_order(&branch.name, &settings.branches.persistence),
-            !branch.is_merged,
-        )
-    });
+    valid_branches.sort_by_cached_key(|branch| (branch.persistence, !branch.is_merged));
 
     Ok(valid_branches)
 }

@@ -3,7 +3,7 @@ use git2::Error;
 use git_graph::graph::{CommitInfo, GitGraph};
 use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
-use git_graph::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};
+use git_graph::settings::{BranchOrder, BranchSettings, Characters, MergePatterns, Settings};
 use std::time::Instant;
 
 fn main() {
@@ -56,6 +56,7 @@ fn main() {
         colored,
         compact,
         include_remote: true,
+        characters: Characters::thin(),
         branch_order: BranchOrder::ShortestFirst(true),
         branches: BranchSettings::git_flow(),
         merge_patterns: MergePatterns::default(),
