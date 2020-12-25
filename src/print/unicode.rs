@@ -170,12 +170,12 @@ fn vline(grid: &mut Grid, (from, to): (usize, usize), column: usize, color: u8, 
         };
         match curr {
             HOR => {
-                grid.set_opt(column * 2, i, Some(CROSS), new_col, new_pers);
+                grid.set_opt(column * 2, i, Some(CROSS), Some(color), Some(pers));
             }
             HOR_U | HOR_D => {
-                grid.set_opt(column * 2, i, Some(CROSS), new_col, new_pers);
+                grid.set_opt(column * 2, i, Some(CROSS), Some(color), Some(pers));
             }
-            CROSS | VER | VER_L | VER_R => {}
+            CROSS | VER | VER_L | VER_R => grid.set_opt(column * 2, i, None, new_col, new_pers),
             L_D | L_U => {
                 grid.set_opt(column * 2, i, Some(VER_L), new_col, new_pers);
             }
