@@ -51,9 +51,17 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("model")
                 .long("model")
                 .short("m")
-                .help("Branching model. Available presets are [simple|git-flow|none]. Default: git-flow. Permanently set the model for a repository with `git-graph model <model>`")
+                .help("Branching model. Available presets are [simple|git-flow|none]. Default: git-flow. Permanently set the model for a repository with `git-graph model <model>`.")
                 .required(false)
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("local")
+                .long("local")
+                .short("l")
+                .help("Show only local branches, no remotes.")
+                .required(false)
+                .takes_value(false),
         )
         .arg(
             Arg::with_name("svg")
@@ -133,6 +141,9 @@ fn from_args() -> Result<(), String> {
             }
         },
     };
+
+    let include_remote = !matches.is_present("local");
+
     let svg = matches.is_present("svg");
     let colored = !matches.is_present("no-color");
     let compact = !matches.is_present("sparse");
@@ -146,7 +157,7 @@ fn from_args() -> Result<(), String> {
         debug,
         colored,
         compact,
-        include_remote: true,
+        include_remote,
         characters: style,
         branch_order: BranchOrder::ShortestFirst(true),
         branches: BranchSettings::from(model).map_err(|err| err.to_string())?,
