@@ -3,7 +3,11 @@ use git2::Error;
 use git_graph::graph::{CommitInfo, GitGraph};
 use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
-use git_graph::settings::{BranchOrder, BranchSettings, Characters, MergePatterns, Settings};
+use git_graph::settings::{
+    BranchOrder, BranchSettings, BranchSettingsDef, Characters, MergePatterns, Settings,
+};
+use platform_dirs::AppDirs;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Instant;
 
@@ -18,6 +22,8 @@ fn main() {
 }
 
 fn from_args() -> Result<(), String> {
+    create_config()?;
+
     let app = App::new("git-graph")
         .version(crate_version!())
         .about(
@@ -111,11 +117,36 @@ fn from_args() -> Result<(), String> {
         include_remote: true,
         characters: style,
         branch_order: BranchOrder::ShortestFirst(true),
-        branches: BranchSettings::git_flow(),
+        branches: BranchSettings::from(BranchSettingsDef::git_flow())
+            .map_err(|err| err.to_string())?,
         merge_patterns: MergePatterns::default(),
     };
 
     run(&settings, svg, all, commit_limit)
+}
+
+fn create_config() -> Result<(), String> {
+    let app_dir = AppDirs::new(Some("git-graph"), false).unwrap().config_dir;
+    let mut models_dir = app_dir;
+    models_dir.push("models");
+
+    if !models_dir.exists() {
+        std::fs::create_dir_all(&models_dir).map_err(|err| err.to_string())?;
+
+        let models = [
+            (BranchSettingsDef::git_flow(), "git-flow.toml"),
+            (BranchSettingsDef::simple(), "simple.toml"),
+            (BranchSettingsDef::none(), "none.toml"),
+        ];
+        for (model, file) in &models {
+            let mut path = PathBuf::from(&models_dir);
+            path.push(file);
+            let str = toml::to_string_pretty(&model).map_err(|err| err.to_string())?;
+            std::fs::write(&path, str).map_err(|err| err.to_string())?;
+        }
+    }
+
+    Ok(())
 }
 
 fn run(
