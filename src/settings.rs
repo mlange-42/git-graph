@@ -2,6 +2,12 @@ use regex::{Error, Regex};
 use serde_derive::{Deserialize, Serialize};
 use std::str::FromStr;
 
+#[derive(Serialize, Deserialize)]
+pub struct RepoSettings {
+    /// The repository's branching model
+    pub model: String,
+}
+
 /// Ordering policy for branches in visual columns.
 pub enum BranchOrder {
     /// Recommended! Shortest branches are inserted left-most.

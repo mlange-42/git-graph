@@ -1,10 +1,11 @@
-use clap::{crate_version, App, Arg};
-use git2::Error;
+use clap::{crate_version, App, Arg, SubCommand};
+use git2::{Error, Repository};
 use git_graph::graph::{CommitInfo, GitGraph};
 use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
 use git_graph::settings::{
-    BranchOrder, BranchSettings, BranchSettingsDef, Characters, MergePatterns, Settings,
+    BranchOrder, BranchSettings, BranchSettingsDef, Characters, MergePatterns, RepoSettings,
+    Settings,
 };
 use platform_dirs::AppDirs;
 use std::path::PathBuf;
@@ -47,6 +48,14 @@ fn from_args() -> Result<(), String> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("model")
+                .long("model")
+                .short("m")
+                .help("Branching model. Available presets are [simple|git-flow|none]. Default: git-flow. Permanently set the model for a repository with `git-graph model <model>`")
+                .required(false)
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("svg")
                 .long("svg")
                 .help("Render graph as SVG instead of text-based.")
@@ -72,7 +81,7 @@ fn from_args() -> Result<(), String> {
         .arg(
             Arg::with_name("no-color")
                 .long("no-color").alias("mono")
-                .short("m")
+                .short("M")
                 .help("Print without colors.")
                 .required(false)
                 .takes_value(false),
@@ -81,12 +90,35 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("style")
                 .long("style")
                 .short("s")
-                .help("Output style. One of [normal|thin|round|bold|double|ascii]")
+                .help("Output style. One of [normal|thin|round|bold|double|ascii].")
                 .required(false)
                 .takes_value(true),
-        );
+        ).subcommand(SubCommand::with_name("model")
+        .about("Prints or permanently sets the branching model for a repository.")
+        .arg(Arg::with_name("model")
+            .help("The branching model to be used. Available presets are [simple|git-flow|none]. When not given, prints the currently set model.")
+            .value_name("model")
+            .takes_value(true)
+            .required(false)
+            .index(1)));
 
     let matches = app.clone().get_matches();
+
+    if let Some(matches) = matches.subcommand_matches("model") {
+        match matches.value_of("model") {
+            None => {
+                let curr_model = get_model_name()?;
+                match curr_model {
+                    None => println!("No branching model set"),
+                    Some(model) => println!("{}", model),
+                }
+            }
+            Some(model) => set_model(model)?,
+        };
+        return Ok(());
+    }
+
+    let model = get_model(matches.value_of("model"))?;
 
     let all = matches.is_present("all");
     let commit_limit = match matches.value_of("max-count") {
@@ -117,12 +149,86 @@ fn from_args() -> Result<(), String> {
         include_remote: true,
         characters: style,
         branch_order: BranchOrder::ShortestFirst(true),
-        branches: BranchSettings::from(BranchSettingsDef::git_flow())
-            .map_err(|err| err.to_string())?,
+        branches: BranchSettings::from(model).map_err(|err| err.to_string())?,
         merge_patterns: MergePatterns::default(),
     };
 
     run(&settings, svg, all, commit_limit)
+}
+
+fn get_model_name() -> Result<Option<String>, String> {
+    let path = ".";
+    let repository = Repository::open(path).map_err(|err| err.to_string())?;
+
+    let mut config_path = PathBuf::from(repository.path());
+    config_path.push("git-graph.toml");
+
+    if config_path.exists() {
+        let repo_config: RepoSettings =
+            toml::from_str(&std::fs::read_to_string(config_path).map_err(|err| err.to_string())?)
+                .map_err(|err| err.to_string())?;
+
+        Ok(Some(repo_config.model))
+    } else {
+        Ok(None)
+    }
+}
+
+fn get_model(model: Option<&str>) -> Result<BranchSettingsDef, String> {
+    match model {
+        Some(model) => read_model(model),
+        None => {
+            let path = ".";
+            let repository = Repository::open(path).map_err(|err| err.to_string())?;
+
+            let mut config_path = PathBuf::from(repository.path());
+            config_path.push("git-graph.toml");
+
+            if config_path.exists() {
+                let repo_config: RepoSettings = toml::from_str(
+                    &std::fs::read_to_string(config_path).map_err(|err| err.to_string())?,
+                )
+                .map_err(|err| err.to_string())?;
+
+                read_model(&repo_config.model)
+            } else {
+                Ok(BranchSettingsDef::git_flow())
+            }
+        }
+    }
+}
+
+fn read_model(model: &str) -> Result<BranchSettingsDef, String> {
+    let app_dir = AppDirs::new(Some("git-graph"), false).unwrap().config_dir;
+    let mut models_file = app_dir;
+    models_file.push("models");
+    models_file.push(format!("{}.toml", model));
+
+    if models_file.exists() {
+        toml::from_str::<BranchSettingsDef>(
+            &std::fs::read_to_string(models_file).map_err(|err| err.to_string())?,
+        )
+        .map_err(|err| err.to_string())
+    } else {
+        Err(format!("Can't find branching model {}", model))
+    }
+}
+
+fn set_model(model: &str) -> Result<(), String> {
+    let path = ".";
+    let repository = Repository::open(path).map_err(|err| err.to_string())?;
+
+    let mut config_path = PathBuf::from(repository.path());
+    config_path.push("git-graph.toml");
+
+    let config = RepoSettings {
+        model: model.to_string(),
+    };
+
+    let str = toml::to_string_pretty(&config).map_err(|err| err.to_string())?;
+    std::fs::write(&config_path, str).map_err(|err| err.to_string())?;
+
+    Ok(())
 }
 
 fn create_config() -> Result<(), String> {
