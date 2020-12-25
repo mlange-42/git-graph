@@ -45,13 +45,13 @@ pub struct BranchSettings {
     /// Branch ordering
     pub order: Vec<String>,
     /// Branch colors
-    pub terminal_colors: Vec<(String, String)>,
+    pub terminal_colors: Vec<(String, Vec<String>)>,
     /// Colors for branches not matching any of `colors`
-    pub terminal_colors_unknown: String,
+    pub terminal_colors_unknown: Vec<String>,
     /// Branch colors for SVG output
-    pub svg_colors: Vec<(String, String)>,
+    pub svg_colors: Vec<(String, Vec<String>)>,
     /// Colors for branches not matching any of `colors` for SVG output
-    pub svg_colors_unknown: String,
+    pub svg_colors_unknown: Vec<String>,
 }
 
 impl BranchSettings {
@@ -76,28 +76,64 @@ impl BranchSettings {
                 "dev".to_string(),
             ],
             terminal_colors: vec![
-                ("master".to_string(), "blue".to_string()),
-                ("main".to_string(), "blue".to_string()),
-                ("develop".to_string(), "yellow".to_string()),
-                ("dev".to_string(), "yellow".to_string()),
-                ("feature".to_string(), "magenta".to_string()),
-                ("release".to_string(), "green".to_string()),
-                ("hotfix".to_string(), "red".to_string()),
-                ("bugfix".to_string(), "red".to_string()),
+                ("master".to_string(), vec!["blue".to_string()]),
+                ("main".to_string(), vec!["blue".to_string()]),
+                ("develop".to_string(), vec!["yellow".to_string()]),
+                ("dev".to_string(), vec!["yellow".to_string()]),
+                (
+                    "feature".to_string(),
+                    vec!["magenta".to_string(), "cyan".to_string()],
+                ),
+                ("release".to_string(), vec!["green".to_string()]),
+                ("hotfix".to_string(), vec!["red".to_string()]),
+                ("bugfix".to_string(), vec!["red".to_string()]),
             ],
-            terminal_colors_unknown: "white".to_string(),
+            terminal_colors_unknown: vec!["white".to_string()],
 
             svg_colors: vec![
-                ("master".to_string(), "blue".to_string()),
-                ("main".to_string(), "blue".to_string()),
-                ("develop".to_string(), "orange".to_string()),
-                ("dev".to_string(), "orange".to_string()),
-                ("feature".to_string(), "purple".to_string()),
-                ("release".to_string(), "green".to_string()),
-                ("hotfix".to_string(), "red".to_string()),
-                ("bugfix".to_string(), "red".to_string()),
+                ("master".to_string(), vec!["blue".to_string()]),
+                ("main".to_string(), vec!["blue".to_string()]),
+                ("develop".to_string(), vec!["orange".to_string()]),
+                ("dev".to_string(), vec!["orange".to_string()]),
+                (
+                    "feature".to_string(),
+                    vec!["purple".to_string(), "turquoise".to_string()],
+                ),
+                ("release".to_string(), vec!["green".to_string()]),
+                ("hotfix".to_string(), vec!["red".to_string()]),
+                ("bugfix".to_string(), vec!["red".to_string()]),
             ],
-            svg_colors_unknown: "gray".to_string(),
+            svg_colors_unknown: vec!["gray".to_string()],
+        }
+    }
+
+    pub fn simple() -> Self {
+        BranchSettings {
+            persistence: vec!["master".to_string(), "main".to_string()],
+            order: vec!["master".to_string(), "main".to_string()],
+            terminal_colors: vec![
+                ("master".to_string(), vec!["blue".to_string()]),
+                ("main".to_string(), vec!["blue".to_string()]),
+            ],
+            terminal_colors_unknown: vec![
+                "yellow".to_string(),
+                "green".to_string(),
+                "red".to_string(),
+                "magenta".to_string(),
+                "cyan".to_string(),
+            ],
+
+            svg_colors: vec![
+                ("master".to_string(), vec!["blue".to_string()]),
+                ("main".to_string(), vec!["blue".to_string()]),
+            ],
+            svg_colors_unknown: vec![
+                "orange".to_string(),
+                "green".to_string(),
+                "red".to_string(),
+                "purple".to_string(),
+                "turquoise".to_string(),
+            ],
         }
     }
 }

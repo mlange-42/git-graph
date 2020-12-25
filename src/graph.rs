@@ -287,11 +287,15 @@ fn extract_branches(
         .collect::<Result<Vec<_>, Error>>()
         .map_err(|err| err.to_string())?;
 
+    let mut counter = 0;
+
     let mut valid_branches = actual_branches
         .iter()
         .filter_map(|(br, tp)| {
             br.get().name().and_then(|n| {
                 br.get().target().map(|t| {
+                    counter += 1;
+
                     let start_index = match tp {
                         BranchType::Local => 11,
                         BranchType::Remote => 13,
@@ -299,7 +303,7 @@ fn extract_branches(
                     let name = &n[start_index..];
                     let end_index = indices.get(&t).cloned();
 
-                    let term_color = match term_branch_color(name, &settings.branches) {
+                    let term_color = match term_branch_color(name, &settings.branches, counter) {
                         Ok(col) => col,
                         Err(err) => return Err(err),
                     };
@@ -314,7 +318,7 @@ fn extract_branches(
                         BranchVis::new(
                             branch_order(name, &settings.branches.order),
                             term_color,
-                            svg_branch_color(name, &settings.branches),
+                            svg_branch_color(name, &settings.branches, counter),
                         ),
                         false,
                         end_index,
@@ -330,6 +334,8 @@ fn extract_branches(
             .map_err(|err| err.to_string())?;
         if info.is_merge {
             if let Some(summary) = commit.summary() {
+                counter += 1;
+
                 let parent_oid = commit.parent_id(1).map_err(|err| err.to_string())?;
 
                 let branch_name = text::parse_merge_summary(summary, &settings.merge_patterns)
@@ -337,8 +343,8 @@ fn extract_branches(
                 let persistence = branch_order(&branch_name, &settings.branches.persistence) as u8;
 
                 let pos = branch_order(&branch_name, &settings.branches.order);
-                let term_col = term_branch_color(&branch_name, &settings.branches)?;
-                let svg_col = svg_branch_color(&branch_name, &settings.branches);
+                let term_col = term_branch_color(&branch_name, &settings.branches, counter)?;
+                let svg_col = svg_branch_color(&branch_name, &settings.branches, counter);
 
                 let branch_info = BranchInfo::new(
                     parent_oid,
@@ -645,26 +651,29 @@ fn branch_order(name: &str, order: &[String]) -> usize {
 }
 
 /// Finds the svg color for a branch name.
-fn svg_branch_color(name: &str, settings: &BranchSettings) -> String {
-    settings
+fn svg_branch_color(name: &str, settings: &BranchSettings, counter: usize) -> String {
+    let colors = settings
         .svg_colors
         .iter()
         .find_position(|(b, _)| {
             name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
         })
-        .map(|(_pos, col)| col.1.to_owned())
-        .unwrap_or_else(|| settings.svg_colors_unknown.to_owned())
+        .map(|(_pos, col)| &col.1)
+        .unwrap_or_else(|| &settings.svg_colors_unknown);
+    let idx = counter % colors.len();
+    colors[idx].to_owned()
 }
 
 /// Finds the terminal color for a branch name.
-fn term_branch_color(name: &str, settings: &BranchSettings) -> Result<u8, String> {
-    let col_name = settings
+fn term_branch_color(name: &str, settings: &BranchSettings, counter: usize) -> Result<u8, String> {
+    let col_names = settings
         .terminal_colors
         .iter()
         .find_position(|(b, _)| {
             name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
         })
-        .map(|(_pos, col)| col.1.to_owned())
-        .unwrap_or_else(|| settings.terminal_colors_unknown.to_owned());
-    to_terminal_color(&col_name)
+        .map(|(_pos, col)| &col.1)
+        .unwrap_or_else(|| &settings.terminal_colors_unknown);
+    let idx = counter % col_names.len();
+    to_terminal_color(&col_names[idx])
 }
