@@ -127,10 +127,8 @@ fn run(
     let path = ".";
 
     let now = Instant::now();
-    let graph = match GitGraph::new(path, settings, all, max_commits) {
-        Ok(graph) => graph,
-        Err(err) => return Err(err.to_string()),
-    };
+    let graph = GitGraph::new(path, settings, all, max_commits)?;
+
     let duration_graph = now.elapsed().as_micros();
 
     if settings.debug {

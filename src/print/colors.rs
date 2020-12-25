@@ -9,15 +9,8 @@ macro_rules! hashmap {
     }}
 }
 
-pub fn to_term_color(color: &str) -> Result<u8, String> {
-    match NAMED_COLORS.get(color) {
-        None => Err(format!("Color {} not found", color)),
-        Some(rgb) => Ok(*rgb),
-    }
-}
-
 lazy_static! {
-    static ref NAMED_COLORS: HashMap<&'static str, u8> = hashmap![
+    pub static ref NAMED_COLORS: HashMap<&'static str, u8> = hashmap![
         "black" => 0,
         "red" => 1,
         "green" => 2,

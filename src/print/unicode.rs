@@ -1,5 +1,4 @@
 use crate::graph::GitGraph;
-use crate::print::colors::to_term_color;
 use crate::settings::{Characters, Settings};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
@@ -35,13 +34,6 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
         .unwrap()
         + 1;
 
-    let color_list = settings
-        .branches
-        .color
-        .iter()
-        .map(|(_, _, color)| to_term_color(color))
-        .collect::<Result<Vec<u8>, String>>()?;
-
     let inserts = get_inserts(graph, settings.compact);
 
     let mut index_map = vec![];
@@ -68,21 +60,17 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
         [SPACE, WHITE, settings.branches.persistence.len() as u8 + 1],
     );
 
-    let color_unknown = to_term_color(&settings.branches.color_unknown.1)?;
-
     for (idx, info) in graph.commits.iter().enumerate() {
         let branch = &graph.branches[info.branch_trace.unwrap()];
         let column = branch.visual.column.unwrap() * 2;
         let draw_idx = index_map[idx];
-        let branch_color = color_list
-            .get(branch.visual.color_group)
-            .unwrap_or(&color_unknown);
+        let branch_color = branch.visual.term_color;
 
         grid.set(
             column,
             draw_idx,
             if info.is_merge { CIRCLE } else { DOT },
-            *branch_color,
+            branch_color,
             branch.persistence,
         );
     }
@@ -93,9 +81,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
             let column = branch.visual.column.unwrap();
             let idx_map = index_map[idx];
 
-            let branch_color = color_list
-                .get(branch.visual.color_group)
-                .unwrap_or(&color_unknown);
+            let branch_color = branch.visual.term_color;
 
             for p in 0..2 {
                 if let Some(par_oid) = info.parents[p] {
@@ -106,19 +92,14 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
                         let par_column = par_branch.visual.column.unwrap();
 
                         let (color, pers) = if info.is_merge {
-                            (
-                                color_list
-                                    .get(par_branch.visual.color_group)
-                                    .unwrap_or(&color_unknown),
-                                par_branch.persistence,
-                            )
+                            (par_branch.visual.term_color, par_branch.persistence)
                         } else {
                             (branch_color, branch.persistence)
                         };
 
                         if branch.visual.column == par_branch.visual.column {
                             if par_idx_map > idx_map + 1 {
-                                vline(&mut grid, (idx_map, par_idx_map), column, *color, pers);
+                                vline(&mut grid, (idx_map, par_idx_map), column, color, pers);
                             }
                         } else {
                             let split_index = super::get_deviate_index(&graph, idx, *par_idx);
@@ -134,7 +115,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
                                                     &mut grid,
                                                     (idx_map, split_idx_map + insert_idx),
                                                     column,
-                                                    *color,
+                                                    color,
                                                     pers,
                                                 );
                                                 hline(
@@ -142,14 +123,14 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
                                                     split_idx_map + insert_idx,
                                                     (par_column, column),
                                                     info.is_merge && p > 0,
-                                                    *color,
+                                                    color,
                                                     pers,
                                                 );
                                                 vline(
                                                     &mut grid,
                                                     (split_idx_map + insert_idx, par_idx_map),
                                                     par_column,
-                                                    *color,
+                                                    color,
                                                     pers,
                                                 );
                                             }
@@ -174,8 +155,6 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
         &graph,
         &index_map_inv,
         &settings.characters,
-        &color_list,
-        color_unknown,
         &grid,
         settings.colored,
     )
@@ -437,8 +416,6 @@ fn print_graph(
     graph: &GitGraph,
     line_to_index: &HashMap<usize, usize>,
     characters: &Characters,
-    colors: &[u8],
-    color_unknown: u8,
     grid: &Grid,
     color: bool,
 ) -> Result<(), String> {
@@ -453,7 +430,7 @@ fn print_graph(
                     print_colored_char(characters.chars[arr[0] as usize], arr[1]);
                 }
             }
-            print_post(&graph, colors, color_unknown, index, color)?;
+            print_post(&graph, index, color)?;
             println!();
         }
     } else {
@@ -465,7 +442,7 @@ fn print_graph(
                 .map(|arr| characters.chars[arr[0] as usize])
                 .collect::<String>();
             print!("{}", str);
-            print_post(&graph, colors, color_unknown, index, color)?;
+            print_post(&graph, index, color)?;
             println!();
         }
     }
@@ -481,13 +458,7 @@ fn print_pre(graph: &GitGraph, index: Option<&usize>) {
     }
 }
 
-fn print_post(
-    graph: &GitGraph,
-    colors: &[u8],
-    color_unknown: u8,
-    index: Option<&usize>,
-    color: bool,
-) -> Result<(), String> {
+fn print_post(graph: &GitGraph, index: Option<&usize>, color: bool) -> Result<(), String> {
     if let Some(index) = index {
         let info = &graph.commits[*index];
         let commit = match graph.repository.find_commit(info.oid) {
@@ -499,11 +470,9 @@ fn print_post(
             print!("(");
             for (idx, branch_index) in info.branches.iter().enumerate() {
                 let branch = &graph.branches[*branch_index];
-                let branch_color = colors
-                    .get(branch.visual.color_group)
-                    .unwrap_or(&color_unknown);
+                let branch_color = branch.visual.term_color;
                 if color {
-                    print_colored_str(&branch.name, *branch_color);
+                    print_colored_str(&branch.name, branch_color);
                 } else {
                     print!("{}", &branch.name);
                 }

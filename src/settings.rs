@@ -41,63 +41,113 @@ pub struct Settings {
 
 pub struct BranchSettings {
     /// Branch persistence
-    pub persistence: Vec<String>,
+    pub persistence: Vec<Regex>,
     /// Branch ordering
-    pub order: Vec<String>,
+    pub order: Vec<Regex>,
     /// Branch colors
-    pub color: Vec<(String, String, String)>,
-    /// Color for branches not matching any of `colors`
-    pub color_unknown: (String, String),
+    pub terminal_colors: Vec<(Regex, Vec<String>)>,
+    /// Colors for branches not matching any of `colors`
+    pub terminal_colors_unknown: Vec<String>,
+    /// Branch colors for SVG output
+    pub svg_colors: Vec<(Regex, Vec<String>)>,
+    /// Colors for branches not matching any of `colors` for SVG output
+    pub svg_colors_unknown: Vec<String>,
 }
 
 impl BranchSettings {
     pub fn git_flow() -> Self {
         BranchSettings {
             persistence: vec![
-                "master".to_string(),
-                "main".to_string(),
-                "develop".to_string(),
-                "dev".to_string(),
-                "feature".to_string(),
-                "release".to_string(),
-                "hotfix".to_string(),
-                "bugfix".to_string(),
+                Regex::new(r"^(master|main)$").unwrap(),
+                Regex::new(r"^(develop|dev)$").unwrap(),
+                Regex::new(r"^feature/.*$").unwrap(),
+                Regex::new(r"^release/.*$").unwrap(),
+                Regex::new(r"^hotfix/.*$").unwrap(),
+                Regex::new(r"^bugfix/.*$").unwrap(),
             ],
             order: vec![
-                "master".to_string(),
-                "main".to_string(),
-                "hotfix".to_string(),
-                "release".to_string(),
-                "develop".to_string(),
-                "dev".to_string(),
+                Regex::new(r"^(master|main)$").unwrap(),
+                Regex::new(r"^(hotfix)|(release)/.*$").unwrap(),
+                Regex::new(r"^(develop|dev)$").unwrap(),
+                Regex::new(r"^(develop|dev)$").unwrap(),
             ],
-            color: vec![
-                ("master".to_string(), "blue".to_string(), "blue".to_string()),
-                ("main".to_string(), "blue".to_string(), "blue".to_string()),
+            terminal_colors: vec![
                 (
-                    "develop".to_string(),
-                    "orange".to_string(),
-                    "yellow".to_string(),
+                    Regex::new(r"^(master|main)$").unwrap(),
+                    vec!["blue".to_string()],
                 ),
                 (
-                    "dev".to_string(),
-                    "orange".to_string(),
-                    "yellow".to_string(),
+                    Regex::new(r"^(develop|dev)$").unwrap(),
+                    vec!["yellow".to_string()],
                 ),
                 (
-                    "feature".to_string(),
-                    "purple".to_string(),
-                    "magenta".to_string(),
+                    Regex::new(r"^feature/.*$").unwrap(),
+                    vec!["magenta".to_string(), "cyan".to_string()],
                 ),
                 (
-                    "release".to_string(),
-                    "green".to_string(),
-                    "green".to_string(),
+                    Regex::new(r"^release/.*$").unwrap(),
+                    vec!["green".to_string()],
                 ),
-                ("hotfix".to_string(), "red".to_string(), "red".to_string()),
-                ("bugfix".to_string(), "red".to_string(), "red".to_string()),
+                (
+                    Regex::new(r"^(bugfix)|(hotfix)/.*$").unwrap(),
+                    vec!["red".to_string()],
+                ),
             ],
-            color_unknown: ("gray".to_string(), "white".to_string()),
+            terminal_colors_unknown: vec!["white".to_string()],
+
+            svg_colors: vec![
+                (
+                    Regex::new(r"^(master|main)$").unwrap(),
+                    vec!["blue".to_string()],
+                ),
+                (
+                    Regex::new(r"^(develop|dev)$").unwrap(),
+                    vec!["orange".to_string()],
+                ),
+                (
+                    Regex::new(r"^feature/.*$").unwrap(),
+                    vec!["purple".to_string(), "turquoise".to_string()],
+                ),
+                (
+                    Regex::new(r"^release/.*$").unwrap(),
+                    vec!["green".to_string()],
+                ),
+                (
+                    Regex::new(r"^(bugfix)|(hotfix)/.*$").unwrap(),
+                    vec!["red".to_string()],
+                ),
+            ],
+            svg_colors_unknown: vec!["gray".to_string()],
+        }
+    }
+
+    pub fn simple() -> Self {
+        BranchSettings {
+            persistence: vec![Regex::new(r"^(master|main)$").unwrap()],
+            order: vec![Regex::new(r"^(master|main)$").unwrap()],
+            terminal_colors: vec![(
+                Regex::new(r"^(master|main)$").unwrap(),
+                vec!["blue".to_string()],
+            )],
+            terminal_colors_unknown: vec![
+                "yellow".to_string(),
+                "green".to_string(),
+                "red".to_string(),
+                "magenta".to_string(),
+                "cyan".to_string(),
+            ],
+
+            svg_colors: vec![(
+                Regex::new(r"^(master|main)$").unwrap(),
+                vec!["blue".to_string()],
+            )],
+            svg_colors_unknown: vec![
+                "orange".to_string(),
+                "green".to_string(),
+                "red".to_string(),
+                "purple".to_string(),
+                "turquoise".to_string(),
+            ],
         }
     }
 }
@@ -110,7 +160,7 @@ impl Default for MergePatterns {
     fn default() -> Self {
         MergePatterns {
             patterns: vec![
-                // GitLab pull rewuest
+                // GitLab pull request
                 Regex::new(r"^Merge branch '(.+)' into '.+'$").unwrap(),
                 // Git default
                 Regex::new(r"^Merge branch '(.+)' into .+$").unwrap(),
@@ -141,7 +191,7 @@ impl FromStr for Characters {
             "bold" => Ok(Characters::bold()),
             "double" => Ok(Characters::double()),
             "ascii" => Ok(Characters::ascii()),
-            _ => Err(format!["Unknown characters/style '{}'. Must be one of [normal|thin|round|bold|double|ascii]", str]),
+            _ => Err(format!("Unknown characters/style '{}'. Must be one of [normal|thin|round|bold|double|ascii]", str)),
         }
     }
 }

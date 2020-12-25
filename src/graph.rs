@@ -1,7 +1,9 @@
+use crate::print::to_terminal_color;
 use crate::settings::{BranchOrder, BranchSettings, Settings};
 use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Repository};
 use itertools::Itertools;
+use regex::Regex;
 use std::collections::{HashMap, VecDeque};
 
 /// Represents a git history graph.
@@ -18,15 +20,16 @@ impl GitGraph {
         settings: &Settings,
         all: bool,
         max_count: Option<usize>,
-    ) -> Result<Self, Error> {
-        let repository = Repository::open(path)?;
-        let mut walk = repository.revwalk()?;
+    ) -> Result<Self, String> {
+        let repository = Repository::open(path).map_err(|err| err.to_string())?;
+        let mut walk = repository.revwalk().map_err(|err| err.to_string())?;
 
-        walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
+        walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
+            .map_err(|err| err.to_string())?;
         if all {
-            walk.push_glob("*")?;
+            walk.push_glob("*").map_err(|err| err.to_string())?;
         } else {
-            walk.push_head()?;
+            walk.push_head().map_err(|err| err.to_string())?;
         }
 
         let mut commits = Vec::new();
@@ -38,7 +41,7 @@ impl GitGraph {
                 }
             }
 
-            let oid = oid?;
+            let oid = oid.map_err(|err| err.to_string())?;
             let commit = repository.find_commit(oid).unwrap();
             commits.push(CommitInfo::new(&commit));
             indices.insert(oid, idx);
@@ -193,15 +196,17 @@ impl BranchInfo {
 /// Branch properties for visualization.
 pub struct BranchVis {
     pub order_group: usize,
-    pub color_group: usize,
+    pub term_color: u8,
+    pub svg_color: String,
     pub column: Option<usize>,
 }
 
 impl BranchVis {
-    fn new(order_group: usize, color_group: usize) -> Self {
+    fn new(order_group: usize, term_color: u8, svg_color: String) -> Self {
         BranchVis {
             order_group,
-            color_group,
+            term_color,
+            svg_color,
             column: None,
         }
     }
@@ -235,7 +240,7 @@ fn assign_branches(
     commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &Settings,
-) -> Result<Vec<BranchInfo>, Error> {
+) -> Result<Vec<BranchInfo>, String> {
     let mut branch_idx = 0;
     let branches_ordered = extract_branches(repository, commits, &indices, settings)?
         .into_iter()
@@ -271,28 +276,47 @@ fn extract_branches(
     commits: &[CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &Settings,
-) -> Result<Vec<BranchInfo>, Error> {
+) -> Result<Vec<BranchInfo>, String> {
     let filter = if settings.include_remote {
         None
     } else {
         Some(BranchType::Local)
     };
     let actual_branches = repository
-        .branches(filter)?
-        .collect::<Result<Vec<_>, Error>>()?;
+        .branches(filter)
+        .map_err(|err| err.to_string())?
+        .collect::<Result<Vec<_>, Error>>()
+        .map_err(|err| err.to_string())?;
+
+    let mut counter = 0;
 
     let mut valid_branches = actual_branches
         .iter()
         .filter_map(|(br, tp)| {
             br.get().name().and_then(|n| {
                 br.get().target().map(|t| {
+                    counter += 1;
+
                     let start_index = match tp {
                         BranchType::Local => 11,
                         BranchType::Remote => 13,
                     };
                     let name = &n[start_index..];
                     let end_index = indices.get(&t).cloned();
-                    BranchInfo::new(
+
+                    let term_color = match to_terminal_color(
+                        &branch_color(
+                            name,
+                            &settings.branches.terminal_colors[..],
+                            &settings.branches.terminal_colors_unknown,
+                            counter,
+                        )[..],
+                    ) {
+                        Ok(col) => col,
+                        Err(err) => return Err(err),
+                    };
+
+                    Ok(BranchInfo::new(
                         t,
                         None,
                         name.to_string(),
@@ -301,28 +325,52 @@ fn extract_branches(
                         false,
                         BranchVis::new(
                             branch_order(name, &settings.branches.order),
-                            branch_color(name, &settings.branches.color),
+                            term_color,
+                            branch_color(
+                                name,
+                                &settings.branches.svg_colors,
+                                &settings.branches.svg_colors_unknown,
+                                counter,
+                            ),
                         ),
                         false,
                         end_index,
-                    )
+                    ))
                 })
             })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, String>>()?;
 
     for (idx, info) in commits.iter().enumerate() {
-        let commit = repository.find_commit(info.oid)?;
+        let commit = repository
+            .find_commit(info.oid)
+            .map_err(|err| err.to_string())?;
         if info.is_merge {
             if let Some(summary) = commit.summary() {
-                let parent_oid = commit.parent_id(1)?;
+                counter += 1;
+
+                let parent_oid = commit.parent_id(1).map_err(|err| err.to_string())?;
 
                 let branch_name = text::parse_merge_summary(summary, &settings.merge_patterns)
                     .unwrap_or_else(|| "unknown".to_string());
                 let persistence = branch_order(&branch_name, &settings.branches.persistence) as u8;
 
                 let pos = branch_order(&branch_name, &settings.branches.order);
-                let col = branch_color(&branch_name, &settings.branches.color);
+
+                let term_col = to_terminal_color(
+                    &branch_color(
+                        &branch_name,
+                        &settings.branches.terminal_colors[..],
+                        &settings.branches.terminal_colors_unknown,
+                        counter,
+                    )[..],
+                )?;
+                let svg_col = branch_color(
+                    &branch_name,
+                    &settings.branches.svg_colors,
+                    &settings.branches.svg_colors_unknown,
+                    counter,
+                );
 
                 let branch_info = BranchInfo::new(
                     parent_oid,
@@ -331,7 +379,7 @@ fn extract_branches(
                     persistence,
                     false,
                     true,
-                    BranchVis::new(pos, col),
+                    BranchVis::new(pos, term_col, svg_col),
                     true,
                     Some(idx + 1),
                 );
@@ -619,21 +667,26 @@ fn assign_branch_columns_branch_length(
 }
 
 /// Finds the index for a branch name from a slice of prefixes
-fn branch_order(name: &str, order: &[String]) -> usize {
+fn branch_order(name: &str, order: &[Regex]) -> usize {
     order
         .iter()
-        .position(|b| {
-            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
-        })
+        .position(|b| b.is_match(name) || (name.starts_with("origin/") && b.is_match(&name[7..])))
         .unwrap_or(order.len())
 }
 
-/// Finds the index for a branch name from a slice of (prefix, color) tuples.
-fn branch_color(name: &str, order: &[(String, String, String)]) -> usize {
-    order
+/// Finds the svg color for a branch name.
+fn branch_color<T: Clone>(
+    name: &str,
+    order: &[(Regex, Vec<T>)],
+    unknown: &[T],
+    counter: usize,
+) -> T {
+    let color = order
         .iter()
-        .position(|(b, _, _)| {
-            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
+        .find_position(|(b, _)| {
+            b.is_match(name) || (name.starts_with("origin/") && b.is_match(&name[7..]))
         })
-        .unwrap_or(order.len())
+        .map(|(_pos, col)| &col.1[counter % col.1.len()])
+        .unwrap_or_else(|| &unknown[counter % unknown.len()]);
+    color.clone()
 }
