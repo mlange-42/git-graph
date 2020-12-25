@@ -45,9 +45,13 @@ pub struct BranchSettings {
     /// Branch ordering
     pub order: Vec<String>,
     /// Branch colors
-    pub color: Vec<(String, String, String)>,
-    /// Color for branches not matching any of `colors`
-    pub color_unknown: (String, String),
+    pub terminal_colors: Vec<(String, String)>,
+    /// Colors for branches not matching any of `colors`
+    pub terminal_colors_unknown: String,
+    /// Branch colors for SVG output
+    pub svg_colors: Vec<(String, String)>,
+    /// Colors for branches not matching any of `colors` for SVG output
+    pub svg_colors_unknown: String,
 }
 
 impl BranchSettings {
@@ -71,33 +75,29 @@ impl BranchSettings {
                 "develop".to_string(),
                 "dev".to_string(),
             ],
-            color: vec![
-                ("master".to_string(), "blue".to_string(), "blue".to_string()),
-                ("main".to_string(), "blue".to_string(), "blue".to_string()),
-                (
-                    "develop".to_string(),
-                    "orange".to_string(),
-                    "yellow".to_string(),
-                ),
-                (
-                    "dev".to_string(),
-                    "orange".to_string(),
-                    "yellow".to_string(),
-                ),
-                (
-                    "feature".to_string(),
-                    "purple".to_string(),
-                    "magenta".to_string(),
-                ),
-                (
-                    "release".to_string(),
-                    "green".to_string(),
-                    "green".to_string(),
-                ),
-                ("hotfix".to_string(), "red".to_string(), "red".to_string()),
-                ("bugfix".to_string(), "red".to_string(), "red".to_string()),
+            terminal_colors: vec![
+                ("master".to_string(), "blue".to_string()),
+                ("main".to_string(), "blue".to_string()),
+                ("develop".to_string(), "yellow".to_string()),
+                ("dev".to_string(), "yellow".to_string()),
+                ("feature".to_string(), "magenta".to_string()),
+                ("release".to_string(), "green".to_string()),
+                ("hotfix".to_string(), "red".to_string()),
+                ("bugfix".to_string(), "red".to_string()),
             ],
-            color_unknown: ("gray".to_string(), "white".to_string()),
+            terminal_colors_unknown: "white".to_string(),
+
+            svg_colors: vec![
+                ("master".to_string(), "blue".to_string()),
+                ("main".to_string(), "blue".to_string()),
+                ("develop".to_string(), "orange".to_string()),
+                ("dev".to_string(), "orange".to_string()),
+                ("feature".to_string(), "purple".to_string()),
+                ("release".to_string(), "green".to_string()),
+                ("hotfix".to_string(), "red".to_string()),
+                ("bugfix".to_string(), "red".to_string()),
+            ],
+            svg_colors_unknown: "gray".to_string(),
         }
     }
 }
@@ -110,7 +110,7 @@ impl Default for MergePatterns {
     fn default() -> Self {
         MergePatterns {
             patterns: vec![
-                // GitLab pull rewuest
+                // GitLab pull request
                 Regex::new(r"^Merge branch '(.+)' into '.+'$").unwrap(),
                 // Git default
                 Regex::new(r"^Merge branch '(.+)' into .+$").unwrap(),
@@ -141,7 +141,7 @@ impl FromStr for Characters {
             "bold" => Ok(Characters::bold()),
             "double" => Ok(Characters::double()),
             "ascii" => Ok(Characters::ascii()),
-            _ => Err(format!["Unknown characters/style '{}'. Must be one of [normal|thin|round|bold|double|ascii]", str]),
+            _ => Err(format!("Unknown characters/style '{}'. Must be one of [normal|thin|round|bold|double|ascii]", str)),
         }
     }
 }

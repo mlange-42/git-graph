@@ -1,3 +1,4 @@
+use crate::print::to_terminal_color;
 use crate::settings::{BranchOrder, BranchSettings, Settings};
 use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Repository};
@@ -18,15 +19,16 @@ impl GitGraph {
         settings: &Settings,
         all: bool,
         max_count: Option<usize>,
-    ) -> Result<Self, Error> {
-        let repository = Repository::open(path)?;
-        let mut walk = repository.revwalk()?;
+    ) -> Result<Self, String> {
+        let repository = Repository::open(path).map_err(|err| err.to_string())?;
+        let mut walk = repository.revwalk().map_err(|err| err.to_string())?;
 
-        walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
+        walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
+            .map_err(|err| err.to_string())?;
         if all {
-            walk.push_glob("*")?;
+            walk.push_glob("*").map_err(|err| err.to_string())?;
         } else {
-            walk.push_head()?;
+            walk.push_head().map_err(|err| err.to_string())?;
         }
 
         let mut commits = Vec::new();
@@ -38,7 +40,7 @@ impl GitGraph {
                 }
             }
 
-            let oid = oid?;
+            let oid = oid.map_err(|err| err.to_string())?;
             let commit = repository.find_commit(oid).unwrap();
             commits.push(CommitInfo::new(&commit));
             indices.insert(oid, idx);
@@ -193,15 +195,17 @@ impl BranchInfo {
 /// Branch properties for visualization.
 pub struct BranchVis {
     pub order_group: usize,
-    pub color_group: usize,
+    pub term_color: u8,
+    pub svg_color: String,
     pub column: Option<usize>,
 }
 
 impl BranchVis {
-    fn new(order_group: usize, color_group: usize) -> Self {
+    fn new(order_group: usize, term_color: u8, svg_color: String) -> Self {
         BranchVis {
             order_group,
-            color_group,
+            term_color,
+            svg_color,
             column: None,
         }
     }
@@ -235,7 +239,7 @@ fn assign_branches(
     commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &Settings,
-) -> Result<Vec<BranchInfo>, Error> {
+) -> Result<Vec<BranchInfo>, String> {
     let mut branch_idx = 0;
     let branches_ordered = extract_branches(repository, commits, &indices, settings)?
         .into_iter()
@@ -271,15 +275,17 @@ fn extract_branches(
     commits: &[CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &Settings,
-) -> Result<Vec<BranchInfo>, Error> {
+) -> Result<Vec<BranchInfo>, String> {
     let filter = if settings.include_remote {
         None
     } else {
         Some(BranchType::Local)
     };
     let actual_branches = repository
-        .branches(filter)?
-        .collect::<Result<Vec<_>, Error>>()?;
+        .branches(filter)
+        .map_err(|err| err.to_string())?
+        .collect::<Result<Vec<_>, Error>>()
+        .map_err(|err| err.to_string())?;
 
     let mut valid_branches = actual_branches
         .iter()
@@ -292,7 +298,13 @@ fn extract_branches(
                     };
                     let name = &n[start_index..];
                     let end_index = indices.get(&t).cloned();
-                    BranchInfo::new(
+
+                    let term_color = match term_branch_color(name, &settings.branches) {
+                        Ok(col) => col,
+                        Err(err) => return Err(err),
+                    };
+
+                    Ok(BranchInfo::new(
                         t,
                         None,
                         name.to_string(),
@@ -301,28 +313,32 @@ fn extract_branches(
                         false,
                         BranchVis::new(
                             branch_order(name, &settings.branches.order),
-                            branch_color(name, &settings.branches.color),
+                            term_color,
+                            svg_branch_color(name, &settings.branches),
                         ),
                         false,
                         end_index,
-                    )
+                    ))
                 })
             })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, String>>()?;
 
     for (idx, info) in commits.iter().enumerate() {
-        let commit = repository.find_commit(info.oid)?;
+        let commit = repository
+            .find_commit(info.oid)
+            .map_err(|err| err.to_string())?;
         if info.is_merge {
             if let Some(summary) = commit.summary() {
-                let parent_oid = commit.parent_id(1)?;
+                let parent_oid = commit.parent_id(1).map_err(|err| err.to_string())?;
 
                 let branch_name = text::parse_merge_summary(summary, &settings.merge_patterns)
                     .unwrap_or_else(|| "unknown".to_string());
                 let persistence = branch_order(&branch_name, &settings.branches.persistence) as u8;
 
                 let pos = branch_order(&branch_name, &settings.branches.order);
-                let col = branch_color(&branch_name, &settings.branches.color);
+                let term_col = term_branch_color(&branch_name, &settings.branches)?;
+                let svg_col = svg_branch_color(&branch_name, &settings.branches);
 
                 let branch_info = BranchInfo::new(
                     parent_oid,
@@ -331,7 +347,7 @@ fn extract_branches(
                     persistence,
                     false,
                     true,
-                    BranchVis::new(pos, col),
+                    BranchVis::new(pos, term_col, svg_col),
                     true,
                     Some(idx + 1),
                 );
@@ -628,12 +644,27 @@ fn branch_order(name: &str, order: &[String]) -> usize {
         .unwrap_or(order.len())
 }
 
-/// Finds the index for a branch name from a slice of (prefix, color) tuples.
-fn branch_color(name: &str, order: &[(String, String, String)]) -> usize {
-    order
+/// Finds the svg color for a branch name.
+fn svg_branch_color(name: &str, settings: &BranchSettings) -> String {
+    settings
+        .svg_colors
         .iter()
-        .position(|(b, _, _)| {
+        .find_position(|(b, _)| {
             name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
         })
-        .unwrap_or(order.len())
+        .map(|(_pos, col)| col.1.to_owned())
+        .unwrap_or_else(|| settings.svg_colors_unknown.to_owned())
+}
+
+/// Finds the terminal color for a branch name.
+fn term_branch_color(name: &str, settings: &BranchSettings) -> Result<u8, String> {
+    let col_name = settings
+        .terminal_colors
+        .iter()
+        .find_position(|(b, _)| {
+            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
+        })
+        .map(|(_pos, col)| col.1.to_owned())
+        .unwrap_or_else(|| settings.terminal_colors_unknown.to_owned());
+    to_terminal_color(&col_name)
 }

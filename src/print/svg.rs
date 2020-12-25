@@ -24,21 +24,10 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<(), String> {
         }
     }
 
-    let color_unknown = (
-        String::new(),
-        settings.branches.color_unknown.0.to_owned(),
-        settings.branches.color_unknown.1.to_owned(),
-    );
-
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
             let branch = &graph.branches[trace];
-            let branch_color = &settings
-                .branches
-                .color
-                .get(branch.visual.color_group)
-                .unwrap_or(&color_unknown)
-                .1;
+            let branch_color = &branch.visual.svg_color;
 
             if branch.visual.column.unwrap() > max_column {
                 max_column = branch.visual.column.unwrap();
@@ -51,12 +40,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<(), String> {
                         let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
 
                         let color = if info.is_merge {
-                            &settings
-                                .branches
-                                .color
-                                .get(par_branch.visual.color_group)
-                                .unwrap_or(&color_unknown)
-                                .1
+                            &par_branch.visual.svg_color
                         } else {
                             branch_color
                         };
