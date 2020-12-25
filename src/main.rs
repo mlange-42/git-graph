@@ -71,10 +71,10 @@ fn from_args() -> Result<(), String> {
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("compact")
-                .long("compact")
-                .short("c")
-                .help("Print compact graph: merges point to merge commits rather than connecting lines.")
+            Arg::with_name("sparse")
+                .long("sparse")
+                .short("S")
+                .help("Print a less compact graph: merge lines point to target lines rather than merge commits.")
                 .required(false)
                 .takes_value(false),
         )
@@ -135,7 +135,7 @@ fn from_args() -> Result<(), String> {
     };
     let svg = matches.is_present("svg");
     let colored = !matches.is_present("no-color");
-    let compact = matches.is_present("compact");
+    let compact = !matches.is_present("sparse");
     let debug = matches.is_present("debug");
     let style = matches
         .value_of("style")
