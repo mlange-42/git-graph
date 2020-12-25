@@ -41,15 +41,15 @@ pub struct Settings {
 
 pub struct BranchSettings {
     /// Branch persistence
-    pub persistence: Vec<String>,
+    pub persistence: Vec<Regex>,
     /// Branch ordering
-    pub order: Vec<String>,
+    pub order: Vec<Regex>,
     /// Branch colors
-    pub terminal_colors: Vec<(String, Vec<String>)>,
+    pub terminal_colors: Vec<(Regex, Vec<String>)>,
     /// Colors for branches not matching any of `colors`
     pub terminal_colors_unknown: Vec<String>,
     /// Branch colors for SVG output
-    pub svg_colors: Vec<(String, Vec<String>)>,
+    pub svg_colors: Vec<(Regex, Vec<String>)>,
     /// Colors for branches not matching any of `colors` for SVG output
     pub svg_colors_unknown: Vec<String>,
 }
@@ -58,50 +58,64 @@ impl BranchSettings {
     pub fn git_flow() -> Self {
         BranchSettings {
             persistence: vec![
-                "master".to_string(),
-                "main".to_string(),
-                "develop".to_string(),
-                "dev".to_string(),
-                "feature".to_string(),
-                "release".to_string(),
-                "hotfix".to_string(),
-                "bugfix".to_string(),
+                Regex::new(r"^(master|main)$").unwrap(),
+                Regex::new(r"^(develop|dev)$").unwrap(),
+                Regex::new(r"^feature/.*$").unwrap(),
+                Regex::new(r"^release/.*$").unwrap(),
+                Regex::new(r"^hotfix/.*$").unwrap(),
+                Regex::new(r"^bugfix/.*$").unwrap(),
             ],
             order: vec![
-                "master".to_string(),
-                "main".to_string(),
-                "hotfix".to_string(),
-                "release".to_string(),
-                "develop".to_string(),
-                "dev".to_string(),
+                Regex::new(r"^(master|main)$").unwrap(),
+                Regex::new(r"^(hotfix)|(release)/.*$").unwrap(),
+                Regex::new(r"^(develop|dev)$").unwrap(),
+                Regex::new(r"^(develop|dev)$").unwrap(),
             ],
             terminal_colors: vec![
-                ("master".to_string(), vec!["blue".to_string()]),
-                ("main".to_string(), vec!["blue".to_string()]),
-                ("develop".to_string(), vec!["yellow".to_string()]),
-                ("dev".to_string(), vec!["yellow".to_string()]),
                 (
-                    "feature".to_string(),
+                    Regex::new(r"^(master|main)$").unwrap(),
+                    vec!["blue".to_string()],
+                ),
+                (
+                    Regex::new(r"^(develop|dev)$").unwrap(),
+                    vec!["yellow".to_string()],
+                ),
+                (
+                    Regex::new(r"^feature/.*$").unwrap(),
                     vec!["magenta".to_string(), "cyan".to_string()],
                 ),
-                ("release".to_string(), vec!["green".to_string()]),
-                ("hotfix".to_string(), vec!["red".to_string()]),
-                ("bugfix".to_string(), vec!["red".to_string()]),
+                (
+                    Regex::new(r"^release/.*$").unwrap(),
+                    vec!["green".to_string()],
+                ),
+                (
+                    Regex::new(r"^(bugfix)|(hotfix)/.*$").unwrap(),
+                    vec!["red".to_string()],
+                ),
             ],
             terminal_colors_unknown: vec!["white".to_string()],
 
             svg_colors: vec![
-                ("master".to_string(), vec!["blue".to_string()]),
-                ("main".to_string(), vec!["blue".to_string()]),
-                ("develop".to_string(), vec!["orange".to_string()]),
-                ("dev".to_string(), vec!["orange".to_string()]),
                 (
-                    "feature".to_string(),
+                    Regex::new(r"^(master|main)$").unwrap(),
+                    vec!["blue".to_string()],
+                ),
+                (
+                    Regex::new(r"^(develop|dev)$").unwrap(),
+                    vec!["orange".to_string()],
+                ),
+                (
+                    Regex::new(r"^feature/.*$").unwrap(),
                     vec!["purple".to_string(), "turquoise".to_string()],
                 ),
-                ("release".to_string(), vec!["green".to_string()]),
-                ("hotfix".to_string(), vec!["red".to_string()]),
-                ("bugfix".to_string(), vec!["red".to_string()]),
+                (
+                    Regex::new(r"^release/.*$").unwrap(),
+                    vec!["green".to_string()],
+                ),
+                (
+                    Regex::new(r"^(bugfix)|(hotfix)/.*$").unwrap(),
+                    vec!["red".to_string()],
+                ),
             ],
             svg_colors_unknown: vec!["gray".to_string()],
         }
@@ -109,12 +123,12 @@ impl BranchSettings {
 
     pub fn simple() -> Self {
         BranchSettings {
-            persistence: vec!["master".to_string(), "main".to_string()],
-            order: vec!["master".to_string(), "main".to_string()],
-            terminal_colors: vec![
-                ("master".to_string(), vec!["blue".to_string()]),
-                ("main".to_string(), vec!["blue".to_string()]),
-            ],
+            persistence: vec![Regex::new(r"^(master|main)$").unwrap()],
+            order: vec![Regex::new(r"^(master|main)$").unwrap()],
+            terminal_colors: vec![(
+                Regex::new(r"^(master|main)$").unwrap(),
+                vec!["blue".to_string()],
+            )],
             terminal_colors_unknown: vec![
                 "yellow".to_string(),
                 "green".to_string(),
@@ -123,10 +137,10 @@ impl BranchSettings {
                 "cyan".to_string(),
             ],
 
-            svg_colors: vec![
-                ("master".to_string(), vec!["blue".to_string()]),
-                ("main".to_string(), vec!["blue".to_string()]),
-            ],
+            svg_colors: vec![(
+                Regex::new(r"^(master|main)$").unwrap(),
+                vec!["blue".to_string()],
+            )],
             svg_colors_unknown: vec![
                 "orange".to_string(),
                 "green".to_string(),

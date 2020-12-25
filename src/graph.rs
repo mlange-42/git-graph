@@ -3,6 +3,7 @@ use crate::settings::{BranchOrder, BranchSettings, Settings};
 use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Repository};
 use itertools::Itertools;
+use regex::Regex;
 use std::collections::{HashMap, VecDeque};
 
 /// Represents a git history graph.
@@ -303,7 +304,14 @@ fn extract_branches(
                     let name = &n[start_index..];
                     let end_index = indices.get(&t).cloned();
 
-                    let term_color = match term_branch_color(name, &settings.branches, counter) {
+                    let term_color = match to_terminal_color(
+                        &branch_color(
+                            name,
+                            &settings.branches.terminal_colors[..],
+                            &settings.branches.terminal_colors_unknown,
+                            counter,
+                        )[..],
+                    ) {
                         Ok(col) => col,
                         Err(err) => return Err(err),
                     };
@@ -318,7 +326,12 @@ fn extract_branches(
                         BranchVis::new(
                             branch_order(name, &settings.branches.order),
                             term_color,
-                            svg_branch_color(name, &settings.branches, counter),
+                            branch_color(
+                                name,
+                                &settings.branches.svg_colors,
+                                &settings.branches.svg_colors_unknown,
+                                counter,
+                            ),
                         ),
                         false,
                         end_index,
@@ -343,8 +356,21 @@ fn extract_branches(
                 let persistence = branch_order(&branch_name, &settings.branches.persistence) as u8;
 
                 let pos = branch_order(&branch_name, &settings.branches.order);
-                let term_col = term_branch_color(&branch_name, &settings.branches, counter)?;
-                let svg_col = svg_branch_color(&branch_name, &settings.branches, counter);
+
+                let term_col = to_terminal_color(
+                    &branch_color(
+                        &branch_name,
+                        &settings.branches.terminal_colors[..],
+                        &settings.branches.terminal_colors_unknown,
+                        counter,
+                    )[..],
+                )?;
+                let svg_col = branch_color(
+                    &branch_name,
+                    &settings.branches.svg_colors,
+                    &settings.branches.svg_colors_unknown,
+                    counter,
+                );
 
                 let branch_info = BranchInfo::new(
                     parent_oid,
@@ -641,39 +667,26 @@ fn assign_branch_columns_branch_length(
 }
 
 /// Finds the index for a branch name from a slice of prefixes
-fn branch_order(name: &str, order: &[String]) -> usize {
+fn branch_order(name: &str, order: &[Regex]) -> usize {
     order
         .iter()
-        .position(|b| {
-            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
-        })
+        .position(|b| b.is_match(name) || (name.starts_with("origin/") && b.is_match(&name[7..])))
         .unwrap_or(order.len())
 }
 
 /// Finds the svg color for a branch name.
-fn svg_branch_color(name: &str, settings: &BranchSettings, counter: usize) -> String {
-    let colors = settings
-        .svg_colors
+fn branch_color<T: Clone>(
+    name: &str,
+    order: &[(Regex, Vec<T>)],
+    unknown: &[T],
+    counter: usize,
+) -> T {
+    let color = order
         .iter()
         .find_position(|(b, _)| {
-            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
+            b.is_match(name) || (name.starts_with("origin/") && b.is_match(&name[7..]))
         })
-        .map(|(_pos, col)| &col.1)
-        .unwrap_or_else(|| &settings.svg_colors_unknown);
-    let idx = counter % colors.len();
-    colors[idx].to_owned()
-}
-
-/// Finds the terminal color for a branch name.
-fn term_branch_color(name: &str, settings: &BranchSettings, counter: usize) -> Result<u8, String> {
-    let col_names = settings
-        .terminal_colors
-        .iter()
-        .find_position(|(b, _)| {
-            name.starts_with(b) || (name.starts_with("origin/") && name[7..].starts_with(b))
-        })
-        .map(|(_pos, col)| &col.1)
-        .unwrap_or_else(|| &settings.terminal_colors_unknown);
-    let idx = counter % col_names.len();
-    to_terminal_color(&col_names[idx])
+        .map(|(_pos, col)| &col.1[counter % col.1.len()])
+        .unwrap_or_else(|| &unknown[counter % unknown.len()]);
+    color.clone()
 }
