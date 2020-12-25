@@ -13,16 +13,31 @@ pub struct GitGraph {
 }
 
 impl GitGraph {
-    pub fn new(path: &str, settings: &Settings) -> Result<Self, Error> {
+    pub fn new(
+        path: &str,
+        settings: &Settings,
+        all: bool,
+        max_count: Option<usize>,
+    ) -> Result<Self, Error> {
         let repository = Repository::open(path)?;
         let mut walk = repository.revwalk()?;
 
         walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
-        walk.push_glob("*")?;
+        if all {
+            walk.push_glob("*")?;
+        } else {
+            walk.push_head()?;
+        }
 
         let mut commits = Vec::new();
         let mut indices = HashMap::new();
         for (idx, oid) in walk.enumerate() {
+            if let Some(max) = max_count {
+                if idx >= max {
+                    break;
+                }
+            }
+
             let oid = oid?;
             let commit = repository.find_commit(oid).unwrap();
             commits.push(CommitInfo::new(&commit));
@@ -146,6 +161,7 @@ pub struct BranchInfo {
     pub range: (Option<usize>, Option<usize>),
 }
 impl BranchInfo {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         target: Oid,
         name: String,
@@ -195,8 +211,9 @@ fn assign_children(commits: &mut [CommitInfo], indices: &HashMap<Oid, usize>) {
         };
         for par_oid in &parents {
             if let Some(par_oid) = par_oid {
-                let par_idx = indices[par_oid];
-                commits[par_idx].children.push(oid);
+                if let Some(par_idx) = indices.get(par_oid) {
+                    commits[*par_idx].children.push(oid);
+                }
             }
         }
     }
@@ -333,20 +350,19 @@ fn trace_branch<'repo>(
 ) -> Result<bool, Error> {
     let mut curr_oid = oid;
     let mut prev_index: Option<usize> = None;
-    let start_index: i32;
+    let mut start_index: Option<i32> = None;
     let mut any_assigned = false;
-    loop {
-        let index = indices[&curr_oid];
-        let info = &mut commits[index];
+    while let Some(index) = indices.get(&curr_oid) {
+        let info = &mut commits[*index];
         if info.branch_trace.is_some() {
             match prev_index {
-                None => start_index = index as i32 - 1,
+                None => start_index = Some(*index as i32 - 1),
                 Some(prev_index) => {
                     // TODO: in cases where no crossings occur, the rule for merge commits can also be applied to normal commits
                     // see also print::get_deviate_index()
                     if commits[prev_index].is_merge {
                         let mut temp_index = prev_index;
-                        for sibling_oid in &commits[index].children {
+                        for sibling_oid in &commits[*index].children {
                             if sibling_oid != &curr_oid {
                                 let sibling_index = indices[&sibling_oid];
                                 if sibling_index > temp_index {
@@ -354,9 +370,9 @@ fn trace_branch<'repo>(
                                 }
                             }
                         }
-                        start_index = temp_index as i32;
+                        start_index = Some(temp_index as i32);
                     } else {
-                        start_index = index as i32 - 1;
+                        start_index = Some(*index as i32 - 1);
                     }
                 }
             }
@@ -369,24 +385,29 @@ fn trace_branch<'repo>(
         let commit = repository.find_commit(curr_oid)?;
         match commit.parent_count() {
             0 => {
-                start_index = index as i32;
+                start_index = Some(*index as i32);
                 break;
             }
             _ => {
-                prev_index = Some(index);
+                prev_index = Some(*index);
                 curr_oid = commit.parent_id(0)?;
             }
         }
     }
+
     if let Some(end) = branch.range.0 {
-        if start_index < end as i32 {
-            // TODO: find a better solution (bool field?) to identify non-deleted branches that were not assigned to any commits, and thus should not occupy a column.
-            branch.range = (None, None);
+        if let Some(start_index) = start_index {
+            if start_index < end as i32 {
+                // TODO: find a better solution (bool field?) to identify non-deleted branches that were not assigned to any commits, and thus should not occupy a column.
+                branch.range = (None, None);
+            } else {
+                branch.range = (branch.range.0, Some(start_index as usize));
+            }
         } else {
-            branch.range = (branch.range.0, Some(start_index as usize));
+            branch.range = (branch.range.0, None);
         }
     } else {
-        branch.range = (branch.range.0, Some(start_index as usize));
+        branch.range = (branch.range.0, start_index.map(|si| si as usize));
     }
     Ok(any_assigned)
 }

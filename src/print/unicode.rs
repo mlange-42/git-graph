@@ -99,59 +99,60 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String
 
             for p in 0..2 {
                 if let Some(par_oid) = info.parents[p] {
-                    let par_idx = graph.indices[&par_oid];
-                    let par_idx_map = index_map[par_idx];
-                    let par_info = &graph.commits[par_idx];
-                    let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
-                    let par_column = par_branch.visual.column.unwrap();
+                    if let Some(par_idx) = graph.indices.get(&par_oid) {
+                        let par_idx_map = index_map[*par_idx];
+                        let par_info = &graph.commits[*par_idx];
+                        let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
+                        let par_column = par_branch.visual.column.unwrap();
 
-                    let (color, pers) = if info.is_merge {
-                        (
-                            color_list
-                                .get(par_branch.visual.color_group)
-                                .unwrap_or(&color_unknown),
-                            par_branch.persistence,
-                        )
-                    } else {
-                        (branch_color, branch.persistence)
-                    };
+                        let (color, pers) = if info.is_merge {
+                            (
+                                color_list
+                                    .get(par_branch.visual.color_group)
+                                    .unwrap_or(&color_unknown),
+                                par_branch.persistence,
+                            )
+                        } else {
+                            (branch_color, branch.persistence)
+                        };
 
-                    if branch.visual.column == par_branch.visual.column {
-                        if par_idx_map > idx_map + 1 {
-                            vline(&mut grid, (idx_map, par_idx_map), column, *color, pers);
-                        }
-                    } else {
-                        let split_index = super::get_deviate_index(&graph, idx, par_idx);
-                        let split_idx_map = index_map[split_index];
-                        let inserts = &inserts[&split_index];
-                        for (insert_idx, sub_entry) in inserts.iter().enumerate() {
-                            for occ in sub_entry {
-                                match occ {
-                                    Occ::Commit(_, _) => {}
-                                    Occ::Range(i1, i2, _, _) => {
-                                        if *i1 == idx && *i2 == par_idx {
-                                            vline(
-                                                &mut grid,
-                                                (idx_map, split_idx_map + insert_idx),
-                                                column,
-                                                *color,
-                                                pers,
-                                            );
-                                            hline(
-                                                &mut grid,
-                                                split_idx_map + insert_idx,
-                                                (par_column, column),
-                                                info.is_merge && p > 0,
-                                                *color,
-                                                pers,
-                                            );
-                                            vline(
-                                                &mut grid,
-                                                (split_idx_map + insert_idx, par_idx_map),
-                                                par_column,
-                                                *color,
-                                                pers,
-                                            );
+                        if branch.visual.column == par_branch.visual.column {
+                            if par_idx_map > idx_map + 1 {
+                                vline(&mut grid, (idx_map, par_idx_map), column, *color, pers);
+                            }
+                        } else {
+                            let split_index = super::get_deviate_index(&graph, idx, *par_idx);
+                            let split_idx_map = index_map[split_index];
+                            let inserts = &inserts[&split_index];
+                            for (insert_idx, sub_entry) in inserts.iter().enumerate() {
+                                for occ in sub_entry {
+                                    match occ {
+                                        Occ::Commit(_, _) => {}
+                                        Occ::Range(i1, i2, _, _) => {
+                                            if *i1 == idx && i2 == par_idx {
+                                                vline(
+                                                    &mut grid,
+                                                    (idx_map, split_idx_map + insert_idx),
+                                                    column,
+                                                    *color,
+                                                    pers,
+                                                );
+                                                hline(
+                                                    &mut grid,
+                                                    split_idx_map + insert_idx,
+                                                    (par_column, column),
+                                                    info.is_merge && p > 0,
+                                                    *color,
+                                                    pers,
+                                                );
+                                                vline(
+                                                    &mut grid,
+                                                    (split_idx_map + insert_idx, par_idx_map),
+                                                    par_column,
+                                                    *color,
+                                                    pers,
+                                                );
+                                            }
                                         }
                                     }
                                 }
@@ -254,7 +255,7 @@ fn hline(
             (None, None)
         };
         match left {
-            VER => grid.set_opt(from_2, index, Some(VER_R), None, None),
+            VER => grid.set_opt(from_2, index, Some(VER_R), new_col, new_pers),
             VER_R => {}
             HOR | L_U => grid.set_opt(from_2, index, Some(HOR_U), new_col, new_pers),
             _ => {
@@ -325,7 +326,7 @@ fn hline(
             (None, None)
         };
         match right {
-            VER => grid.set_opt(from_2, index, Some(VER_L), None, None),
+            VER => grid.set_opt(from_2, index, Some(VER_L), new_col, new_pers),
             VER_L => grid.set_opt(from_2, index, None, new_col, new_pers),
             HOR | R_D => grid.set_opt(from_2, index, Some(HOR_D), new_col, new_pers),
             _ => {
@@ -354,69 +355,70 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
 
             for p in 0..2 {
                 if let Some(par_oid) = info.parents[p] {
-                    let par_idx = graph.indices[&par_oid];
-                    let par_info = &graph.commits[par_idx];
-                    let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
-                    let par_column = par_branch.visual.column.unwrap();
-                    let column_range = sorted(column, par_column);
+                    if let Some(par_idx) = graph.indices.get(&par_oid) {
+                        let par_info = &graph.commits[*par_idx];
+                        let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
+                        let par_column = par_branch.visual.column.unwrap();
+                        let column_range = sorted(column, par_column);
 
-                    if column != par_column {
-                        let split_index = super::get_deviate_index(&graph, idx, par_idx);
-                        match inserts.entry(split_index) {
-                            Occupied(mut entry) => {
-                                let mut insert_at = entry.get().len();
-                                for (insert_idx, sub_entry) in entry.get().iter().enumerate() {
-                                    let mut occ = false;
-                                    for other_range in sub_entry {
-                                        if other_range.overlaps(&column_range) {
-                                            match other_range {
-                                                Occ::Commit(target_index, _) => {
-                                                    if !compact
-                                                        || !info.is_merge
-                                                        || idx != *target_index
-                                                    {
-                                                        occ = true;
-                                                        break;
+                        if column != par_column {
+                            let split_index = super::get_deviate_index(&graph, idx, *par_idx);
+                            match inserts.entry(split_index) {
+                                Occupied(mut entry) => {
+                                    let mut insert_at = entry.get().len();
+                                    for (insert_idx, sub_entry) in entry.get().iter().enumerate() {
+                                        let mut occ = false;
+                                        for other_range in sub_entry {
+                                            if other_range.overlaps(&column_range) {
+                                                match other_range {
+                                                    Occ::Commit(target_index, _) => {
+                                                        if !compact
+                                                            || !info.is_merge
+                                                            || idx != *target_index
+                                                        {
+                                                            occ = true;
+                                                            break;
+                                                        }
                                                     }
-                                                }
-                                                Occ::Range(o_idx, o_par_idx, _, _) => {
-                                                    if idx != *o_idx && par_idx != *o_par_idx {
-                                                        occ = true;
-                                                        break;
+                                                    Occ::Range(o_idx, o_par_idx, _, _) => {
+                                                        if idx != *o_idx && par_idx != o_par_idx {
+                                                            occ = true;
+                                                            break;
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
+                                        if !occ {
+                                            insert_at = insert_idx;
+                                            break;
+                                        }
                                     }
-                                    if !occ {
-                                        insert_at = insert_idx;
-                                        break;
+                                    let vec = entry.get_mut();
+                                    if insert_at == vec.len() {
+                                        vec.push(vec![Occ::Range(
+                                            idx,
+                                            *par_idx,
+                                            column_range.0,
+                                            column_range.1,
+                                        )]);
+                                    } else {
+                                        vec[insert_at].push(Occ::Range(
+                                            idx,
+                                            *par_idx,
+                                            column_range.0,
+                                            column_range.1,
+                                        ));
                                     }
                                 }
-                                let vec = entry.get_mut();
-                                if insert_at == vec.len() {
-                                    vec.push(vec![Occ::Range(
+                                Vacant(entry) => {
+                                    entry.insert(vec![vec![Occ::Range(
                                         idx,
-                                        par_idx,
+                                        *par_idx,
                                         column_range.0,
                                         column_range.1,
-                                    )]);
-                                } else {
-                                    vec[insert_at].push(Occ::Range(
-                                        idx,
-                                        par_idx,
-                                        column_range.0,
-                                        column_range.1,
-                                    ));
+                                    )]]);
                                 }
-                            }
-                            Vacant(entry) => {
-                                entry.insert(vec![vec![Occ::Range(
-                                    idx,
-                                    par_idx,
-                                    column_range.0,
-                                    column_range.1,
-                                )]]);
                             }
                         }
                     }

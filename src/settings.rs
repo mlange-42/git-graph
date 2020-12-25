@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::str::FromStr;
 
 /// Ordering policy for branches in visual columns.
 pub enum BranchOrder {
@@ -130,10 +131,45 @@ pub struct Characters {
     pub chars: Vec<char>,
 }
 
+impl FromStr for Characters {
+    type Err = String;
+
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        match str {
+            "normal" | "thin" => Ok(Characters::thin()),
+            "round" => Ok(Characters::round()),
+            "bold" => Ok(Characters::bold()),
+            "double" => Ok(Characters::double()),
+            "ascii" => Ok(Characters::ascii()),
+            _ => Err(format!["Unknown characters/style '{}'. Must be one of [normal|thin|round|bold|double|ascii]", str]),
+        }
+    }
+}
+
 impl Characters {
     pub fn thin() -> Self {
         Characters {
             chars: " ●○│─┼└┌┐┘┤├┴┬<>".chars().collect(),
+        }
+    }
+    pub fn round() -> Self {
+        Characters {
+            chars: " ●○│─┼╰╭╮╯┤├┴┬<>".chars().collect(),
+        }
+    }
+    pub fn bold() -> Self {
+        Characters {
+            chars: " ●○┃━╋┗┏┓┛┫┣┻┳<>".chars().collect(),
+        }
+    }
+    pub fn double() -> Self {
+        Characters {
+            chars: " ●○║═╬╚╔╗╝╣╠╩╦<>".chars().collect(),
+        }
+    }
+    pub fn ascii() -> Self {
+        Characters {
+            chars: " *o|-+'..'||++<>".chars().collect(),
         }
     }
 }

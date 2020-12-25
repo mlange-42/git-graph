@@ -4,14 +4,41 @@ use git_graph::graph::{CommitInfo, GitGraph};
 use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
 use git_graph::settings::{BranchOrder, BranchSettings, Characters, MergePatterns, Settings};
+use std::str::FromStr;
 use std::time::Instant;
 
 fn main() {
+    std::process::exit(match from_args() {
+        Ok(_) => 0,
+        Err(err) => {
+            eprintln!("{}", err);
+            1
+        }
+    });
+}
+
+fn from_args() -> Result<(), String> {
     let app = App::new("git-graph")
         .version(crate_version!())
         .about(
             "Structured Git graphs for your branching model.\n  \
                   https://github.com/mlange-42/git-graph",
+        )
+        .arg(
+            Arg::with_name("head")
+                .long("head")
+                .short("h")
+                .help("Show graph only from HEAD.")
+                .required(false)
+                .takes_value(false),
+        )
+        .arg(
+            Arg::with_name("max-count")
+                .long("max-count")
+                .short("n")
+                .help("Maximum number of commits")
+                .required(false)
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("svg")
@@ -38,44 +65,69 @@ fn main() {
         )
         .arg(
             Arg::with_name("no-color")
-                .long("no-color")
-                .short("n")
+                .long("no-color").alias("mono")
+                .short("m")
                 .help("Print without colors.")
                 .required(false)
                 .takes_value(false),
+        )
+        .arg(
+            Arg::with_name("style")
+                .long("style")
+                .short("s")
+                .help("Output style. One of [normal|thin|round|bold|double|ascii]")
+                .required(false)
+                .takes_value(true),
         );
 
     let matches = app.clone().get_matches();
+
+    let head = matches.is_present("head");
+    let commit_limit = match matches.value_of("max-count") {
+        None => None,
+        Some(str) => match str.parse::<usize>() {
+            Ok(val) => Some(val),
+            Err(_) => {
+                return Err(format![
+                    "Option max-count must be a positive number, but got '{}'",
+                    str
+                ])
+            }
+        },
+    };
     let svg = matches.is_present("svg");
     let colored = !matches.is_present("no-color");
     let compact = matches.is_present("compact");
     let debug = matches.is_present("debug");
+    let style = matches
+        .value_of("style")
+        .map(|s| Characters::from_str(s))
+        .unwrap_or_else(|| Ok(Characters::thin()))?;
 
     let settings = Settings {
         debug,
         colored,
         compact,
         include_remote: true,
-        characters: Characters::thin(),
+        characters: style,
         branch_order: BranchOrder::ShortestFirst(true),
         branches: BranchSettings::git_flow(),
         merge_patterns: MergePatterns::default(),
     };
 
-    std::process::exit(match run(&settings, svg) {
-        Ok(_) => 0,
-        Err(err) => {
-            eprintln!("{}", err);
-            1
-        }
-    });
+    run(&settings, svg, !head, commit_limit)
 }
 
-fn run(settings: &Settings, svg: bool) -> Result<(), String> {
+fn run(
+    settings: &Settings,
+    svg: bool,
+    all: bool,
+    max_commits: Option<usize>,
+) -> Result<(), String> {
     let path = ".";
 
     let now = Instant::now();
-    let graph = match GitGraph::new(path, settings) {
+    let graph = match GitGraph::new(path, settings, all, max_commits) {
         Ok(graph) => graph,
         Err(err) => return Err(err.to_string()),
     };
