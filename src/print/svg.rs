@@ -1,20 +1,16 @@
 use crate::graph::GitGraph;
-use crate::settings::BranchSettings;
+use crate::settings::Settings;
 use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
 
-pub fn print_svg(
-    graph: &GitGraph,
-    settings: &BranchSettings,
-    debug: bool,
-) -> Result<String, String> {
+pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<(), String> {
     let mut document = Document::new();
 
     let max_idx = graph.commits.len();
     let mut max_column = 0;
 
-    if debug {
+    if settings.debug {
         for branch in &graph.branches {
             if let (Some(start), Some(end)) = branch.range {
                 document = document.add(bold_line(
@@ -28,12 +24,17 @@ pub fn print_svg(
         }
     }
 
-    let color_unknown = (String::new(), settings.color_unknown.to_owned());
+    let color_unknown = (
+        String::new(),
+        settings.branches.color_unknown.0.to_owned(),
+        settings.branches.color_unknown.1.to_owned(),
+    );
 
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
             let branch = &graph.branches[trace];
             let branch_color = &settings
+                .branches
                 .color
                 .get(branch.visual.color_group)
                 .unwrap_or(&color_unknown)
@@ -45,38 +46,40 @@ pub fn print_svg(
 
             for p in 0..2 {
                 if let Some(par_oid) = info.parents[p] {
-                    let par_idx = graph.indices[&par_oid];
-                    let par_info = &graph.commits[par_idx];
-                    let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
+                    if let Some(par_idx) = graph.indices.get(&par_oid) {
+                        let par_info = &graph.commits[*par_idx];
+                        let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
 
-                    let color = if info.is_merge {
-                        &settings
-                            .color
-                            .get(par_branch.visual.color_group)
-                            .unwrap_or(&color_unknown)
-                            .1
-                    } else {
-                        branch_color
-                    };
+                        let color = if info.is_merge {
+                            &settings
+                                .branches
+                                .color
+                                .get(par_branch.visual.color_group)
+                                .unwrap_or(&color_unknown)
+                                .1
+                        } else {
+                            branch_color
+                        };
 
-                    if branch.visual.column == par_branch.visual.column {
-                        document = document.add(line(
-                            idx,
-                            branch.visual.column.unwrap(),
-                            par_idx,
-                            par_branch.visual.column.unwrap(),
-                            color,
-                        ));
-                    } else {
-                        let split_index = super::get_deviate_index(&graph, idx, par_idx);
-                        document = document.add(path(
-                            idx,
-                            branch.visual.column.unwrap(),
-                            par_idx,
-                            par_branch.visual.column.unwrap(),
-                            split_index,
-                            color,
-                        ));
+                        if branch.visual.column == par_branch.visual.column {
+                            document = document.add(line(
+                                idx,
+                                branch.visual.column.unwrap(),
+                                *par_idx,
+                                par_branch.visual.column.unwrap(),
+                                color,
+                            ));
+                        } else {
+                            let split_index = super::get_deviate_index(&graph, idx, *par_idx);
+                            document = document.add(path(
+                                idx,
+                                branch.visual.column.unwrap(),
+                                *par_idx,
+                                par_branch.visual.column.unwrap(),
+                                split_index,
+                                color,
+                            ));
+                        }
                     }
                 }
             }
@@ -102,7 +105,9 @@ pub fn print_svg(
             return Err(err.to_string());
         }
     }
-    String::from_utf8(out).map_err(|err| err.to_string())
+    println!("{}", String::from_utf8(out).map_err(|err| err.to_string())?);
+
+    Ok(())
 }
 
 fn commit_dot(index: usize, column: usize, color: &str, filled: bool) -> Circle {
