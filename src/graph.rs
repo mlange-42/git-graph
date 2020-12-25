@@ -53,6 +53,7 @@ impl GitGraph {
             }
             BranchOrder::ShortestFirst(forward) => assign_branch_columns_branch_length(
                 &commits,
+                &indices,
                 &mut branches,
                 &settings.branches,
                 true,
@@ -60,6 +61,7 @@ impl GitGraph {
             ),
             BranchOrder::LongestFirst(forward) => assign_branch_columns_branch_length(
                 &commits,
+                &indices,
                 &mut branches,
                 &settings.branches,
                 false,
@@ -152,6 +154,7 @@ impl CommitInfo {
 /// Represents a branch (real or derived from merge summary).
 pub struct BranchInfo {
     pub target: Oid,
+    pub merge_target: Option<Oid>,
     pub name: String,
     pub persistence: u8,
     pub is_remote: bool,
@@ -164,6 +167,7 @@ impl BranchInfo {
     #[allow(clippy::too_many_arguments)]
     fn new(
         target: Oid,
+        merge_target: Option<Oid>,
         name: String,
         persistence: u8,
         is_remote: bool,
@@ -174,6 +178,7 @@ impl BranchInfo {
     ) -> Self {
         BranchInfo {
             target,
+            merge_target,
             name,
             persistence,
             is_remote,
@@ -289,6 +294,7 @@ fn extract_branches(
                     let end_index = indices.get(&t).cloned();
                     BranchInfo::new(
                         t,
+                        None,
                         name.to_string(),
                         branch_order(name, &settings.branches.persistence) as u8,
                         &BranchType::Remote == tp,
@@ -320,6 +326,7 @@ fn extract_branches(
 
                 let branch_info = BranchInfo::new(
                     parent_oid,
+                    Some(info.oid),
                     branch_name,
                     persistence,
                     false,
@@ -516,7 +523,8 @@ fn assign_branch_columns_fcfs(
 /// Sorts branches into columns for visualization, that all branches can be
 /// visualizes linearly and without overlaps. Uses Shortest-First scheduling.
 fn assign_branch_columns_branch_length(
-    _commits: &[CommitInfo],
+    commits: &[CommitInfo],
+    indices: &HashMap<Oid, usize>,
     branches: &mut [BranchInfo],
     settings: &BranchSettings,
     shortest_first: bool,
@@ -547,7 +555,7 @@ fn assign_branch_columns_branch_length(
         .collect();
 
     for (branch_idx, start, end) in branches_sort {
-        let branch = &mut branches[branch_idx];
+        let branch = &branches[branch_idx];
         let group = branch.visual.order_group;
         let group_occ = &mut occupied[group];
 
@@ -561,10 +569,28 @@ fn assign_branch_columns_branch_length(
                 }
             }
             if !occ {
+                if let Some(merge_trace) = branch
+                    .merge_target
+                    .and_then(|t| indices.get(&t))
+                    .and_then(|t_idx| commits[*t_idx].branch_trace)
+                {
+                    let merge_branch = &branches[merge_trace];
+                    if merge_branch.visual.order_group == branch.visual.order_group {
+                        if let Some(merge_column) = merge_branch.visual.column {
+                            if merge_column == i {
+                                println!("{}", branch.name);
+                                occ = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if !occ {
                 found = i;
                 break;
             }
         }
+        let branch = &mut branches[branch_idx];
         branch.visual.column = Some(found);
         if found == group_occ.len() {
             group_occ.push(vec![]);

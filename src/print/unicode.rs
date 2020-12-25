@@ -256,6 +256,7 @@ fn hline(
         };
         match left {
             VER => grid.set_opt(from_2, index, Some(VER_R), new_col, new_pers),
+            VER_L => grid.set_opt(from_2, index, Some(CROSS), None, None),
             VER_R => {}
             HOR | L_U => grid.set_opt(from_2, index, Some(HOR_U), new_col, new_pers),
             _ => {
@@ -327,6 +328,7 @@ fn hline(
         };
         match right {
             VER => grid.set_opt(from_2, index, Some(VER_L), new_col, new_pers),
+            VER_R => grid.set_opt(from_2, index, Some(CROSS), None, None),
             VER_L => grid.set_opt(from_2, index, None, new_col, new_pers),
             HOR | R_D => grid.set_opt(from_2, index, Some(HOR_D), new_col, new_pers),
             _ => {
@@ -375,6 +377,7 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
                                                         if !compact
                                                             || !info.is_merge
                                                             || idx != *target_index
+                                                            || p == 0
                                                         {
                                                             occ = true;
                                                             break;

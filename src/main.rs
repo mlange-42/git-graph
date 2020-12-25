@@ -25,10 +25,10 @@ fn from_args() -> Result<(), String> {
                   https://github.com/mlange-42/git-graph",
         )
         .arg(
-            Arg::with_name("head")
-                .long("head")
-                .short("h")
-                .help("Show graph only from HEAD.")
+            Arg::with_name("all")
+                .long("all")
+                .short("a")
+                .help("Show the entire graph, not only from HEAD.")
                 .required(false)
                 .takes_value(false),
         )
@@ -82,7 +82,7 @@ fn from_args() -> Result<(), String> {
 
     let matches = app.clone().get_matches();
 
-    let head = matches.is_present("head");
+    let all = matches.is_present("all");
     let commit_limit = match matches.value_of("max-count") {
         None => None,
         Some(str) => match str.parse::<usize>() {
@@ -115,7 +115,7 @@ fn from_args() -> Result<(), String> {
         merge_patterns: MergePatterns::default(),
     };
 
-    run(&settings, svg, !head, commit_limit)
+    run(&settings, svg, all, commit_limit)
 }
 
 fn run(
