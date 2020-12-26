@@ -55,12 +55,6 @@ For basic usage, run the following command inside a Git repository's folder:
 git-graph
 ```
 
-Or, to show everything, not only starting from `HEAD`:
-
-```
-git-graph --all
-```
-
 > Note: git-graph needs to be on the PATH, or you need use the full path to git-graph:
 > 
 > ```
@@ -134,7 +128,6 @@ Further, indices of the 256-color palette are supported. For a full list, see [h
 * Commit information in SVG output
 * More pre-defined branching models
 * Better branch sorting into visual columns
-* Display tags
 * Support "octopus merges"
 * Support multiple remotes
 * Documentation of algorithms

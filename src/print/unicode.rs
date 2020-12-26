@@ -58,7 +58,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<String, St
     let mut grid = Grid::new(
         num_cols,
         graph.commits.len() + offset,
-        [SPACE, WHITE, settings.branches.persistence.len() as u8 + 1],
+        [SPACE, WHITE, settings.branches.persistence.len() as u8 + 2],
     );
 
     for (idx, info) in graph.commits.iter().enumerate() {
@@ -423,11 +423,14 @@ fn print_graph(
     let color =
         color && atty::is(Stream::Stdout) && (!cfg!(windows) || Paint::enable_windows_ascii());
 
+    let head_idx = graph.indices[&graph.head];
+
     let mut out = String::new();
 
     if color {
         for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
             let index = line_to_index.get(&line_idx);
+            let is_head = index.map(|idx| *idx == head_idx).unwrap_or(false);
 
             write_pre(&mut out, &graph, index).map_err(|err| err.to_string())?;
 
@@ -444,7 +447,7 @@ fn print_graph(
                 .map_err(|err| err.to_string())?;
             }
 
-            write_post(&mut out, &graph, index, color)?;
+            write_post(&mut out, &graph, index, is_head, color)?;
 
             if line_idx < grid.height - 1 {
                 writeln!(out).map_err(|err| err.to_string())?;
@@ -453,6 +456,7 @@ fn print_graph(
     } else {
         for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
             let index = line_to_index.get(&line_idx);
+            let is_head = index.map(|idx| *idx == head_idx).unwrap_or(false);
 
             write_pre(&mut out, &graph, index).map_err(|err| err.to_string())?;
 
@@ -462,7 +466,7 @@ fn print_graph(
                 .collect::<String>();
             write!(out, "{}", str).map_err(|err| err.to_string())?;
 
-            write_post(&mut out, &graph, index, color)?;
+            write_post(&mut out, &graph, index, is_head, color)?;
 
             if line_idx < grid.height - 1 {
                 writeln!(out).map_err(|err| err.to_string())?;
@@ -490,6 +494,7 @@ fn write_post(
     write: &mut String,
     graph: &GitGraph,
     index: Option<&usize>,
+    is_head: bool,
     color: bool,
 ) -> Result<(), String> {
     if let Some(index) = index {
@@ -498,7 +503,46 @@ fn write_post(
             Ok(c) => c,
             Err(err) => return Err(err.to_string()),
         };
+
+        let curr_color = info
+            .branch_trace
+            .map(|branch_idx| &graph.branches[branch_idx].visual.term_color);
+
         write!(write, "  ").map_err(|err| err.to_string())?;
+
+        let head = "HEAD -> ";
+        if is_head {
+            if color {
+                if let Some(curr_color) = curr_color {
+                    write!(write, "{}", Paint::fixed(*curr_color, head))
+                } else {
+                    write!(write, "{}", head)
+                }
+                .map_err(|err| err.to_string())?;
+            } else {
+                write!(write, "{}", head).map_err(|err| err.to_string())?;
+            }
+        }
+
+        if !info.tags.is_empty() {
+            write!(write, "[").map_err(|err| err.to_string())?;
+            for (idx, tag_index) in info.tags.iter().enumerate() {
+                let tag = &graph.branches[*tag_index];
+                let tag_color = curr_color.unwrap_or(&tag.visual.term_color);
+
+                if color {
+                    write!(write, "{}", Paint::fixed(*tag_color, &tag.name[5..]))
+                } else {
+                    write!(write, "{}", &tag.name[5..])
+                }
+                .map_err(|err| err.to_string())?;
+
+                if idx < info.tags.len() - 1 {
+                    write!(write, ", ").map_err(|err| err.to_string())?;
+                }
+            }
+            write!(write, "] ").map_err(|err| err.to_string())?;
+        }
         if !info.branches.is_empty() {
             write!(write, "(").map_err(|err| err.to_string())?;
             for (idx, branch_index) in info.branches.iter().enumerate() {

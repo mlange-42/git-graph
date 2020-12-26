@@ -12,25 +12,23 @@ pub struct GitGraph {
     pub commits: Vec<CommitInfo>,
     pub indices: HashMap<Oid, usize>,
     pub branches: Vec<BranchInfo>,
+    pub head: Oid,
 }
 
 impl GitGraph {
-    pub fn new(
-        path: &str,
-        settings: &Settings,
-        all: bool,
-        max_count: Option<usize>,
-    ) -> Result<Self, String> {
+    pub fn new(path: &str, settings: &Settings, max_count: Option<usize>) -> Result<Self, String> {
         let repository = Repository::open(path).map_err(|err| err.to_string())?;
         let mut walk = repository.revwalk().map_err(|err| err.to_string())?;
 
         walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
             .map_err(|err| err.to_string())?;
-        if all {
-            walk.push_glob("*").map_err(|err| err.to_string())?;
-        } else {
-            walk.push_head().map_err(|err| err.to_string())?;
-        }
+
+        walk.push_glob("*").map_err(|err| err.to_string())?;
+
+        let head = repository
+            .head()
+            .map(|r| r.target().unwrap())
+            .map_err(|err| err.to_string())?;
 
         let mut commits = Vec::new();
         let mut indices = HashMap::new();
@@ -78,6 +76,7 @@ impl GitGraph {
                 commits,
                 indices,
                 branches,
+                head,
             }
         } else {
             let filtered_commits: Vec<CommitInfo> = commits
@@ -120,6 +119,7 @@ impl GitGraph {
                 commits: filtered_commits,
                 indices: filtered_indices,
                 branches,
+                head,
             }
         };
 
@@ -138,6 +138,7 @@ pub struct CommitInfo {
     pub parents: [Option<Oid>; 2],
     pub children: Vec<Oid>,
     pub branches: Vec<usize>,
+    pub tags: Vec<usize>,
     pub branch_trace: Option<usize>,
 }
 
@@ -149,6 +150,7 @@ impl CommitInfo {
             parents: [commit.parent_id(0).ok(), commit.parent_id(1).ok()],
             children: Vec::new(),
             branches: Vec::new(),
+            tags: Vec::new(),
             branch_trace: None,
         }
     }
@@ -162,6 +164,7 @@ pub struct BranchInfo {
     pub persistence: u8,
     pub is_remote: bool,
     pub is_merged: bool,
+    pub is_tag: bool,
     pub visual: BranchVis,
     pub range: (Option<usize>, Option<usize>),
 }
@@ -174,6 +177,7 @@ impl BranchInfo {
         persistence: u8,
         is_remote: bool,
         is_merged: bool,
+        is_tag: bool,
         visual: BranchVis,
         end_index: Option<usize>,
     ) -> Self {
@@ -184,6 +188,7 @@ impl BranchInfo {
             persistence,
             is_remote,
             is_merged,
+            is_tag,
             visual,
             range: (end_index, None),
         }
@@ -244,7 +249,9 @@ fn assign_branches(
         .filter_map(|mut branch| {
             if let Some(&idx) = &indices.get(&branch.target) {
                 let info = &mut commits[idx];
-                if !branch.is_merged {
+                if branch.is_tag {
+                    info.tags.push(branch_idx);
+                } else if !branch.is_merged {
                     info.branches.push(branch_idx);
                 }
                 let oid = info.oid;
@@ -293,7 +300,6 @@ fn extract_branches(
             br.get().name().and_then(|n| {
                 br.get().target().map(|t| {
                     counter += 1;
-
                     let start_index = match tp {
                         BranchType::Local => 11,
                         BranchType::Remote => 13,
@@ -319,6 +325,7 @@ fn extract_branches(
                         name.to_string(),
                         branch_order(name, &settings.branches.persistence) as u8,
                         &BranchType::Remote == tp,
+                        false,
                         false,
                         BranchVis::new(
                             branch_order(name, &settings.branches.order),
@@ -375,6 +382,7 @@ fn extract_branches(
                     persistence,
                     false,
                     true,
+                    false,
                     BranchVis::new(pos, term_col, svg_col),
                     Some(idx + 1),
                 );
@@ -384,6 +392,50 @@ fn extract_branches(
     }
 
     valid_branches.sort_by_cached_key(|branch| (branch.persistence, !branch.is_merged));
+
+    let mut tags = Vec::new();
+
+    repository
+        .tag_foreach(|oid, name| {
+            tags.push((oid, name.to_vec()));
+            true
+        })
+        .map_err(|err| err.to_string())?;
+
+    for (oid, name) in tags {
+        let name = std::str::from_utf8(&name[5..]).map_err(|err| err.to_string())?;
+        let tag = repository.find_tag(oid).map_err(|err| err.to_string())?;
+        if let Some(target_index) = indices.get(&tag.target_id()) {
+            counter += 1;
+            let term_col = to_terminal_color(
+                &branch_color(
+                    &name,
+                    &settings.branches.terminal_colors[..],
+                    &settings.branches.terminal_colors_unknown,
+                    counter,
+                )[..],
+            )?;
+            let pos = branch_order(&name, &settings.branches.order);
+            let svg_col = branch_color(
+                &name,
+                &settings.branches.svg_colors,
+                &settings.branches.svg_colors_unknown,
+                counter,
+            );
+            let tag_info = BranchInfo::new(
+                tag.target_id(),
+                None,
+                name.to_string(),
+                settings.branches.persistence.len() as u8 + 1,
+                false,
+                false,
+                true,
+                BranchVis::new(pos, term_col, svg_col),
+                Some(*target_index),
+            );
+            valid_branches.push(tag_info);
+        }
+    }
 
     Ok(valid_branches)
 }
