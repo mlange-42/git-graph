@@ -127,7 +127,7 @@ dependencies = [
 
 [[package]]
 name = "git-graph"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "atty",
  "clap",
