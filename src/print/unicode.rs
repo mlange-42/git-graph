@@ -1,6 +1,7 @@
-use crate::graph::GitGraph;
+use crate::graph::{GitGraph, HeadInfo};
 use crate::settings::{Characters, Settings};
 use atty::Stream;
+use itertools::Itertools;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -423,17 +424,21 @@ fn print_graph(
     let color =
         color && atty::is(Stream::Stdout) && (!cfg!(windows) || Paint::enable_windows_ascii());
 
-    let head_idx = graph.indices[&graph.head];
+    let head_idx = graph.indices[&graph.head.oid];
 
     let mut out = String::new();
 
-    if color {
-        for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
-            let index = line_to_index.get(&line_idx);
-            let is_head = index.map(|idx| *idx == head_idx).unwrap_or(false);
+    for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
+        let index = line_to_index.get(&line_idx);
+        let head = if index.map(|idx| *idx == head_idx).unwrap_or(false) {
+            Some(&graph.head)
+        } else {
+            None
+        };
 
-            write_pre(&mut out, &graph, index).map_err(|err| err.to_string())?;
+        write_pre(&mut out, &graph, index).map_err(|err| err.to_string())?;
 
+        if color {
             for arr in row {
                 if arr[0] == SPACE {
                     write!(out, "{}", characters.chars[arr[0] as usize])
@@ -446,33 +451,20 @@ fn print_graph(
                 }
                 .map_err(|err| err.to_string())?;
             }
-
-            write_post(&mut out, &graph, index, is_head, color)?;
-
-            if line_idx < grid.height - 1 {
-                writeln!(out).map_err(|err| err.to_string())?;
-            }
-        }
-    } else {
-        for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
-            let index = line_to_index.get(&line_idx);
-            let is_head = index.map(|idx| *idx == head_idx).unwrap_or(false);
-
-            write_pre(&mut out, &graph, index).map_err(|err| err.to_string())?;
-
+        } else {
             let str = row
                 .iter()
                 .map(|arr| characters.chars[arr[0] as usize])
                 .collect::<String>();
             write!(out, "{}", str).map_err(|err| err.to_string())?;
+        }
+        write_post(&mut out, &graph, index, head, color)?;
 
-            write_post(&mut out, &graph, index, is_head, color)?;
-
-            if line_idx < grid.height - 1 {
-                writeln!(out).map_err(|err| err.to_string())?;
-            }
+        if line_idx < grid.height - 1 {
+            writeln!(out).map_err(|err| err.to_string())?;
         }
     }
+
     Ok(out)
 }
 
@@ -494,7 +486,7 @@ fn write_post(
     write: &mut String,
     graph: &GitGraph,
     index: Option<&usize>,
-    is_head: bool,
+    head: Option<&HeadInfo>,
     color: bool,
 ) -> Result<(), String> {
     if let Some(index) = index {
@@ -510,18 +502,56 @@ fn write_post(
 
         write!(write, "  ").map_err(|err| err.to_string())?;
 
-        let head = "HEAD -> ";
-        if is_head {
-            if color {
-                if let Some(curr_color) = curr_color {
-                    write!(write, "{}", Paint::fixed(*curr_color, head))
+        let head_str = "HEAD -> ";
+        if let Some(head) = head {
+            if !head.is_branch {
+                if color {
+                    write!(write, "{}", Paint::fixed(14, head_str))
                 } else {
-                    write!(write, "{}", head)
+                    write!(write, "{}", head_str)
                 }
                 .map_err(|err| err.to_string())?;
-            } else {
-                write!(write, "{}", head).map_err(|err| err.to_string())?;
             }
+        }
+
+        if !info.branches.is_empty() {
+            write!(write, "(").map_err(|err| err.to_string())?;
+
+            let branches = info.branches.iter().sorted_by_key(|br| {
+                if let Some(head) = head {
+                    head.name != graph.branches[**br].name
+                } else {
+                    false
+                }
+            });
+
+            for (idx, branch_index) in branches.enumerate() {
+                let branch = &graph.branches[*branch_index];
+                let branch_color = branch.visual.term_color;
+
+                if let Some(head) = head {
+                    if idx == 0 && head.is_branch {
+                        if color {
+                            write!(write, "{}", Paint::fixed(14, head_str))
+                        } else {
+                            write!(write, "{}", head_str)
+                        }
+                        .map_err(|err| err.to_string())?;
+                    }
+                }
+
+                if color {
+                    write!(write, "{}", Paint::fixed(branch_color, &branch.name))
+                } else {
+                    write!(write, "{}", &branch.name)
+                }
+                .map_err(|err| err.to_string())?;
+
+                if idx < info.branches.len() - 1 {
+                    write!(write, ", ").map_err(|err| err.to_string())?;
+                }
+            }
+            write!(write, ") ").map_err(|err| err.to_string())?;
         }
 
         if !info.tags.is_empty() {
@@ -543,25 +573,7 @@ fn write_post(
             }
             write!(write, "] ").map_err(|err| err.to_string())?;
         }
-        if !info.branches.is_empty() {
-            write!(write, "(").map_err(|err| err.to_string())?;
-            for (idx, branch_index) in info.branches.iter().enumerate() {
-                let branch = &graph.branches[*branch_index];
-                let branch_color = branch.visual.term_color;
 
-                if color {
-                    write!(write, "{}", Paint::fixed(branch_color, &branch.name))
-                } else {
-                    write!(write, "{}", &branch.name)
-                }
-                .map_err(|err| err.to_string())?;
-
-                if idx < info.branches.len() - 1 {
-                    write!(write, ", ").map_err(|err| err.to_string())?;
-                }
-            }
-            write!(write, ") ").map_err(|err| err.to_string())?;
-        }
         write!(write, "{}", commit.summary().unwrap_or("")).map_err(|err| err.to_string())?;
     }
     Ok(())

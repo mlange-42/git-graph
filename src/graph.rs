@@ -1,7 +1,7 @@
 use crate::print::colors::to_terminal_color;
 use crate::settings::{BranchOrder, BranchSettings, Settings};
 use crate::text;
-use git2::{BranchType, Commit, Error, Oid, Repository};
+use git2::{BranchType, Commit, Error, Oid, Reference, Repository};
 use itertools::Itertools;
 use regex::Regex;
 use std::collections::{HashMap, VecDeque};
@@ -12,7 +12,7 @@ pub struct GitGraph {
     pub commits: Vec<CommitInfo>,
     pub indices: HashMap<Oid, usize>,
     pub branches: Vec<BranchInfo>,
-    pub head: Oid,
+    pub head: HeadInfo,
 }
 
 impl GitGraph {
@@ -25,10 +25,7 @@ impl GitGraph {
 
         walk.push_glob("*").map_err(|err| err.to_string())?;
 
-        let head = repository
-            .head()
-            .map(|r| r.target().unwrap())
-            .map_err(|err| err.to_string())?;
+        let head = HeadInfo::new(&repository.head().map_err(|err| err.to_string())?)?;
 
         let mut commits = Vec::new();
         let mut indices = HashMap::new();
@@ -128,6 +125,29 @@ impl GitGraph {
 
     pub fn commit(&self, id: Oid) -> Result<Commit, Error> {
         self.repository.find_commit(id)
+    }
+}
+
+pub struct HeadInfo {
+    pub oid: Oid,
+    pub name: String,
+    pub is_branch: bool,
+}
+impl HeadInfo {
+    fn new(head: &Reference) -> Result<Self, String> {
+        let name = head.name().ok_or_else(|| "No name for HEAD".to_string())?;
+        let name = if name == "HEAD" {
+            name.to_string()
+        } else {
+            name[11..].to_string()
+        };
+
+        let h = HeadInfo {
+            oid: head.target().ok_or_else(|| "No id for HEAD".to_string())?,
+            name,
+            is_branch: head.is_branch(),
+        };
+        Ok(h)
     }
 }
 
