@@ -420,7 +420,7 @@ fn print_graph(
     color: bool,
 ) -> Result<(), String> {
     let color =
-        color && atty::is(Stream::Stdout) && !(cfg!(windows) && !Paint::enable_windows_ascii());
+        color && atty::is(Stream::Stdout) && (!cfg!(windows) || Paint::enable_windows_ascii());
 
     if color {
         for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {

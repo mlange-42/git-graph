@@ -1,4 +1,4 @@
-use crate::print::to_terminal_color;
+use crate::print::colors::to_terminal_color;
 use crate::settings::{BranchOrder, BranchSettings, Settings};
 use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Repository};

@@ -26,10 +26,10 @@ Decide for yourself which graph is the most comprehensible. :sunglasses:
 * View structured graphs directly in the terminal
 * Common branching models included
 * User-defined branching models and coloring
-* Uncolored output for presentation in texts
+* Automatic detection of color support (e.g. terminal vs. piped to file)
 * Different styles, including ASCII-only (i.e. no "special characters")
 * Graphical output as SVG vector graphics
-* It is fast and memory-efficient
+* Fast and memory-efficient
 
 ## Installation
 
@@ -112,6 +112,14 @@ E.g., to use a branching model defined in `my-model.toml`, use:
 ```
 git-graph --model my-model
 ```
+
+**Colors**
+
+**Terminal colors** support the 8 system color names `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan` and `white`, as well as each of them prefixed with `bright_` (e.g. `bright_blue`).
+
+Further, indices of the 256-color palette are supported. For a full list, see [here](https://jonasjacek.github.io/colors/). Indices must be quoted as strings (e.g. `'16'`)
+
+**SVG colors** support all named web colors (full list [here](https://htmlcolorcodes.com/color-names/)), as well as RGB colors in hex notation, like `#ffffff`.
 
 ## Limitations
 
