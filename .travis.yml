@@ -21,7 +21,6 @@ script:
   - cargo fmt -- --check
   - cargo clippy --all-targets -- --deny warnings
   - cargo test --verbose
-  - cargo build --release
 
 # Need to cache the whole `.cargo` directory to keep .crates.toml for
 # cargo-update to work
@@ -34,6 +33,7 @@ before_cache:
   - rm -rf /home/travis/.cargo/registry
 
 before_deploy:
+  - cargo build --release
   - rm -rf ${REPO} || exit 0
   - mkdir ${REPO}
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cp -f target/release/git-graph ${REPO} > /dev/null; fi

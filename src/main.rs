@@ -9,7 +9,6 @@ use git_graph::settings::{
 };
 use itertools::join;
 use platform_dirs::AppDirs;
-use std::fmt::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Instant;
@@ -205,22 +204,6 @@ fn list_models() -> Result<String, String> {
     let mut models_dir = app_dir;
     models_dir.push("models");
 
-    let mut str = String::new();
-
-    for entry in std::fs::read_dir(&models_dir).map_err(|err| err.to_string())? {
-        let path = entry.map_err(|err| err.to_string())?.path();
-        if path.is_file() {
-            if let (Some(name), Some(ext)) = (path.file_name(), path.extension()) {
-                if ext == "toml" {
-                    if let Some(name) = name.to_str() {
-                        writeln!(&mut str, "{}", &name[..(name.len() - 5)])
-                            .map_err(|err| err.to_string())?;
-                    }
-                }
-            }
-        }
-    }
-
     let models = std::fs::read_dir(&models_dir)
         .map_err(|err| err.to_string())?
         .filter_map(|e| match e {
@@ -363,9 +346,9 @@ fn run(
     let now = Instant::now();
 
     if svg {
-        print_svg(&graph, &settings)?
+        print!("{}", print_svg(&graph, &settings)?);
     } else {
-        print_unicode(&graph, &settings)?
+        print!("{}", print_unicode(&graph, &settings)?);
     };
 
     let duration_print = now.elapsed().as_micros();

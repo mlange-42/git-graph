@@ -3,6 +3,7 @@ use crate::settings::{Characters, Settings};
 use atty::Stream;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
+use std::fmt::Write;
 use yansi::Paint;
 
 const SPACE: u8 = 0;
@@ -25,7 +26,7 @@ const ARR_R: u8 = 15;
 
 const WHITE: u8 = 7;
 
-pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<(), String> {
+pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<String, String> {
     let num_cols = 2 * graph
         .branches
         .iter()
@@ -418,86 +419,108 @@ fn print_graph(
     characters: &Characters,
     grid: &Grid,
     color: bool,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let color =
         color && atty::is(Stream::Stdout) && (!cfg!(windows) || Paint::enable_windows_ascii());
+
+    let mut out = String::new();
 
     if color {
         for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
             let index = line_to_index.get(&line_idx);
-            print_pre(&graph, index);
+
+            write_pre(&mut out, &graph, index).map_err(|err| err.to_string())?;
+
             for arr in row {
                 if arr[0] == SPACE {
-                    print!("{}", characters.chars[arr[0] as usize]);
+                    write!(out, "{}", characters.chars[arr[0] as usize])
                 } else {
-                    print_colored_char(characters.chars[arr[0] as usize], arr[1]);
+                    write!(
+                        out,
+                        "{}",
+                        Paint::fixed(arr[1], characters.chars[arr[0] as usize])
+                    )
                 }
+                .map_err(|err| err.to_string())?;
             }
-            print_post(&graph, index, color)?;
-            println!();
+
+            write_post(&mut out, &graph, index, color)?;
+
+            if line_idx < grid.height - 1 {
+                writeln!(out).map_err(|err| err.to_string())?;
+            }
         }
     } else {
         for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
             let index = line_to_index.get(&line_idx);
-            print_pre(&graph, index);
+
+            write_pre(&mut out, &graph, index).map_err(|err| err.to_string())?;
+
             let str = row
                 .iter()
                 .map(|arr| characters.chars[arr[0] as usize])
                 .collect::<String>();
-            print!("{}", str);
-            print_post(&graph, index, color)?;
-            println!();
+            write!(out, "{}", str).map_err(|err| err.to_string())?;
+
+            write_post(&mut out, &graph, index, color)?;
+
+            if line_idx < grid.height - 1 {
+                writeln!(out).map_err(|err| err.to_string())?;
+            }
         }
+    }
+    Ok(out)
+}
+
+fn write_pre(
+    write: &mut String,
+    graph: &GitGraph,
+    index: Option<&usize>,
+) -> Result<(), std::fmt::Error> {
+    if let Some(index) = index {
+        let info = &graph.commits[*index];
+        write!(write, " {} ", &info.oid.to_string()[..7])?
+    } else {
+        write!(write, "         ")?
     }
     Ok(())
 }
 
-fn print_pre(graph: &GitGraph, index: Option<&usize>) {
-    if let Some(index) = index {
-        let info = &graph.commits[*index];
-        print!(" {} ", &info.oid.to_string()[..7]);
-    } else {
-        print!("         ");
-    }
-}
-
-fn print_post(graph: &GitGraph, index: Option<&usize>, color: bool) -> Result<(), String> {
+fn write_post(
+    write: &mut String,
+    graph: &GitGraph,
+    index: Option<&usize>,
+    color: bool,
+) -> Result<(), String> {
     if let Some(index) = index {
         let info = &graph.commits[*index];
         let commit = match graph.repository.find_commit(info.oid) {
             Ok(c) => c,
             Err(err) => return Err(err.to_string()),
         };
-        print!("  ");
+        write!(write, "  ").map_err(|err| err.to_string())?;
         if !info.branches.is_empty() {
-            print!("(");
+            write!(write, "(").map_err(|err| err.to_string())?;
             for (idx, branch_index) in info.branches.iter().enumerate() {
                 let branch = &graph.branches[*branch_index];
                 let branch_color = branch.visual.term_color;
+
                 if color {
-                    print_colored_str(&branch.name, branch_color);
+                    write!(write, "{}", Paint::fixed(branch_color, &branch.name))
                 } else {
-                    print!("{}", &branch.name);
+                    write!(write, "{}", &branch.name)
                 }
+                .map_err(|err| err.to_string())?;
+
                 if idx < info.branches.len() - 1 {
-                    print!(", ");
+                    write!(write, ", ").map_err(|err| err.to_string())?;
                 }
             }
-            print!(") ");
+            write!(write, ") ").map_err(|err| err.to_string())?;
         }
-        print!("{}", commit.summary().unwrap_or(""));
+        write!(write, "{}", commit.summary().unwrap_or("")).map_err(|err| err.to_string())?;
     }
     Ok(())
-}
-
-fn print_colored_char(character: char, color: u8) {
-    let str = Paint::fixed(color, character);
-    print!("{}", str);
-}
-
-fn print_colored_str(string: &str, color: u8) {
-    let str = Paint::fixed(color, string);
-    print!("{}", str);
 }
 
 enum Occ {
@@ -524,6 +547,7 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
 
 pub struct Grid {
     width: usize,
+    height: usize,
     data: Vec<[u8; 3]>,
 }
 
@@ -531,6 +555,7 @@ impl Grid {
     pub fn new(width: usize, height: usize, initial: [u8; 3]) -> Self {
         Grid {
             width,
+            height,
             data: vec![initial; width * height],
         }
     }

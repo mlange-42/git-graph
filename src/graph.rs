@@ -163,7 +163,6 @@ pub struct BranchInfo {
     pub is_remote: bool,
     pub is_merged: bool,
     pub visual: BranchVis,
-    pub deleted: bool,
     pub range: (Option<usize>, Option<usize>),
 }
 impl BranchInfo {
@@ -176,7 +175,6 @@ impl BranchInfo {
         is_remote: bool,
         is_merged: bool,
         visual: BranchVis,
-        deleted: bool,
         end_index: Option<usize>,
     ) -> Self {
         BranchInfo {
@@ -187,7 +185,6 @@ impl BranchInfo {
             is_remote,
             is_merged,
             visual,
-            deleted,
             range: (end_index, None),
         }
     }
@@ -247,7 +244,7 @@ fn assign_branches(
         .filter_map(|mut branch| {
             if let Some(&idx) = &indices.get(&branch.target) {
                 let info = &mut commits[idx];
-                if !branch.deleted {
+                if !branch.is_merged {
                     info.branches.push(branch_idx);
                 }
                 let oid = info.oid;
@@ -255,7 +252,7 @@ fn assign_branches(
                     trace_branch(repository, commits, &indices, oid, &mut branch, branch_idx)
                         .ok()?;
 
-                if any_assigned || !branch.deleted {
+                if any_assigned || !branch.is_merged {
                     branch_idx += 1;
                     Some(branch)
                 } else {
@@ -333,7 +330,6 @@ fn extract_branches(
                                 counter,
                             ),
                         ),
-                        false,
                         end_index,
                     ))
                 })
@@ -380,7 +376,6 @@ fn extract_branches(
                     false,
                     true,
                     BranchVis::new(pos, term_col, svg_col),
-                    true,
                     Some(idx + 1),
                 );
                 valid_branches.push(branch_info);
