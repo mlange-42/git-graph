@@ -33,14 +33,6 @@ fn from_args() -> Result<(), String> {
                   https://github.com/mlange-42/git-graph",
         )
         .arg(
-            Arg::with_name("all")
-                .long("all")
-                .short("a")
-                .help("Show the entire graph, not only from HEAD.")
-                .required(false)
-                .takes_value(false),
-        )
-        .arg(
             Arg::with_name("max-count")
                 .long("max-count")
                 .short("n")
@@ -142,7 +134,6 @@ fn from_args() -> Result<(), String> {
 
     let model = get_model(matches.value_of("model"))?;
 
-    let all = matches.is_present("all");
     let commit_limit = match matches.value_of("max-count") {
         None => None,
         Some(str) => match str.parse::<usize>() {
@@ -178,7 +169,7 @@ fn from_args() -> Result<(), String> {
         merge_patterns: MergePatterns::default(),
     };
 
-    run(&settings, svg, all, commit_limit)
+    run(&settings, svg, commit_limit)
 }
 
 fn get_model_name() -> Result<Option<String>, String> {
@@ -309,16 +300,11 @@ fn create_config() -> Result<(), String> {
     Ok(())
 }
 
-fn run(
-    settings: &Settings,
-    svg: bool,
-    all: bool,
-    max_commits: Option<usize>,
-) -> Result<(), String> {
+fn run(settings: &Settings, svg: bool, max_commits: Option<usize>) -> Result<(), String> {
     let path = ".";
 
     let now = Instant::now();
-    let graph = GitGraph::new(path, settings, all, max_commits)?;
+    let graph = GitGraph::new(path, settings, max_commits)?;
 
     let duration_graph = now.elapsed().as_micros();
 
