@@ -1,6 +1,16 @@
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 
+pub fn to_terminal_color(color: &str) -> Result<u8, String> {
+    match NAMED_COLORS.get(color) {
+        None => match color.parse::<u8>() {
+            Ok(col) => Ok(col),
+            Err(_) => Err(format!("Color {} not found", color)),
+        },
+        Some(rgb) => Ok(*rgb),
+    }
+}
+
 macro_rules! hashmap {
     ($( $key: expr => $val: expr ),*) => {{
          let mut map = ::std::collections::HashMap::new();

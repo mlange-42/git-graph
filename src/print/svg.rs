@@ -4,7 +4,7 @@ use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
 
-pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<(), String> {
+pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String> {
     let mut document = Document::new();
 
     let max_idx = graph.commits.len();
@@ -89,9 +89,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<(), String> {
             return Err(err.to_string());
         }
     }
-    println!("{}", String::from_utf8(out).map_err(|err| err.to_string())?);
-
-    Ok(())
+    String::from_utf8(out).map_err(|err| err.to_string())
 }
 
 fn commit_dot(index: usize, column: usize, color: &str, filled: bool) -> Circle {

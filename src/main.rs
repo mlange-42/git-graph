@@ -7,6 +7,7 @@ use git_graph::settings::{
     BranchOrder, BranchSettings, BranchSettingsDef, Characters, MergePatterns, RepoSettings,
     Settings,
 };
+use itertools::join;
 use platform_dirs::AppDirs;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -90,7 +91,7 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("no-color")
                 .long("no-color").alias("mono")
                 .short("M")
-                .help("Print without colors.")
+                .help("Print without colors. Missing color support should be detected automatically (e.g. when piping to a file).")
                 .required(false)
                 .takes_value(false),
         )
@@ -102,23 +103,36 @@ fn from_args() -> Result<(), String> {
                 .required(false)
                 .takes_value(true),
         ).subcommand(SubCommand::with_name("model")
-        .about("Prints or permanently sets the branching model for a repository.")
-        .arg(Arg::with_name("model")
-            .help("The branching model to be used. Available presets are [simple|git-flow|none]. When not given, prints the currently set model.")
-            .value_name("model")
-            .takes_value(true)
-            .required(false)
-            .index(1)));
+            .about("Prints or permanently sets the branching model for a repository.")
+            .arg(
+                Arg::with_name("model")
+                    .help("The branching model to be used. Available presets are [simple|git-flow|none]. When not given, prints the currently set model.")
+                    .value_name("model")
+                    .takes_value(true)
+                    .required(false)
+                    .index(1))
+            .arg(
+                Arg::with_name("list")
+                    .long("list")
+                    .short("l")
+                    .help("List all available branching models.")
+                    .required(false)
+                    .takes_value(false),
+        ));
 
     let matches = app.clone().get_matches();
 
     if let Some(matches) = matches.subcommand_matches("model") {
+        if matches.is_present("list") {
+            print!("{}", list_models()?);
+            return Ok(());
+        }
         match matches.value_of("model") {
             None => {
                 let curr_model = get_model_name()?;
                 match curr_model {
-                    None => println!("No branching model set"),
-                    Some(model) => println!("{}", model),
+                    None => print!("No branching model set"),
+                    Some(model) => print!("{}", model),
                 }
             }
             Some(model) => set_model(model)?,
@@ -185,6 +199,35 @@ fn get_model_name() -> Result<Option<String>, String> {
     }
 }
 
+fn list_models() -> Result<String, String> {
+    let app_dir = AppDirs::new(Some("git-graph"), false).unwrap().config_dir;
+    let mut models_dir = app_dir;
+    models_dir.push("models");
+
+    let models = std::fs::read_dir(&models_dir)
+        .map_err(|err| err.to_string())?
+        .filter_map(|e| match e {
+            Ok(e) => {
+                if let (Some(name), Some(ext)) = (e.path().file_name(), e.path().extension()) {
+                    if ext == "toml" {
+                        if let Some(name) = name.to_str() {
+                            Some((&name[..(name.len() - 5)]).to_string())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        });
+
+    Ok(join(models, "\n"))
+}
+
 fn get_model(model: Option<&str>) -> Result<BranchSettingsDef, String> {
     match model {
         Some(model) => read_model(model),
@@ -203,7 +246,7 @@ fn get_model(model: Option<&str>) -> Result<BranchSettingsDef, String> {
 
                 read_model(&repo_config.model)
             } else {
-                Ok(BranchSettingsDef::git_flow())
+                Ok(read_model("git-flow").unwrap_or_else(|_| BranchSettingsDef::git_flow()))
             }
         }
     }
@@ -303,9 +346,9 @@ fn run(
     let now = Instant::now();
 
     if svg {
-        print_svg(&graph, &settings)?
+        print!("{}", print_svg(&graph, &settings)?);
     } else {
-        print_unicode(&graph, &settings)?
+        print!("{}", print_unicode(&graph, &settings)?);
     };
 
     let duration_print = now.elapsed().as_micros();

@@ -40,10 +40,3 @@ fn get_deviate_index(graph: &GitGraph, index: usize, par_index: usize) -> usize 
         (par_index as i32 - 1) as usize
     }
 }
-
-pub fn to_terminal_color(color: &str) -> Result<u8, String> {
-    match colors::NAMED_COLORS.get(color) {
-        None => Err(format!("Color {} not found", color)),
-        Some(rgb) => Ok(*rgb),
-    }
-}

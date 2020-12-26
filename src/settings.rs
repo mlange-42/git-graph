@@ -83,16 +83,25 @@ impl BranchSettingsDef {
             ],
             terminal_colors: ColorsDef {
                 matches: vec![
-                    (r"^(master|main)$".to_string(), vec!["blue".to_string()]),
-                    (r"^(develop|dev)$".to_string(), vec!["yellow".to_string()]),
+                    (
+                        r"^(master|main)$".to_string(),
+                        vec!["bright_blue".to_string()],
+                    ),
+                    (
+                        r"^(develop|dev)$".to_string(),
+                        vec!["bright_yellow".to_string()],
+                    ),
                     (
                         r"^feature/.*$".to_string(),
-                        vec!["magenta".to_string(), "cyan".to_string()],
+                        vec!["bright_magenta".to_string(), "bright_cyan".to_string()],
                     ),
-                    (r"^release/.*$".to_string(), vec!["green".to_string()]),
+                    (
+                        r"^release/.*$".to_string(),
+                        vec!["bright_green".to_string()],
+                    ),
                     (
                         r"^(bugfix)|(hotfix)/.*$".to_string(),
-                        vec!["red".to_string()],
+                        vec!["bright_red".to_string()],
                     ),
                 ],
                 unknown: vec!["white".to_string()],
@@ -122,13 +131,16 @@ impl BranchSettingsDef {
             persistence: vec![r"^(master|main)$".to_string()],
             order: vec![r"^(master|main)$".to_string()],
             terminal_colors: ColorsDef {
-                matches: vec![(r"^(master|main)$".to_string(), vec!["blue".to_string()])],
+                matches: vec![(
+                    r"^(master|main)$".to_string(),
+                    vec!["bright_blue".to_string()],
+                )],
                 unknown: vec![
-                    "yellow".to_string(),
-                    "green".to_string(),
-                    "red".to_string(),
-                    "magenta".to_string(),
-                    "cyan".to_string(),
+                    "bright_yellow".to_string(),
+                    "bright_green".to_string(),
+                    "bright_red".to_string(),
+                    "bright_magenta".to_string(),
+                    "bright_cyan".to_string(),
                 ],
             },
 
@@ -152,12 +164,12 @@ impl BranchSettingsDef {
             terminal_colors: ColorsDef {
                 matches: vec![],
                 unknown: vec![
-                    "blue".to_string(),
-                    "yellow".to_string(),
-                    "green".to_string(),
-                    "red".to_string(),
-                    "magenta".to_string(),
-                    "cyan".to_string(),
+                    "bright_blue".to_string(),
+                    "bright_yellow".to_string(),
+                    "bright_green".to_string(),
+                    "bright_red".to_string(),
+                    "bright_magenta".to_string(),
+                    "bright_cyan".to_string(),
                 ],
             },
 
