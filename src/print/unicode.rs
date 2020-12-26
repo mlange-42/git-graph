@@ -1,9 +1,9 @@
 use crate::graph::GitGraph;
 use crate::settings::{Characters, Settings};
+use atty::Stream;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
-use term_painter::Color::Custom;
-use term_painter::ToStyle;
+use yansi::Paint;
 
 const SPACE: u8 = 0;
 const DOT: u8 = 1;
@@ -419,6 +419,9 @@ fn print_graph(
     grid: &Grid,
     color: bool,
 ) -> Result<(), String> {
+    let color =
+        color && atty::is(Stream::Stdout) && !(cfg!(windows) && !Paint::enable_windows_ascii());
+
     if color {
         for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
             let index = line_to_index.get(&line_idx);
@@ -488,12 +491,12 @@ fn print_post(graph: &GitGraph, index: Option<&usize>, color: bool) -> Result<()
 }
 
 fn print_colored_char(character: char, color: u8) {
-    let str = Custom(color as u32).paint(character);
+    let str = Paint::fixed(color, character);
     print!("{}", str);
 }
 
 fn print_colored_str(string: &str, color: u8) {
-    let str = Custom(color as u32).paint(string);
+    let str = Paint::fixed(color, string);
     print!("{}", str);
 }
 

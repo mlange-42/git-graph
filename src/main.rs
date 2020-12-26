@@ -90,7 +90,7 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("no-color")
                 .long("no-color").alias("mono")
                 .short("M")
-                .help("Print without colors.")
+                .help("Print without colors. Missing color support should be detected automatically (e.g. when piping to a file).")
                 .required(false)
                 .takes_value(false),
         )
