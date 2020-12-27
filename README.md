@@ -61,6 +61,12 @@ git-graph
 > C:/path/to/git-graph/git-graph
 > ```
 
+With Git installed, you can use git-graph as a git sub-command:
+
+```
+git graph
+```
+
 **Branching models**
 
 Run git-graph with a specific model, e.g. `git-flow`:
