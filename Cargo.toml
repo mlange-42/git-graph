@@ -1,7 +1,12 @@
 [package]
 name = "git-graph"
 version = "0.1.2"
-authors = ["mlange-42 <martin_lange_@gmx.net>"]
+authors = ["Martin Lange <martin_lange_@gmx.net>"]
+description = "Command line tool to show clear git graphs arranged for your branching model"
+repository = "https://github.com/mlange-42/git-graph.git"
+keywords = ["git", "graph"]
+license = "MIT"
+readme = "README.md"
 edition = "2018"
 
 [profile.release]
