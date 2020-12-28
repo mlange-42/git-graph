@@ -6,6 +6,8 @@ use itertools::Itertools;
 use regex::Regex;
 use std::collections::{HashMap, VecDeque};
 
+const ORIGIN: &str = "origin/";
+
 /// Represents a git history graph.
 pub struct GitGraph {
     pub repository: Repository,
@@ -270,24 +272,30 @@ fn assign_branches(
     settings: &Settings,
 ) -> Result<Vec<BranchInfo>, String> {
     let mut branch_idx = 0;
-    let branches_ordered = extract_branches(repository, commits, &indices, settings)?
-        .into_iter()
-        .filter_map(|mut branch| {
-            if let Some(&idx) = &indices.get(&branch.target) {
+
+    let mut branches = extract_branches(repository, commits, &indices, settings)?;
+
+    let index_map: Vec<_> = (0..branches.len())
+        .map(|old_idx| {
+            let (target, is_tag, is_merged) = {
+                let branch = &branches[old_idx];
+                (branch.target, branch.is_tag, branch.is_merged)
+            };
+            if let Some(&idx) = &indices.get(&target) {
                 let info = &mut commits[idx];
-                if branch.is_tag {
+                if is_tag {
                     info.tags.push(branch_idx);
-                } else if !branch.is_merged {
+                } else if !is_merged {
                     info.branches.push(branch_idx);
                 }
                 let oid = info.oid;
                 let any_assigned =
-                    trace_branch(repository, commits, &indices, oid, &mut branch, branch_idx)
-                        .ok()?;
+                    trace_branch(repository, commits, &indices, &mut branches, oid, old_idx)
+                        .unwrap_or(false);
 
-                if any_assigned || !branch.is_merged {
+                if any_assigned || !is_merged {
                     branch_idx += 1;
-                    Some(branch)
+                    Some(branch_idx - 1)
                 } else {
                     None
                 }
@@ -297,7 +305,25 @@ fn assign_branches(
         })
         .collect();
 
-    Ok(branches_ordered)
+    for info in commits.iter_mut() {
+        if let Some(trace) = info.branch_trace {
+            info.branch_trace = index_map[trace];
+        }
+    }
+
+    let branches = branches
+        .into_iter()
+        .enumerate()
+        .filter_map(|(arr_index, branch)| {
+            if index_map[arr_index].is_some() {
+                Some(branch)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(branches)
 }
 
 /// Extracts (real or derived from merge summary) and assigns basic properties.
@@ -476,8 +502,8 @@ fn trace_branch<'repo>(
     repository: &'repo Repository,
     commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
+    branches: &mut [BranchInfo],
     oid: Oid,
-    branch: &mut BranchInfo,
     branch_index: usize,
 ) -> Result<bool, Error> {
     let mut curr_oid = oid;
@@ -486,7 +512,20 @@ fn trace_branch<'repo>(
     let mut any_assigned = false;
     while let Some(index) = indices.get(&curr_oid) {
         let info = &mut commits[*index];
-        if info.branch_trace.is_some() {
+        if let Some(old_trace) = info.branch_trace {
+            let (old_name, old_term, old_svg) = {
+                let old_branch = &branches[old_trace];
+                (
+                    &old_branch.name.clone(),
+                    old_branch.visual.term_color,
+                    old_branch.visual.svg_color.clone(),
+                )
+            };
+            let branch = &mut branches[branch_index];
+            if branch.name.starts_with(ORIGIN) && branch.name[7..] == old_name[..] {
+                branch.visual.term_color = old_term;
+                branch.visual.svg_color = old_svg;
+            }
             match prev_index {
                 None => start_index = Some(*index as i32 - 1),
                 Some(prev_index) => {
@@ -527,6 +566,7 @@ fn trace_branch<'repo>(
         }
     }
 
+    let branch = &mut branches[branch_index];
     if let Some(end) = branch.range.0 {
         if let Some(start_index) = start_index {
             if start_index < end as i32 {
@@ -747,7 +787,7 @@ fn assign_branch_columns_branch_length(
 fn branch_order(name: &str, order: &[Regex]) -> usize {
     order
         .iter()
-        .position(|b| b.is_match(name) || (name.starts_with("origin/") && b.is_match(&name[7..])))
+        .position(|b| b.is_match(name) || (name.starts_with(ORIGIN) && b.is_match(&name[7..])))
         .unwrap_or(order.len())
 }
 
@@ -761,7 +801,7 @@ fn branch_color<T: Clone>(
     let color = order
         .iter()
         .find_position(|(b, _)| {
-            b.is_match(name) || (name.starts_with("origin/") && b.is_match(&name[7..]))
+            b.is_match(name) || (name.starts_with(ORIGIN) && b.is_match(&name[7..]))
         })
         .map(|(_pos, col)| &col.1[counter % col.1.len()])
         .unwrap_or_else(|| &unknown[counter % unknown.len()]);
