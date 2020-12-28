@@ -491,10 +491,10 @@ fn write_post(
 ) -> Result<(), String> {
     if let Some(index) = index {
         let info = &graph.commits[*index];
-        let commit = match graph.repository.find_commit(info.oid) {
-            Ok(c) => c,
-            Err(err) => return Err(err.to_string()),
-        };
+        let commit = graph
+            .repository
+            .find_commit(info.oid)
+            .map_err(|err| err.message().to_string())?;
 
         let curr_color = info
             .branch_trace

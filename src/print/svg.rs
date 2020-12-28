@@ -83,12 +83,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
         .set("height", y_max);
 
     let mut out: Vec<u8> = vec![];
-    match svg::write(&mut out, &document) {
-        Ok(_) => {}
-        Err(err) => {
-            return Err(err.to_string());
-        }
-    }
+    svg::write(&mut out, &document).map_err(|err| err.to_string())?;
     String::from_utf8(out).map_err(|err| err.to_string())
 }
 

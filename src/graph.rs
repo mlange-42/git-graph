@@ -16,16 +16,22 @@ pub struct GitGraph {
 }
 
 impl GitGraph {
-    pub fn new(path: &str, settings: &Settings, max_count: Option<usize>) -> Result<Self, String> {
-        let repository = Repository::open(path).map_err(|err| err.to_string())?;
-        let mut walk = repository.revwalk().map_err(|err| err.to_string())?;
+    pub fn new(
+        repository: Repository,
+        settings: &Settings,
+        max_count: Option<usize>,
+    ) -> Result<Self, String> {
+        let mut walk = repository
+            .revwalk()
+            .map_err(|err| err.message().to_string())?;
 
         walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| err.message().to_string())?;
 
-        walk.push_glob("*").map_err(|err| err.to_string())?;
+        walk.push_glob("*")
+            .map_err(|err| err.message().to_string())?;
 
-        let head = HeadInfo::new(&repository.head().map_err(|err| err.to_string())?)?;
+        let head = HeadInfo::new(&repository.head().map_err(|err| err.message().to_string())?)?;
 
         let mut commits = Vec::new();
         let mut indices = HashMap::new();
@@ -36,7 +42,7 @@ impl GitGraph {
                 }
             }
 
-            let oid = oid.map_err(|err| err.to_string())?;
+            let oid = oid.map_err(|err| err.message().to_string())?;
             let commit = repository.find_commit(oid).unwrap();
             commits.push(CommitInfo::new(&commit));
             indices.insert(oid, idx);
@@ -308,9 +314,9 @@ fn extract_branches(
     };
     let actual_branches = repository
         .branches(filter)
-        .map_err(|err| err.to_string())?
+        .map_err(|err| err.message().to_string())?
         .collect::<Result<Vec<_>, Error>>()
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| err.message().to_string())?;
 
     let mut counter = 0;
 
@@ -367,12 +373,14 @@ fn extract_branches(
     for (idx, info) in commits.iter().enumerate() {
         let commit = repository
             .find_commit(info.oid)
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| err.message().to_string())?;
         if info.is_merge {
             if let Some(summary) = commit.summary() {
                 counter += 1;
 
-                let parent_oid = commit.parent_id(1).map_err(|err| err.to_string())?;
+                let parent_oid = commit
+                    .parent_id(1)
+                    .map_err(|err| err.message().to_string())?;
 
                 let branch_name = text::parse_merge_summary(summary, &settings.merge_patterns)
                     .unwrap_or_else(|| "unknown".to_string());
@@ -420,11 +428,13 @@ fn extract_branches(
             tags.push((oid, name.to_vec()));
             true
         })
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| err.message().to_string())?;
 
     for (oid, name) in tags {
         let name = std::str::from_utf8(&name[5..]).map_err(|err| err.to_string())?;
-        let tag = repository.find_tag(oid).map_err(|err| err.to_string())?;
+        let tag = repository
+            .find_tag(oid)
+            .map_err(|err| err.message().to_string())?;
         if let Some(target_index) = indices.get(&tag.target_id()) {
             counter += 1;
             let term_col = to_terminal_color(
