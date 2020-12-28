@@ -68,8 +68,8 @@ impl BranchSettingsDef {
     pub fn git_flow() -> Self {
         BranchSettingsDef {
             persistence: vec![
-                r"^(master|main)$".to_string(),
-                r"^(develop|dev)$".to_string(),
+                r"(^master|^main)$".to_string(),
+                r"(^develop|^dev)$".to_string(),
                 r"^feature/.*$".to_string(),
                 r"^release/.*$".to_string(),
                 r"^hotfix/.*$".to_string(),
@@ -77,19 +77,18 @@ impl BranchSettingsDef {
             ],
             order: vec![
                 r"^tags/.*$".to_string(),
-                r"^(master|main)$".to_string(),
-                r"^(hotfix)|(release)/.*$".to_string(),
-                r"^(develop|dev)$".to_string(),
-                r"^(develop|dev)$".to_string(),
+                r"(^master|^main)$".to_string(),
+                r"(^hotfix)|(^release)/.*$".to_string(),
+                r"(^develop|^dev)$".to_string(),
             ],
             terminal_colors: ColorsDef {
                 matches: vec![
                     (
-                        r"^(master|main)$".to_string(),
+                        r"(^master|^main)$".to_string(),
                         vec!["bright_blue".to_string()],
                     ),
                     (
-                        r"^(develop|dev)$".to_string(),
+                        r"(^develop|^dev)$".to_string(),
                         vec!["bright_yellow".to_string()],
                     ),
                     (
@@ -101,7 +100,7 @@ impl BranchSettingsDef {
                         vec!["bright_green".to_string()],
                     ),
                     (
-                        r"^(bugfix)|(hotfix)/.*$".to_string(),
+                        r"(^bugfix)|(^hotfix)/.*$".to_string(),
                         vec!["bright_red".to_string()],
                     ),
                     (r"^tags/.*$".to_string(), vec!["bright_green".to_string()]),
@@ -111,15 +110,15 @@ impl BranchSettingsDef {
 
             svg_colors: ColorsDef {
                 matches: vec![
-                    (r"^(master|main)$".to_string(), vec!["blue".to_string()]),
-                    (r"^(develop|dev)$".to_string(), vec!["orange".to_string()]),
+                    (r"(^master|^main)$".to_string(), vec!["blue".to_string()]),
+                    (r"(^develop|^dev)$".to_string(), vec!["orange".to_string()]),
                     (
                         r"^feature/.*$".to_string(),
                         vec!["purple".to_string(), "turquoise".to_string()],
                     ),
                     (r"^release/.*$".to_string(), vec!["green".to_string()]),
                     (
-                        r"^(bugfix)|(hotfix)/.*$".to_string(),
+                        r"(^bugfix)|(^hotfix)/.*$".to_string(),
                         vec!["red".to_string()],
                     ),
                     (r"^tags/.*$".to_string(), vec!["green".to_string()]),
@@ -131,12 +130,12 @@ impl BranchSettingsDef {
 
     pub fn simple() -> Self {
         BranchSettingsDef {
-            persistence: vec![r"^(master|main)$".to_string()],
-            order: vec![r"^tags/.*$".to_string(), r"^(master|main)$".to_string()],
+            persistence: vec![r"(^master|^main)$".to_string()],
+            order: vec![r"^tags/.*$".to_string(), r"(^master|^main)$".to_string()],
             terminal_colors: ColorsDef {
                 matches: vec![
                     (
-                        r"^(master|main)$".to_string(),
+                        r"(^master|^main)$".to_string(),
                         vec!["bright_blue".to_string()],
                     ),
                     (r"^tags/.*$".to_string(), vec!["bright_green".to_string()]),
@@ -152,7 +151,7 @@ impl BranchSettingsDef {
 
             svg_colors: ColorsDef {
                 matches: vec![
-                    (r"^(master|main)$".to_string(), vec!["blue".to_string()]),
+                    (r"(^master|^main)$".to_string(), vec!["blue".to_string()]),
                     (r"^tags/.*$".to_string(), vec!["green".to_string()]),
                 ],
                 unknown: vec![

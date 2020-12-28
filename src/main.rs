@@ -16,7 +16,7 @@ fn main() {
     std::process::exit(match from_args() {
         Ok(_) => 0,
         Err(err) => {
-            eprint!("{}", err);
+            eprintln!("{}", err);
             1
         }
     });
@@ -123,7 +123,7 @@ fn from_args() -> Result<(), String> {
 
     if let Some(matches) = matches.subcommand_matches("model") {
         if matches.is_present("list") {
-            print!("{}", itertools::join(get_available_models()?, "\n"));
+            println!("{}", itertools::join(get_available_models()?, "\n"));
             return Ok(());
         }
     }
@@ -365,9 +365,9 @@ fn run(
     let now = Instant::now();
 
     if svg {
-        print!("{}", print_svg(&graph, &settings)?);
+        println!("{}", print_svg(&graph, &settings)?);
     } else {
-        print!("{}", print_unicode(&graph, &settings)?);
+        println!("{}", print_unicode(&graph, &settings)?);
     };
 
     let duration_print = now.elapsed().as_micros();
