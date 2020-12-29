@@ -1,4 +1,9 @@
 use clap::{crate_version, App, Arg, SubCommand};
+use crossterm::cursor::MoveToColumn;
+use crossterm::event::{Event, KeyCode, KeyModifiers};
+use crossterm::style::Print;
+use crossterm::terminal::{Clear, ClearType};
+use crossterm::{ErrorKind, ExecutableCommand};
 use git2::{Error, Repository};
 use git_graph::graph::{CommitInfo, GitGraph};
 use git_graph::print::svg::print_svg;
@@ -8,6 +13,7 @@ use git_graph::settings::{
     Settings,
 };
 use platform_dirs::AppDirs;
+use std::io::stdout;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Instant;
@@ -88,9 +94,15 @@ fn from_args() -> Result<(), String> {
         )
         .arg(
             Arg::with_name("no-color")
-                .long("no-color").alias("mono")
-                .short("M")
+                .long("no-color")
                 .help("Print without colors. Missing color support should be detected automatically (e.g. when piping to a file).")
+                .required(false)
+                .takes_value(false),
+        )
+        .arg(
+            Arg::with_name("no-pager")
+                .long("no-pager")
+                .help("Use no pager (print everything at once without prompt).")
                 .required(false)
                 .takes_value(false),
         )
@@ -163,6 +175,7 @@ fn from_args() -> Result<(), String> {
 
     let svg = matches.is_present("svg");
     let colored = !matches.is_present("no-color");
+    let pager = !matches.is_present("no-pager");
     let compact = !matches.is_present("sparse");
     let debug = matches.is_present("debug");
     let style = matches
@@ -183,7 +196,7 @@ fn from_args() -> Result<(), String> {
         merge_patterns: MergePatterns::default(),
     };
 
-    run(repository, &settings, svg, commit_limit)
+    run(repository, &settings, svg, commit_limit, pager)
 }
 
 fn get_model_name(repository: &Repository) -> Result<Option<String>, String> {
@@ -335,6 +348,7 @@ fn run(
     settings: &Settings,
     svg: bool,
     max_commits: Option<usize>,
+    pager: bool,
 ) -> Result<(), String> {
     let now = Instant::now();
     let graph = GitGraph::new(repository, settings, max_commits)?;
@@ -367,7 +381,12 @@ fn run(
     if svg {
         println!("{}", print_svg(&graph, &settings)?);
     } else {
-        println!("{}", print_unicode(&graph, &settings)?);
+        let lines = print_unicode(&graph, &settings)?;
+        if pager && atty::is(atty::Stream::Stdout) {
+            print_paged(&lines).map_err(|err| err.to_string())?;
+        } else {
+            print_unpaged(&lines);
+        }
     };
 
     let duration_print = now.elapsed().as_micros();
@@ -381,6 +400,85 @@ fn run(
         );
     }
     Ok(())
+}
+
+fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
+    let height = crossterm::terminal::size()?.1;
+
+    let mut line_idx = 0;
+    let mut print_lines = height - 2;
+    let mut clear = false;
+    let mut abort = false;
+
+    while line_idx < lines.len() {
+        if print_lines > 0 {
+            if clear {
+                stdout()
+                    .execute(Clear(ClearType::CurrentLine))?
+                    .execute(MoveToColumn(0))?;
+            }
+
+            stdout().execute(Print(format!("{}\n", lines[line_idx])))?;
+
+            if print_lines == 1 && line_idx < lines.len() - 1 {
+                stdout().execute(Print(
+                    "Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit",
+                ))?;
+            }
+            print_lines -= 1;
+            line_idx += 1;
+        } else {
+            let input = crossterm::event::read()?;
+            match input {
+                Event::Key(evt) => match evt.code {
+                    KeyCode::Down => {
+                        clear = true;
+                        print_lines = 1;
+                    }
+                    KeyCode::Enter | KeyCode::PageDown => {
+                        clear = true;
+                        print_lines = height - 2;
+                    }
+                    KeyCode::End => {
+                        clear = true;
+                        print_lines = lines.len() as u16;
+                    }
+                    KeyCode::Char(c) => match c {
+                        'q' => {
+                            abort = true;
+                            break;
+                        }
+                        'c' if evt.modifiers == KeyModifiers::CONTROL => {
+                            abort = true;
+                            break;
+                        }
+                        _ => {}
+                    },
+                    KeyCode::Esc => {
+                        abort = true;
+                        break;
+                    }
+                    _ => {}
+                },
+                Event::Mouse(_) => {}
+                Event::Resize(_, _) => {}
+            }
+        }
+    }
+    if abort {
+        stdout()
+            .execute(Clear(ClearType::CurrentLine))?
+            .execute(MoveToColumn(0))?
+            .execute(Print(" ...\n"))?;
+    }
+
+    Ok(())
+}
+
+fn print_unpaged(lines: &[String]) {
+    for line in lines {
+        println!("{}", line);
+    }
 }
 
 fn print_commit_short(graph: &GitGraph, info: &CommitInfo) -> Result<(), Error> {
