@@ -4,7 +4,7 @@ use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Reference, Repository};
 use itertools::Itertools;
 use regex::Regex;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 const ORIGIN: &str = "origin/";
 
@@ -19,10 +19,18 @@ pub struct GitGraph {
 
 impl GitGraph {
     pub fn new(
-        repository: Repository,
+        mut repository: Repository,
         settings: &Settings,
         max_count: Option<usize>,
     ) -> Result<Self, String> {
+        let mut stashes = HashSet::new();
+        repository
+            .stash_foreach(|_, _, oid| {
+                stashes.insert(*oid);
+                true
+            })
+            .map_err(|err| err.message().to_string())?;
+
         let mut walk = repository
             .revwalk()
             .map_err(|err| err.message().to_string())?;
@@ -37,17 +45,22 @@ impl GitGraph {
 
         let mut commits = Vec::new();
         let mut indices = HashMap::new();
-        for (idx, oid) in walk.enumerate() {
+        let mut idx = 0;
+        for oid in walk {
             if let Some(max) = max_count {
                 if idx >= max {
                     break;
                 }
             }
-
             let oid = oid.map_err(|err| err.message().to_string())?;
-            let commit = repository.find_commit(oid).unwrap();
-            commits.push(CommitInfo::new(&commit));
-            indices.insert(oid, idx);
+
+            if !stashes.contains(&oid) {
+                let commit = repository.find_commit(oid).unwrap();
+
+                commits.push(CommitInfo::new(&commit));
+                indices.insert(oid, idx);
+                idx += 1;
+            }
         }
         assign_children(&mut commits, &indices);
 
@@ -75,59 +88,48 @@ impl GitGraph {
             ),
         }
 
-        let graph = if settings.include_remote {
-            GitGraph {
-                repository,
-                commits,
-                indices,
-                branches,
-                head,
-            }
-        } else {
-            let filtered_commits: Vec<CommitInfo> = commits
-                .into_iter()
-                .filter(|info| info.branch_trace.is_some())
-                .collect();
-            let filtered_indices: HashMap<Oid, usize> = filtered_commits
-                .iter()
-                .enumerate()
-                .map(|(idx, info)| (info.oid, idx))
-                .collect();
+        let filtered_commits: Vec<CommitInfo> = commits
+            .into_iter()
+            .filter(|info| info.branch_trace.is_some())
+            .collect();
 
-            let index_map: HashMap<usize, Option<&usize>> = indices
-                .iter()
-                .map(|(oid, index)| (*index, filtered_indices.get(oid)))
-                .collect();
+        let filtered_indices: HashMap<Oid, usize> = filtered_commits
+            .iter()
+            .enumerate()
+            .map(|(idx, info)| (info.oid, idx))
+            .collect();
 
-            for branch in branches.iter_mut() {
-                if let Some(mut start_idx) = branch.range.0 {
-                    let mut idx0 = index_map[&start_idx];
-                    while idx0.is_none() {
-                        start_idx += 1;
-                        idx0 = index_map[&start_idx];
-                    }
-                    branch.range.0 = Some(*idx0.unwrap());
+        let index_map: HashMap<usize, Option<&usize>> = indices
+            .iter()
+            .map(|(oid, index)| (*index, filtered_indices.get(oid)))
+            .collect();
+
+        for branch in branches.iter_mut() {
+            if let Some(mut start_idx) = branch.range.0 {
+                let mut idx0 = index_map[&start_idx];
+                while idx0.is_none() {
+                    start_idx += 1;
+                    idx0 = index_map[&start_idx];
                 }
-                if let Some(mut end_idx) = branch.range.1 {
-                    let mut idx0 = index_map[&end_idx];
-                    while idx0.is_none() {
-                        end_idx -= 1;
-                        idx0 = index_map[&end_idx];
-                    }
-                    branch.range.1 = Some(*idx0.unwrap());
+                branch.range.0 = Some(*idx0.unwrap());
+            }
+            if let Some(mut end_idx) = branch.range.1 {
+                let mut idx0 = index_map[&end_idx];
+                while idx0.is_none() {
+                    end_idx -= 1;
+                    idx0 = index_map[&end_idx];
                 }
+                branch.range.1 = Some(*idx0.unwrap());
             }
+        }
 
-            GitGraph {
-                repository,
-                commits: filtered_commits,
-                indices: filtered_indices,
-                branches,
-                head,
-            }
-        };
-
-        Ok(graph)
+        Ok(GitGraph {
+            repository,
+            commits: filtered_commits,
+            indices: filtered_indices,
+            branches,
+            head,
+        })
     }
 
     pub fn commit(&self, id: Oid) -> Result<Commit, Error> {
@@ -344,14 +346,6 @@ fn assign_branches(
             } else {
                 None
             }
-            /*if index_map[arr_index].is_some() {
-                if commit_count[arr_index] == 0 {
-                    branch.range = (None, None);
-                }
-                Some(branch)
-            } else {
-                None
-            }*/
         })
         .collect();
 
