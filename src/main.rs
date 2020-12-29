@@ -4,8 +4,8 @@ use crossterm::event::{Event, KeyCode, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{ErrorKind, ExecutableCommand};
-use git2::{Error, Repository};
-use git_graph::graph::{CommitInfo, GitGraph};
+use git2::Repository;
+use git_graph::graph::GitGraph;
 use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
 use git_graph::settings::{
@@ -34,8 +34,16 @@ fn from_args() -> Result<(), String> {
     let app = App::new("git-graph")
         .version(crate_version!())
         .about(
-            "Structured Git graphs for your branching model.\n  \
-                  https://github.com/mlange-42/git-graph",
+            "Structured Git graphs for your branching model.\n    \
+                 https://github.com/mlange-42/git-graph\n\
+             \n\
+             EXAMPES:\n    \
+                 git-graph                   -> Show graph\n    \
+                 git-graph --style round     -> Show graph in a different style\n    \
+                 git-graph --model <model>   -> Show graph using a certain <model>\n    \
+                 git-graph model --list      -> List available branching models\n    \
+                 git-graph model             -> Show repo's current branching models\n    \
+                 git-graph model <model>     -> Permanently set model <model> for this repo",
         )
         .arg(
             Arg::with_name("path")
@@ -365,15 +373,6 @@ fn run(
                 if branch.is_merged { "m" } else { "" }
             );
         }
-        eprintln!("---------------------------------------------");
-        for info in &graph.commits {
-            if info.branch_trace.is_some() {
-                match print_commit_short(&graph, &info) {
-                    Ok(_) => {}
-                    Err(err) => return Err(err.message().to_string()),
-                }
-            }
-        }
     }
 
     let now = Instant::now();
@@ -479,52 +478,4 @@ fn print_unpaged(lines: &[String]) {
     for line in lines {
         println!("{}", line);
     }
-}
-
-fn print_commit_short(graph: &GitGraph, info: &CommitInfo) -> Result<(), Error> {
-    let commit = &graph.commit(info.oid)?;
-    let symbol = if commit.parents().len() > 1 { "o" } else { "*" };
-
-    let branch_str = if info.branches.is_empty() {
-        "".to_string()
-    } else {
-        format!(
-            " ({})",
-            itertools::join(
-                info.branches
-                    .iter()
-                    .map(|idx| { graph.branches[*idx].name.to_string() }),
-                ", "
-            )
-        )
-    };
-    let (trace_str, indent) = if let Some(trace) = info.branch_trace {
-        let branch = &graph.branches[trace];
-        let name = &branch.name;
-        (
-            format!(
-                " [{}{}-{}]",
-                &name[0..1],
-                &name[(name.len() - 1)..name.len()],
-                trace,
-            ),
-            std::iter::repeat(" ")
-                .take(branch.visual.column.unwrap())
-                .collect::<String>(),
-        )
-    } else {
-        ("".to_string(), "".to_string())
-    };
-
-    eprintln!(
-        "{}{} {}{}{} {}",
-        indent,
-        symbol,
-        &commit.id().to_string()[0..7],
-        trace_str,
-        branch_str,
-        &commit.summary().unwrap_or("---")
-    );
-
-    Ok(())
 }

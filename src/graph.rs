@@ -4,7 +4,7 @@ use crate::text;
 use git2::{BranchType, Commit, Error, Oid, Reference, Repository};
 use itertools::Itertools;
 use regex::Regex;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 const ORIGIN: &str = "origin/";
 
@@ -19,10 +19,18 @@ pub struct GitGraph {
 
 impl GitGraph {
     pub fn new(
-        repository: Repository,
+        mut repository: Repository,
         settings: &Settings,
         max_count: Option<usize>,
     ) -> Result<Self, String> {
+        let mut stashes = HashSet::new();
+        repository
+            .stash_foreach(|_, _, oid| {
+                stashes.insert(*oid);
+                true
+            })
+            .map_err(|err| err.message().to_string())?;
+
         let mut walk = repository
             .revwalk()
             .map_err(|err| err.message().to_string())?;
@@ -37,17 +45,22 @@ impl GitGraph {
 
         let mut commits = Vec::new();
         let mut indices = HashMap::new();
-        for (idx, oid) in walk.enumerate() {
+        let mut idx = 0;
+        for oid in walk {
             if let Some(max) = max_count {
                 if idx >= max {
                     break;
                 }
             }
-
             let oid = oid.map_err(|err| err.message().to_string())?;
-            let commit = repository.find_commit(oid).unwrap();
-            commits.push(CommitInfo::new(&commit));
-            indices.insert(oid, idx);
+
+            if !stashes.contains(&oid) {
+                let commit = repository.find_commit(oid).unwrap();
+
+                commits.push(CommitInfo::new(&commit));
+                indices.insert(oid, idx);
+                idx += 1;
+            }
         }
         assign_children(&mut commits, &indices);
 
@@ -75,60 +88,48 @@ impl GitGraph {
             ),
         }
 
-        let graph = if settings.include_remote {
-            GitGraph {
-                repository,
-                commits,
-                indices,
-                branches,
-                head,
-            }
-        } else {
-            let filtered_commits: Vec<CommitInfo> = commits
-                .into_iter()
-                .filter(|info| info.branch_trace.is_some())
-                .collect();
-            let filtered_indices: HashMap<Oid, usize> = filtered_commits
-                .iter()
-                .enumerate()
-                .map(|(idx, info)| (info.oid, idx))
-                .collect();
+        let filtered_commits: Vec<CommitInfo> = commits
+            .into_iter()
+            .filter(|info| info.branch_trace.is_some())
+            .collect();
 
-            let index_map: HashMap<usize, Option<&usize>> = indices
-                .iter()
-                .map(|(oid, index)| (*index, filtered_indices.get(oid)))
-                .collect();
+        let filtered_indices: HashMap<Oid, usize> = filtered_commits
+            .iter()
+            .enumerate()
+            .map(|(idx, info)| (info.oid, idx))
+            .collect();
 
-            for branch in branches.iter_mut() {
-                eprintln!("{}", branch.name);
-                if let Some(mut start_idx) = branch.range.0 {
-                    let mut idx0 = index_map[&start_idx];
-                    while idx0.is_none() {
-                        start_idx += 1;
-                        idx0 = index_map[&start_idx];
-                    }
-                    branch.range.0 = Some(*idx0.unwrap());
+        let index_map: HashMap<usize, Option<&usize>> = indices
+            .iter()
+            .map(|(oid, index)| (*index, filtered_indices.get(oid)))
+            .collect();
+
+        for branch in branches.iter_mut() {
+            if let Some(mut start_idx) = branch.range.0 {
+                let mut idx0 = index_map[&start_idx];
+                while idx0.is_none() {
+                    start_idx += 1;
+                    idx0 = index_map[&start_idx];
                 }
-                if let Some(mut end_idx) = branch.range.1 {
-                    let mut idx0 = index_map[&end_idx];
-                    while idx0.is_none() {
-                        end_idx -= 1;
-                        idx0 = index_map[&end_idx];
-                    }
-                    branch.range.1 = Some(*idx0.unwrap());
+                branch.range.0 = Some(*idx0.unwrap());
+            }
+            if let Some(mut end_idx) = branch.range.1 {
+                let mut idx0 = index_map[&end_idx];
+                while idx0.is_none() {
+                    end_idx -= 1;
+                    idx0 = index_map[&end_idx];
                 }
+                branch.range.1 = Some(*idx0.unwrap());
             }
+        }
 
-            GitGraph {
-                repository,
-                commits: filtered_commits,
-                indices: filtered_indices,
-                branches,
-                head,
-            }
-        };
-
-        Ok(graph)
+        Ok(GitGraph {
+            repository,
+            commits: filtered_commits,
+            indices: filtered_indices,
+            branches,
+            head,
+        })
     }
 
     pub fn commit(&self, id: Oid) -> Result<Commit, Error> {
@@ -275,7 +276,7 @@ fn assign_branches(
 
     let mut branches = extract_branches(repository, commits, &indices, settings)?;
 
-    let index_map: Vec<_> = (0..branches.len())
+    let mut index_map: Vec<_> = (0..branches.len())
         .map(|old_idx| {
             let (target, is_tag, is_merged) = {
                 let branch = &branches[old_idx];
@@ -284,9 +285,9 @@ fn assign_branches(
             if let Some(&idx) = &indices.get(&target) {
                 let info = &mut commits[idx];
                 if is_tag {
-                    info.tags.push(branch_idx);
+                    info.tags.push(old_idx);
                 } else if !is_merged {
-                    info.branches.push(branch_idx);
+                    info.branches.push(old_idx);
                 }
                 let oid = info.oid;
                 let any_assigned =
@@ -305,13 +306,38 @@ fn assign_branches(
         })
         .collect();
 
+    let mut commit_count = vec![0; branches.len()];
     for info in commits.iter_mut() {
         if let Some(trace) = info.branch_trace {
-            info.branch_trace = index_map[trace];
+            commit_count[trace] += 1;
         }
     }
 
-    let branches = branches
+    let mut count_skipped = 0;
+    for (idx, branch) in branches.iter().enumerate() {
+        if let Some(mapped) = index_map[idx] {
+            if commit_count[idx] == 0 && branch.is_merged && !branch.is_tag {
+                index_map[idx] = None;
+                count_skipped += 1;
+            } else {
+                index_map[idx] = Some(mapped - count_skipped);
+            }
+        }
+    }
+
+    for info in commits.iter_mut() {
+        if let Some(trace) = info.branch_trace {
+            info.branch_trace = index_map[trace];
+            for br in info.branches.iter_mut() {
+                *br = index_map[*br].unwrap();
+            }
+            for tag in info.tags.iter_mut() {
+                *tag = index_map[*tag].unwrap();
+            }
+        }
+    }
+
+    let branches: Vec<_> = branches
         .into_iter()
         .enumerate()
         .filter_map(|(arr_index, branch)| {
@@ -513,41 +539,58 @@ fn trace_branch<'repo>(
     while let Some(index) = indices.get(&curr_oid) {
         let info = &mut commits[*index];
         if let Some(old_trace) = info.branch_trace {
-            let (old_name, old_term, old_svg) = {
+            let (old_name, old_term, old_svg, old_range) = {
                 let old_branch = &branches[old_trace];
                 (
                     &old_branch.name.clone(),
                     old_branch.visual.term_color,
                     old_branch.visual.svg_color.clone(),
+                    old_branch.range,
                 )
             };
-            let branch = &mut branches[branch_index];
-            if branch.name.starts_with(ORIGIN) && branch.name[7..] == old_name[..] {
-                branch.visual.term_color = old_term;
-                branch.visual.svg_color = old_svg;
-            }
-            match prev_index {
-                None => start_index = Some(*index as i32 - 1),
-                Some(prev_index) => {
-                    // TODO: in cases where no crossings occur, the rule for merge commits can also be applied to normal commits
-                    // see also print::get_deviate_index()
-                    if commits[prev_index].is_merge {
-                        let mut temp_index = prev_index;
-                        for sibling_oid in &commits[*index].children {
-                            if sibling_oid != &curr_oid {
-                                let sibling_index = indices[&sibling_oid];
-                                if sibling_index > temp_index {
-                                    temp_index = sibling_index;
+            let new_name = &branches[branch_index].name;
+            let old_end = old_range.0.unwrap_or(0);
+            let new_end = branches[branch_index].range.0.unwrap_or(0);
+            if new_name == old_name && old_end >= new_end {
+                let old_branch = &mut branches[old_trace];
+                if let Some(old_end) = old_range.1 {
+                    if index > &old_end {
+                        old_branch.range = (None, None);
+                    } else {
+                        old_branch.range = (Some(*index), old_branch.range.1);
+                    }
+                } else {
+                    old_branch.range = (Some(*index), old_branch.range.1);
+                }
+            } else {
+                let branch = &mut branches[branch_index];
+                if branch.name.starts_with(ORIGIN) && branch.name[7..] == old_name[..] {
+                    branch.visual.term_color = old_term;
+                    branch.visual.svg_color = old_svg;
+                }
+                match prev_index {
+                    None => start_index = Some(*index as i32 - 1),
+                    Some(prev_index) => {
+                        // TODO: in cases where no crossings occur, the rule for merge commits can also be applied to normal commits
+                        // see also print::get_deviate_index()
+                        if commits[prev_index].is_merge {
+                            let mut temp_index = prev_index;
+                            for sibling_oid in &commits[*index].children {
+                                if sibling_oid != &curr_oid {
+                                    let sibling_index = indices[&sibling_oid];
+                                    if sibling_index > temp_index {
+                                        temp_index = sibling_index;
+                                    }
                                 }
                             }
+                            start_index = Some(temp_index as i32);
+                        } else {
+                            start_index = Some(*index as i32 - 1);
                         }
-                        start_index = Some(temp_index as i32);
-                    } else {
-                        start_index = Some(*index as i32 - 1);
                     }
                 }
+                break;
             }
-            break;
         }
 
         info.branch_trace = Some(branch_index);
@@ -743,7 +786,6 @@ fn assign_branch_columns_branch_length(
                     if merge_branch.visual.order_group == branch.visual.order_group {
                         if let Some(merge_column) = merge_branch.visual.column {
                             if merge_column == i {
-                                println!("{}", branch.name);
                                 occ = true;
                             }
                         }
