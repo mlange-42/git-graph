@@ -6,6 +6,7 @@ use crossterm::terminal::{Clear, ClearType};
 use crossterm::{ErrorKind, ExecutableCommand};
 use git2::Repository;
 use git_graph::graph::GitGraph;
+use git_graph::print::format::CommitFormat;
 use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
 use git_graph::settings::{
@@ -65,7 +66,10 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("model")
                 .long("model")
                 .short("m")
-                .help("Branching model. Available presets are [simple|git-flow|none]. Default: git-flow. Permanently set the model for a repository with `git-graph model <model>`.")
+                .help("Branching model. Available presets are [simple|git-flow|none].\n\
+                       Default: git-flow. \n\
+                       Permanently set the model for a repository with\n\
+                         > git-graph model <model>")
                 .required(false)
                 .takes_value(true),
         )
@@ -96,14 +100,16 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("sparse")
                 .long("sparse")
                 .short("S")
-                .help("Print a less compact graph: merge lines point to target lines rather than merge commits.")
+                .help("Print a less compact graph: merge lines point to target lines\n\
+                       rather than merge commits.")
                 .required(false)
                 .takes_value(false),
         )
         .arg(
             Arg::with_name("no-color")
                 .long("no-color")
-                .help("Print without colors. Missing color support should be detected automatically (e.g. when piping to a file).")
+                .help("Print without colors. Missing color support should be detected\n\
+                       automatically (e.g. when piping to a file).")
                 .required(false)
                 .takes_value(false),
         )
@@ -121,11 +127,22 @@ fn from_args() -> Result<(), String> {
                 .help("Output style. One of [normal|thin|round|bold|double|ascii].")
                 .required(false)
                 .takes_value(true),
-        ).subcommand(SubCommand::with_name("model")
+        )
+        .arg(
+            Arg::with_name("format")
+                .long("format")
+                .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n\
+                        \"<string>\" supports the most basic placeholders that Git provides, \n\
+                        like %h, %d, %s, ...")
+                .required(false)
+                .takes_value(true),
+        )
+        .subcommand(SubCommand::with_name("model")
             .about("Prints or permanently sets the branching model for a repository.")
             .arg(
                 Arg::with_name("model")
-                    .help("The branching model to be used. Available presets are [simple|git-flow|none]. When not given, prints the currently set model.")
+                    .help("The branching model to be used. Available presets are [simple|git-flow|none].\n\
+                           When not given, prints the currently set model.")
                     .value_name("model")
                     .takes_value(true)
                     .required(false)
@@ -193,11 +210,17 @@ fn from_args() -> Result<(), String> {
 
     let model = get_model(&repository, matches.value_of("model"))?;
 
+    let format = match matches.value_of("format") {
+        None => CommitFormat::OneLine,
+        Some(str) => CommitFormat::from_str(str)?,
+    };
+
     let settings = Settings {
         debug,
         colored,
         compact,
         include_remote,
+        format,
         characters: style,
         branch_order: BranchOrder::ShortestFirst(true),
         branches: BranchSettings::from(model).map_err(|err| err.to_string())?,

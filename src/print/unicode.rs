@@ -1,6 +1,8 @@
-use crate::graph::{GitGraph, HeadInfo};
+use crate::graph::{CommitInfo, GitGraph, HeadInfo};
+use crate::print::format::format_commit;
 use crate::settings::{Characters, Settings};
 use itertools::Itertools;
+use std::cmp::max;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -35,15 +37,22 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
         .unwrap()
         + 1;
 
+    let color = settings.colored
+        && atty::is(atty::Stream::Stdout)
+        && (!cfg!(windows) || Paint::enable_windows_ascii());
+
+    let head_idx = graph.indices[&graph.head.oid];
+
     let inserts = get_inserts(graph, settings.compact);
 
+    let format_str = settings.format.get_format();
     let mut index_map = vec![];
-
+    let mut text_lines = vec![];
     let mut offset = 0;
-    for idx in 0..graph.commits.len() {
+    for (idx, info) in graph.commits.iter().enumerate() {
         index_map.push(idx + offset);
-        if let Some(inserts) = inserts.get(&idx) {
-            offset += inserts
+        let cnt_inserts = if let Some(inserts) = inserts.get(&idx) {
+            inserts
                 .iter()
                 .filter(|vec| {
                     vec.iter().all(|occ| match occ {
@@ -51,8 +60,29 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
                         Occ::Range(_, _, _, _) => true,
                     })
                 })
-                .count();
+                .count()
+        } else {
+            0
+        };
+
+        let head = if idx == head_idx {
+            Some(&graph.head)
+        } else {
+            None
+        };
+
+        let lines = format(&format_str, &graph, &info, head, color)?;
+        let max_inserts = max(cnt_inserts, lines.len() - 1);
+        let add_lines = max_inserts - (lines.len() - 1);
+
+        for line in lines.into_iter() {
+            text_lines.push(Some(line));
         }
+        for _ in 0..add_lines {
+            text_lines.push(None);
+        }
+
+        offset += max_inserts;
     }
 
     let mut grid = Grid::new(
@@ -62,27 +92,20 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
     );
 
     for (idx, info) in graph.commits.iter().enumerate() {
-        let branch = &graph.branches[info.branch_trace.unwrap()];
-        let column = branch.visual.column.unwrap() * 2;
-        let draw_idx = index_map[idx];
-        let branch_color = branch.visual.term_color;
-
-        grid.set(
-            column,
-            draw_idx,
-            if info.is_merge { CIRCLE } else { DOT },
-            branch_color,
-            branch.persistence,
-        );
-    }
-
-    for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
             let branch = &graph.branches[trace];
             let column = branch.visual.column.unwrap();
             let idx_map = index_map[idx];
 
             let branch_color = branch.visual.term_color;
+
+            grid.set(
+                column * 2,
+                idx_map,
+                if info.is_merge { CIRCLE } else { DOT },
+                branch_color,
+                branch.persistence,
+            );
 
             for p in 0..2 {
                 if let Some(par_oid) = info.parents[p] {
@@ -146,19 +169,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
         }
     }
 
-    let index_map_inv: HashMap<usize, usize> = index_map
-        .iter()
-        .enumerate()
-        .map(|(idx, line)| (*line, idx))
-        .collect();
-
-    print_graph(
-        &graph,
-        &index_map_inv,
-        &settings.characters,
-        &grid,
-        settings.colored,
-    )
+    print_graph(&settings.characters, &grid, text_lines, settings.colored)
 }
 
 fn vline(grid: &mut Grid, (from, to): (usize, usize), column: usize, color: u8, pers: u8) {
@@ -170,6 +181,7 @@ fn vline(grid: &mut Grid, (from, to): (usize, usize), column: usize, color: u8, 
             (None, None)
         };
         match curr {
+            DOT | CIRCLE => {}
             HOR => {
                 grid.set_opt(column * 2, i, Some(CROSS), Some(color), Some(pers));
             }
@@ -215,6 +227,7 @@ fn hline(
                     (None, None)
                 };
                 match curr {
+                    DOT | CIRCLE => {}
                     VER => grid.set_opt(column, index, Some(CROSS), None, None),
                     HOR | CROSS | HOR_U | HOR_D => {
                         grid.set_opt(column, index, None, new_col, new_pers)
@@ -235,6 +248,7 @@ fn hline(
             (None, None)
         };
         match left {
+            DOT | CIRCLE => {}
             VER => grid.set_opt(from_2, index, Some(VER_R), new_col, new_pers),
             VER_L => grid.set_opt(from_2, index, Some(CROSS), None, None),
             VER_R => {}
@@ -251,8 +265,8 @@ fn hline(
             (None, None)
         };
         match right {
+            DOT | CIRCLE => {}
             VER => grid.set_opt(to_2, index, Some(VER_L), None, None),
-            CIRCLE | DOT => {}
             VER_L | HOR_U => grid.set_opt(to_2, index, None, new_col, new_pers),
             HOR | R_U => grid.set_opt(to_2, index, Some(HOR_U), new_col, new_pers),
             _ => {
@@ -271,6 +285,7 @@ fn hline(
                     (None, None)
                 };
                 match curr {
+                    DOT | CIRCLE => {}
                     VER => grid.set_opt(column, index, Some(CROSS), None, None),
                     HOR | CROSS | HOR_U | HOR_D => {
                         grid.set_opt(column, index, None, new_col, new_pers)
@@ -291,8 +306,8 @@ fn hline(
             (None, None)
         };
         match left {
+            DOT | CIRCLE => {}
             VER => grid.set_opt(to_2, index, Some(VER_R), None, None),
-            CIRCLE | DOT => {}
             VER_R => grid.set_opt(to_2, index, None, new_col, new_pers),
             HOR | L_U => grid.set_opt(to_2, index, Some(HOR_U), new_col, new_pers),
             _ => {
@@ -307,6 +322,7 @@ fn hline(
             (None, None)
         };
         match right {
+            DOT | CIRCLE => {}
             VER => grid.set_opt(from_2, index, Some(VER_L), new_col, new_pers),
             VER_R => grid.set_opt(from_2, index, Some(CROSS), None, None),
             VER_L => grid.set_opt(from_2, index, None, new_col, new_pers),
@@ -414,10 +430,9 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
 }
 
 fn print_graph(
-    graph: &GitGraph,
-    line_to_index: &HashMap<usize, usize>,
     characters: &Characters,
     grid: &Grid,
+    text_lines: Vec<Option<String>>,
     color: bool,
 ) -> Result<Vec<String>, String> {
     let color = color
@@ -425,19 +440,11 @@ fn print_graph(
         && (!cfg!(windows) || Paint::enable_windows_ascii());
 
     let mut lines = vec![];
-    let head_idx = graph.indices[&graph.head.oid];
 
-    for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
+    for (row, line) in grid.data.chunks(grid.width).zip(text_lines.into_iter()) {
         let mut out = String::new();
 
-        let index = line_to_index.get(&line_idx);
-        let head = if index.map(|idx| *idx == head_idx).unwrap_or(false) {
-            Some(&graph.head)
-        } else {
-            None
-        };
-
-        write_pre(&mut out, &graph, index).map_err(|err| err.to_string())?;
+        write!(out, " ").map_err(|err| err.to_string())?;
 
         if color {
             for arr in row {
@@ -459,7 +466,10 @@ fn print_graph(
                 .collect::<String>();
             write!(out, "{}", str).map_err(|err| err.to_string())?;
         }
-        write_post(&mut out, &graph, index, head, color)?;
+
+        if let Some(line) = line {
+            write!(out, "  {}", line).map_err(|err| err.to_string())?;
+        }
 
         lines.push(out);
     }
@@ -467,115 +477,97 @@ fn print_graph(
     Ok(lines)
 }
 
-fn write_pre(
-    write: &mut String,
+fn format(
+    format: &str,
     graph: &GitGraph,
-    index: Option<&usize>,
-) -> Result<(), std::fmt::Error> {
-    if let Some(index) = index {
-        let info = &graph.commits[*index];
-        write!(write, " {} ", &info.oid.to_string()[..7])?
-    } else {
-        write!(write, "         ")?
-    }
-    Ok(())
-}
-
-fn write_post(
-    write: &mut String,
-    graph: &GitGraph,
-    index: Option<&usize>,
+    info: &CommitInfo,
     head: Option<&HeadInfo>,
     color: bool,
-) -> Result<(), String> {
-    if let Some(index) = index {
-        let info = &graph.commits[*index];
-        let commit = graph
-            .repository
-            .find_commit(info.oid)
-            .map_err(|err| err.message().to_string())?;
+) -> Result<Vec<String>, String> {
+    let commit = graph
+        .repository
+        .find_commit(info.oid)
+        .map_err(|err| err.message().to_string())?;
 
-        let curr_color = info
-            .branch_trace
-            .map(|branch_idx| &graph.branches[branch_idx].visual.term_color);
+    let curr_color = info
+        .branch_trace
+        .map(|branch_idx| &graph.branches[branch_idx].visual.term_color);
 
-        write!(write, "  ").map_err(|err| err.to_string())?;
+    let mut branch_str = String::new();
 
-        let head_str = "HEAD -> ";
-        if let Some(head) = head {
-            if !head.is_branch {
-                if color {
-                    write!(write, "{}", Paint::fixed(14, head_str))
-                } else {
-                    write!(write, "{}", head_str)
-                }
-                .map_err(|err| err.to_string())?;
+    let head_str = "HEAD -> ";
+    if let Some(head) = head {
+        if !head.is_branch {
+            if color {
+                write!(branch_str, "{}", Paint::fixed(14, head_str))
+            } else {
+                write!(branch_str, "{}", head_str)
             }
+            .map_err(|err| err.to_string())?;
         }
-
-        if !info.branches.is_empty() {
-            write!(write, "(").map_err(|err| err.to_string())?;
-
-            let branches = info.branches.iter().sorted_by_key(|br| {
-                if let Some(head) = head {
-                    head.name != graph.branches[**br].name
-                } else {
-                    false
-                }
-            });
-
-            for (idx, branch_index) in branches.enumerate() {
-                let branch = &graph.branches[*branch_index];
-                let branch_color = branch.visual.term_color;
-
-                if let Some(head) = head {
-                    if idx == 0 && head.is_branch {
-                        if color {
-                            write!(write, "{}", Paint::fixed(14, head_str))
-                        } else {
-                            write!(write, "{}", head_str)
-                        }
-                        .map_err(|err| err.to_string())?;
-                    }
-                }
-
-                if color {
-                    write!(write, "{}", Paint::fixed(branch_color, &branch.name))
-                } else {
-                    write!(write, "{}", &branch.name)
-                }
-                .map_err(|err| err.to_string())?;
-
-                if idx < info.branches.len() - 1 {
-                    write!(write, ", ").map_err(|err| err.to_string())?;
-                }
-            }
-            write!(write, ") ").map_err(|err| err.to_string())?;
-        }
-
-        if !info.tags.is_empty() {
-            write!(write, "[").map_err(|err| err.to_string())?;
-            for (idx, tag_index) in info.tags.iter().enumerate() {
-                let tag = &graph.branches[*tag_index];
-                let tag_color = curr_color.unwrap_or(&tag.visual.term_color);
-
-                if color {
-                    write!(write, "{}", Paint::fixed(*tag_color, &tag.name[5..]))
-                } else {
-                    write!(write, "{}", &tag.name[5..])
-                }
-                .map_err(|err| err.to_string())?;
-
-                if idx < info.tags.len() - 1 {
-                    write!(write, ", ").map_err(|err| err.to_string())?;
-                }
-            }
-            write!(write, "] ").map_err(|err| err.to_string())?;
-        }
-
-        write!(write, "{}", commit.summary().unwrap_or("")).map_err(|err| err.to_string())?;
     }
-    Ok(())
+
+    if !info.branches.is_empty() {
+        write!(branch_str, " (").map_err(|err| err.to_string())?;
+
+        let branches = info.branches.iter().sorted_by_key(|br| {
+            if let Some(head) = head {
+                head.name != graph.branches[**br].name
+            } else {
+                false
+            }
+        });
+
+        for (idx, branch_index) in branches.enumerate() {
+            let branch = &graph.branches[*branch_index];
+            let branch_color = branch.visual.term_color;
+
+            if let Some(head) = head {
+                if idx == 0 && head.is_branch {
+                    if color {
+                        write!(branch_str, "{}", Paint::fixed(14, head_str))
+                    } else {
+                        write!(branch_str, "{}", head_str)
+                    }
+                    .map_err(|err| err.to_string())?;
+                }
+            }
+
+            if color {
+                write!(branch_str, "{}", Paint::fixed(branch_color, &branch.name))
+            } else {
+                write!(branch_str, "{}", &branch.name)
+            }
+            .map_err(|err| err.to_string())?;
+
+            if idx < info.branches.len() - 1 {
+                write!(branch_str, ", ").map_err(|err| err.to_string())?;
+            }
+        }
+        write!(branch_str, ")").map_err(|err| err.to_string())?;
+    }
+
+    if !info.tags.is_empty() {
+        write!(branch_str, " [").map_err(|err| err.to_string())?;
+        for (idx, tag_index) in info.tags.iter().enumerate() {
+            let tag = &graph.branches[*tag_index];
+            let tag_color = curr_color.unwrap_or(&tag.visual.term_color);
+
+            if color {
+                write!(branch_str, "{}", Paint::fixed(*tag_color, &tag.name[5..]))
+            } else {
+                write!(branch_str, "{}", &tag.name[5..])
+            }
+            .map_err(|err| err.to_string())?;
+
+            if idx < info.tags.len() - 1 {
+                write!(branch_str, ", ").map_err(|err| err.to_string())?;
+            }
+        }
+        write!(branch_str, "]").map_err(|err| err.to_string())?;
+    }
+
+    format_commit(format, &commit, branch_str)
 }
 
 enum Occ {
