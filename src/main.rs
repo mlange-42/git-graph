@@ -34,8 +34,16 @@ fn from_args() -> Result<(), String> {
     let app = App::new("git-graph")
         .version(crate_version!())
         .about(
-            "Structured Git graphs for your branching model.\n  \
-                  https://github.com/mlange-42/git-graph",
+            "Structured Git graphs for your branching model.\n    \
+                 https://github.com/mlange-42/git-graph\n\
+             \n\
+             EXAMPES:\n    \
+                 git-graph                   -> Show graph\n    \
+                 git-graph --style round     -> Show graph in a different style\n    \
+                 git-graph --model <model>   -> Show graph using a certain <model>\n    \
+                 git-graph model --list      -> List available branching models\n    \
+                 git-graph model             -> Show repo's current branching models\n    \
+                 git-graph model <model>     -> Permanently set model <model> for this repo",
         )
         .arg(
             Arg::with_name("path")
