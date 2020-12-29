@@ -1,6 +1,5 @@
 use crate::graph::{GitGraph, HeadInfo};
 use crate::settings::{Characters, Settings};
-use atty::Stream;
 use itertools::Itertools;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
@@ -27,7 +26,7 @@ const ARR_R: u8 = 15;
 
 const WHITE: u8 = 7;
 
-pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<String, String> {
+pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String>, String> {
     let num_cols = 2 * graph
         .branches
         .iter()
@@ -420,15 +419,17 @@ fn print_graph(
     characters: &Characters,
     grid: &Grid,
     color: bool,
-) -> Result<String, String> {
-    let color =
-        color && atty::is(Stream::Stdout) && (!cfg!(windows) || Paint::enable_windows_ascii());
+) -> Result<Vec<String>, String> {
+    let color = color
+        && atty::is(atty::Stream::Stdout)
+        && (!cfg!(windows) || Paint::enable_windows_ascii());
 
+    let mut lines = vec![];
     let head_idx = graph.indices[&graph.head.oid];
 
-    let mut out = String::new();
-
     for (line_idx, row) in grid.data.chunks(grid.width).enumerate() {
+        let mut out = String::new();
+
         let index = line_to_index.get(&line_idx);
         let head = if index.map(|idx| *idx == head_idx).unwrap_or(false) {
             Some(&graph.head)
@@ -460,12 +461,10 @@ fn print_graph(
         }
         write_post(&mut out, &graph, index, head, color)?;
 
-        if line_idx < grid.height - 1 {
-            writeln!(out).map_err(|err| err.to_string())?;
-        }
+        lines.push(out);
     }
 
-    Ok(out)
+    Ok(lines)
 }
 
 fn write_pre(
@@ -601,6 +600,7 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     }
 }
 
+#[allow(dead_code)]
 pub struct Grid {
     width: usize,
     height: usize,
