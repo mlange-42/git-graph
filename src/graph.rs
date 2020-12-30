@@ -484,45 +484,45 @@ fn extract_branches(
 
     for (oid, name) in tags {
         let name = std::str::from_utf8(&name[5..]).map_err(|err| err.to_string())?;
-        let tag = repository
-            .find_tag(oid)
-            .map_err(|err| err.message().to_string())?;
-        if let Some(target_index) = indices.get(&tag.target_id()) {
-            counter += 1;
-            let term_col = to_terminal_color(
-                &branch_color(
+
+        if let Ok(tag) = repository.find_tag(oid) {
+            if let Some(target_index) = indices.get(&tag.target_id()) {
+                counter += 1;
+                let term_col = to_terminal_color(
+                    &branch_color(
+                        &name,
+                        &settings.branches.terminal_colors[..],
+                        &settings.branches.terminal_colors_unknown,
+                        counter,
+                    )[..],
+                )?;
+                let pos = branch_order(&name, &settings.branches.order);
+                let svg_col = branch_color(
                     &name,
-                    &settings.branches.terminal_colors[..],
-                    &settings.branches.terminal_colors_unknown,
+                    &settings.branches.svg_colors,
+                    &settings.branches.svg_colors_unknown,
                     counter,
-                )[..],
-            )?;
-            let pos = branch_order(&name, &settings.branches.order);
-            let svg_col = branch_color(
-                &name,
-                &settings.branches.svg_colors,
-                &settings.branches.svg_colors_unknown,
-                counter,
-            );
-            let tag_info = BranchInfo::new(
-                tag.target_id(),
-                None,
-                name.to_string(),
-                settings.branches.persistence.len() as u8 + 1,
-                false,
-                false,
-                true,
-                BranchVis::new(pos, term_col, svg_col),
-                Some(*target_index),
-            );
-            valid_branches.push(tag_info);
+                );
+                let tag_info = BranchInfo::new(
+                    tag.target_id(),
+                    None,
+                    name.to_string(),
+                    settings.branches.persistence.len() as u8 + 1,
+                    false,
+                    false,
+                    true,
+                    BranchVis::new(pos, term_col, svg_col),
+                    Some(*target_index),
+                );
+                valid_branches.push(tag_info);
+            }
         }
     }
 
     Ok(valid_branches)
 }
 
-/// Traces brack branches by following 1st commit parent,
+/// Traces back branches by following 1st commit parent,
 /// until a commit is reached that already has a trace.
 fn trace_branch<'repo>(
     repository: &'repo Repository,
