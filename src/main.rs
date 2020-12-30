@@ -132,8 +132,26 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("format")
                 .long("format")
                 .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n\
-                        \"<string>\" supports the most basic placeholders that Git provides, \n\
-                        like %h, %d, %s, ...")
+                       Default: oneline.\n\
+                       For placeholders supported in \"<string>\", consult `git-graph --help`")
+                .long_help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n\
+                            Formatting placeholders for \"<string>\":\n    \
+                                %n    newline\n    \
+                                %H    commit hash\n    \
+                                %h    abbreviated commit hash\n    \
+                                %P    parent commit hashes\n    \
+                                %p    abbreviated parent commit hashes\n    \
+                                %d    refs (branches, tags)\n    \
+                                %s    commit summary\n    \
+                                %b    commit message body\n    \
+                                %an   author name\n    \
+                                %ae   author email\n    \
+                                %ad   author date\n    \
+                                %as   author date in short format `YYYY-MM-DD`\n    \
+                                %cn   committer name\n    \
+                                %ce   committer email\n    \
+                                %cd   committer date\n    \
+                                %cs   committer date in short format `YYYY-MM-DD`")
                 .required(false)
                 .takes_value(true),
         )

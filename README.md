@@ -28,6 +28,7 @@ Decide for yourself which graph is the most comprehensible. :sunglasses:
 * User-defined branching models and coloring
 * Automatic detection of color support (e.g. terminal vs. piped to file)
 * Different styles, including ASCII-only (i.e. no "special characters")
+* Custom commit formatting, like with `git log --format=...`
 * Graphical output as SVG vector graphics
 * Fast and memory-efficient
 
@@ -91,10 +92,11 @@ git-graph --svg > graph.svg
 
 **Get help**
 
-For the full CLI help, use:
+For the full CLI help describing all options, use:
 
 ```
 git-graph -h
+git-graph --help
 ```
 
 ## Custom branching models
@@ -130,7 +132,6 @@ Further, indices of the 256-color palette are supported. For a full list, see [h
 
 ## Missing features / TODOs
 
-* Custom formatting of commit information as with `git log --format=...`
 * Commit information in SVG output
 * More pre-defined branching models
 * Better branch sorting into visual columns

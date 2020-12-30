@@ -1,5 +1,5 @@
 use chrono::{FixedOffset, Local, TimeZone};
-use git2::Commit;
+use git2::{Commit, Time};
 use lazy_static::lazy_static;
 use std::fmt::Write;
 use std::str::FromStr;
@@ -30,14 +30,25 @@ impl FromStr for CommitFormat {
 const NEW_LINE: usize = 0;
 const HASH: usize = 1;
 const HASH_ABBREV: usize = 2;
-const REFS: usize = 3;
-const SUBJECT: usize = 4;
-const AUTHOR: usize = 5;
-const AUTHOR_EMAIL: usize = 6;
+const PARENT_HASHES: usize = 3;
+const PARENT_HASHES_ABBREV: usize = 4;
+const REFS: usize = 5;
+const SUBJECT: usize = 6;
+const AUTHOR: usize = 7;
+const AUTHOR_EMAIL: usize = 8;
+const AUTHOR_DATE: usize = 9;
+const AUTHOR_DATE_SHORT: usize = 10;
+const COMMITTER: usize = 11;
+const COMMITTER_EMAIL: usize = 12;
+const COMMITTER_DATE: usize = 13;
+const COMMITTER_DATE_SHORT: usize = 14;
+const BODY: usize = 15;
 
 lazy_static! {
-    pub static ref PLACEHOLDERS: Vec<&'static str> =
-        vec!["%n", "%H", "%h", "%d", "%s", "%an", "%ae"];
+    pub static ref PLACEHOLDERS: Vec<&'static str> = vec![
+        "%n", "%H", "%h", "%P", "%p", "%d", "%s", "%an", "%ae", "%ad", "%as", "%cn", "%ce", "%cd",
+        "%cs", "%b",
+    ];
 }
 
 #[allow(dead_code)]
@@ -68,6 +79,7 @@ pub fn format_commit(
         let mut curr = 0;
         for (start, len, idx) in replacements {
             if idx == NEW_LINE {
+                write!(out, "{}", &format[curr..start]).map_err(|err| err.to_string())?;
                 let mut temp = String::new();
                 std::mem::swap(&mut temp, &mut out);
                 lines.push(temp);
@@ -93,11 +105,107 @@ pub fn format_commit(
                             write!(out, "{}{}", prefix, &commit.id().to_string()[..7])
                         }
                     }
+                    PARENT_HASHES => {
+                        write!(out, "{}", prefix).map_err(|err| err.to_string())?;
+                        for i in 0..commit.parent_count() {
+                            write!(
+                                out,
+                                "{}",
+                                commit.parent_id(i).map_err(|err| err.to_string())?
+                            )
+                            .map_err(|err| err.to_string())?;
+                            if i < commit.parent_count() - 1 {
+                                write!(out, " ").map_err(|err| err.to_string())?;
+                            }
+                        }
+                        Ok(())
+                    }
+                    PARENT_HASHES_ABBREV => {
+                        write!(out, "{}", prefix).map_err(|err| err.to_string())?;
+                        for i in 0..commit.parent_count() {
+                            write!(
+                                out,
+                                "{}",
+                                &commit
+                                    .parent_id(i)
+                                    .map_err(|err| err.to_string())?
+                                    .to_string()[..7]
+                            )
+                            .map_err(|err| err.to_string())?;
+                            if i < commit.parent_count() - 1 {
+                                write!(out, " ").map_err(|err| err.to_string())?;
+                            }
+                        }
+                        Ok(())
+                    }
                     REFS => write!(out, "{}{}", prefix, branches),
                     SUBJECT => write!(out, "{}{}", prefix, commit.summary().unwrap_or("")),
                     AUTHOR => write!(out, "{}{}", prefix, &commit.author().name().unwrap_or("")),
                     AUTHOR_EMAIL => {
                         write!(out, "{}{}", prefix, &commit.author().email().unwrap_or(""))
+                    }
+                    AUTHOR_DATE => {
+                        write!(
+                            out,
+                            "{}{}",
+                            prefix,
+                            format_date(commit.author().when(), "%a %b %e %H:%M:%S %Y %z")
+                        )
+                    }
+                    AUTHOR_DATE_SHORT => {
+                        write!(
+                            out,
+                            "{}{}",
+                            prefix,
+                            format_date(commit.author().when(), "%F")
+                        )
+                    }
+                    COMMITTER => write!(
+                        out,
+                        "{}{}",
+                        prefix,
+                        &commit.committer().name().unwrap_or("")
+                    ),
+                    COMMITTER_EMAIL => {
+                        write!(
+                            out,
+                            "{}{}",
+                            prefix,
+                            &commit.committer().email().unwrap_or("")
+                        )
+                    }
+                    COMMITTER_DATE => {
+                        write!(
+                            out,
+                            "{}{}",
+                            prefix,
+                            format_date(commit.committer().when(), "%a %b %e %H:%M:%S %Y %z")
+                        )
+                    }
+                    COMMITTER_DATE_SHORT => {
+                        write!(
+                            out,
+                            "{}{}",
+                            prefix,
+                            format_date(commit.committer().when(), "%F")
+                        )
+                    }
+                    BODY => {
+                        write!(out, "{}", prefix).map_err(|err| err.to_string())?;
+
+                        let parts: Vec<_> = commit.message().unwrap_or("").split('\n').collect();
+                        let num_parts = parts.len();
+                        for (cnt, line) in parts.iter().enumerate() {
+                            if cnt > 1 {
+                                write!(out, "{}", line).map_err(|err| err.to_string())?;
+                                if cnt < num_parts - 1 {
+                                    let mut temp = String::new();
+                                    std::mem::swap(&mut temp, &mut out);
+                                    lines.push(temp);
+                                }
+                            }
+                        }
+                        Ok(())
                     }
                     x => return Err(format!("No commit field at index {}", x)),
                 }
@@ -137,10 +245,11 @@ pub fn format_oneline(
     Ok(vec![out])
 }
 
-pub fn format_short(
+pub fn format_multiline(
     commit: &Commit,
     branches: String,
     hash_color: Option<u8>,
+    level: u8,
 ) -> Result<Vec<String>, String> {
     let mut out_vec = vec![];
     let mut out = String::new();
@@ -151,7 +260,7 @@ pub fn format_short(
     }
     .map_err(|err| err.to_string())?;
 
-    write!(out, " {}", branches).map_err(|err| err.to_string())?;
+    write!(out, "{}", branches).map_err(|err| err.to_string())?;
     out_vec.push(out);
 
     if commit.parent_count() > 1 {
@@ -176,145 +285,50 @@ pub fn format_short(
     .map_err(|err| err.to_string())?;
     out_vec.push(out);
 
-    out_vec.push("".to_string());
-    let mut add_line = true;
-    for line in commit.message().unwrap_or("").split('\n') {
-        out_vec.push(format!("    {}", line));
-        add_line = !line.trim().is_empty();
+    if level > 1 {
+        out = String::new();
+        write!(
+            out,
+            "Commit: {} <{}>",
+            commit.committer().name().unwrap_or(""),
+            commit.committer().email().unwrap_or("")
+        )
+        .map_err(|err| err.to_string())?;
+        out_vec.push(out);
     }
-    if add_line {
+
+    if level > 0 {
+        out = String::new();
+        write!(
+            out,
+            "Date:   {}",
+            format_date(commit.author().when(), "%a %b %e %H:%M:%S %Y %z")
+        )
+        .map_err(|err| err.to_string())?;
+        out_vec.push(out);
+    }
+
+    if level == 0 {
         out_vec.push("".to_string());
+        out_vec.push(format!("    {}", commit.summary().unwrap_or("")));
+        out_vec.push("".to_string());
+    } else {
+        out_vec.push("".to_string());
+        let mut add_line = true;
+        for line in commit.message().unwrap_or("").split('\n') {
+            out_vec.push(format!("    {}", line));
+            add_line = !line.trim().is_empty();
+        }
+        if add_line {
+            out_vec.push("".to_string());
+        }
     }
 
     Ok(out_vec)
 }
 
-pub fn format_medium(
-    commit: &Commit,
-    branches: String,
-    hash_color: Option<u8>,
-) -> Result<Vec<String>, String> {
-    let mut out_vec = vec![];
-    let mut out = String::new();
-    if let Some(color) = hash_color {
-        write!(out, "commit {}", Paint::fixed(color, &commit.id()))
-    } else {
-        write!(out, "commit {}", &commit.id())
-    }
-    .map_err(|err| err.to_string())?;
-
-    write!(out, " {}", branches).map_err(|err| err.to_string())?;
-    out_vec.push(out);
-
-    if commit.parent_count() > 1 {
-        out = String::new();
-        write!(
-            out,
-            "Merge: {} {}",
-            &commit.parent_id(0).unwrap().to_string()[..7],
-            &commit.parent_id(1).unwrap().to_string()[..7]
-        )
-        .map_err(|err| err.to_string())?;
-        out_vec.push(out);
-    }
-
-    out = String::new();
-    write!(
-        out,
-        "Author: {} <{}>",
-        commit.author().name().unwrap_or(""),
-        commit.author().email().unwrap_or("")
-    )
-    .map_err(|err| err.to_string())?;
-    out_vec.push(out);
-
-    out = String::new();
-    let time = commit.author().when();
-    let date = Local::from_offset(&FixedOffset::east(time.offset_minutes()))
-        .timestamp(commit.author().when().seconds(), 0);
-    write!(out, "Date:   {}", date.format("%a %b %e %H:%M:%S %Y %z"))
-        .map_err(|err| err.to_string())?;
-    out_vec.push(out);
-
-    out_vec.push("".to_string());
-    let mut add_line = true;
-    for line in commit.message().unwrap_or("").split('\n') {
-        out_vec.push(format!("    {}", line));
-        add_line = !line.trim().is_empty();
-    }
-    if add_line {
-        out_vec.push("".to_string());
-    }
-
-    Ok(out_vec)
-}
-
-pub fn format_full(
-    commit: &Commit,
-    branches: String,
-    hash_color: Option<u8>,
-) -> Result<Vec<String>, String> {
-    let mut out_vec = vec![];
-    let mut out = String::new();
-    if let Some(color) = hash_color {
-        write!(out, "commit {}", Paint::fixed(color, &commit.id()))
-    } else {
-        write!(out, "commit {}", &commit.id())
-    }
-    .map_err(|err| err.to_string())?;
-
-    write!(out, " {}", branches).map_err(|err| err.to_string())?;
-    out_vec.push(out);
-
-    if commit.parent_count() > 1 {
-        out = String::new();
-        write!(
-            out,
-            "Merge: {} {}",
-            &commit.parent_id(0).unwrap().to_string()[..7],
-            &commit.parent_id(1).unwrap().to_string()[..7]
-        )
-        .map_err(|err| err.to_string())?;
-        out_vec.push(out);
-    }
-
-    out = String::new();
-    write!(
-        out,
-        "Author: {} <{}>",
-        commit.author().name().unwrap_or(""),
-        commit.author().email().unwrap_or("")
-    )
-    .map_err(|err| err.to_string())?;
-    out_vec.push(out);
-
-    out = String::new();
-    write!(
-        out,
-        "Commit: {} <{}>",
-        commit.committer().name().unwrap_or(""),
-        commit.committer().email().unwrap_or("")
-    )
-    .map_err(|err| err.to_string())?;
-    out_vec.push(out);
-
-    out = String::new();
-    let time = commit.author().when();
-    let date = Local::from_offset(&FixedOffset::east(time.offset_minutes()))
-        .timestamp(commit.author().when().seconds(), 0);
-    write!(out, "Date:   {}", date.format("%a %b %e %H:%M:%S %Y %z"))
-        .map_err(|err| err.to_string())?;
-    out_vec.push(out);
-
-    out_vec.push("".to_string());
-    let mut add_line = true;
-    for line in commit.message().unwrap_or("").split('\n') {
-        out_vec.push(format!("    {}", line));
-        add_line = !line.trim().is_empty();
-    }
-    if add_line {
-        out_vec.push("".to_string());
-    }
-
-    Ok(out_vec)
+fn format_date(time: Time, format: &str) -> String {
+    let date =
+        Local::from_offset(&FixedOffset::east(time.offset_minutes())).timestamp(time.seconds(), 0);
+    format!("{}", date.format(format))
 }
