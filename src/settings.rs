@@ -1,3 +1,4 @@
+use crate::print::format::CommitFormat;
 use regex::{Error, Regex};
 use serde_derive::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -36,6 +37,8 @@ pub struct Settings {
     pub colored: bool,
     /// Include remote branches?
     pub include_remote: bool,
+    /// Formatting for commits
+    pub format: CommitFormat,
     /// Characters to use for text-based graph
     pub characters: Characters,
     /// Branch column sorting algorithm

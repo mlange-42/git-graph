@@ -6,6 +6,7 @@ use crossterm::terminal::{Clear, ClearType};
 use crossterm::{ErrorKind, ExecutableCommand};
 use git2::Repository;
 use git_graph::graph::GitGraph;
+use git_graph::print::format::CommitFormat;
 use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
 use git_graph::settings::{
@@ -65,7 +66,10 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("model")
                 .long("model")
                 .short("m")
-                .help("Branching model. Available presets are [simple|git-flow|none]. Default: git-flow. Permanently set the model for a repository with `git-graph model <model>`.")
+                .help("Branching model. Available presets are [simple|git-flow|none].\n\
+                       Default: git-flow. \n\
+                       Permanently set the model for a repository with\n\
+                         > git-graph model <model>")
                 .required(false)
                 .takes_value(true),
         )
@@ -96,14 +100,25 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("sparse")
                 .long("sparse")
                 .short("S")
-                .help("Print a less compact graph: merge lines point to target lines rather than merge commits.")
+                .help("Print a less compact graph: merge lines point to target lines\n\
+                       rather than merge commits.")
                 .required(false)
                 .takes_value(false),
         )
         .arg(
+            Arg::with_name("color")
+                .long("color")
+                .help("Specify when colors should be used. One of [auto|always|never].\n\
+                       Default: auto.")
+                .required(false)
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("no-color")
                 .long("no-color")
-                .help("Print without colors. Missing color support should be detected automatically (e.g. when piping to a file).")
+                .help("Print without colors. Missing color support should be detected\n\
+                       automatically (e.g. when piping to a file).\n\
+                       Overrides option `--color`")
                 .required(false)
                 .takes_value(false),
         )
@@ -121,11 +136,53 @@ fn from_args() -> Result<(), String> {
                 .help("Output style. One of [normal|thin|round|bold|double|ascii].")
                 .required(false)
                 .takes_value(true),
-        ).subcommand(SubCommand::with_name("model")
+        )
+        .arg(
+            Arg::with_name("format")
+                .long("format")
+                .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n\
+                       Default: oneline.\n\
+                       For placeholders supported in \"<string>\", consult `git-graph --help`")
+                .long_help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n\
+                            Formatting placeholders for \"<string>\":\n    \
+                                %n    newline\n    \
+                                %H    commit hash\n    \
+                                %h    abbreviated commit hash\n    \
+                                %P    parent commit hashes\n    \
+                                %p    abbreviated parent commit hashes\n    \
+                                %d    refs (branches, tags)\n    \
+                                %s    commit summary\n    \
+                                %b    commit message body\n    \
+                                %B    raw body (subject and body)\n    \
+                                %an   author name\n    \
+                                %ae   author email\n    \
+                                %ad   author date\n    \
+                                %as   author date in short format `YYYY-MM-DD`\n    \
+                                %cn   committer name\n    \
+                                %ce   committer email\n    \
+                                %cd   committer date\n    \
+                                %cs   committer date in short format `YYYY-MM-DD`\n    \
+                                \n    \
+                                If you add a + (plus sign) after % of a placeholder,\n       \
+                                   a line-feed is inserted immediately before the expansion if\n       \
+                                   and only if the placeholder expands to a non-empty string.\n    \
+                                If you add a - (minus sign) after % of a placeholder, all\n       \
+                                   consecutive line-feeds immediately preceding the expansion are\n       \
+                                   deleted if and only if the placeholder expands to an empty string.\n    \
+                                If you add a ` ` (space) after % of a placeholder, a space is\n       \
+                                   inserted immediately before the expansion if and only if\n       \
+                                   the placeholder expands to a non-empty string.\n\
+                            \n    \
+                                See also the respective git help: https://git-scm.com/docs/pretty-formats\n")
+                .required(false)
+                .takes_value(true),
+        )
+        .subcommand(SubCommand::with_name("model")
             .about("Prints or permanently sets the branching model for a repository.")
             .arg(
                 Arg::with_name("model")
-                    .help("The branching model to be used. Available presets are [simple|git-flow|none]. When not given, prints the currently set model.")
+                    .help("The branching model to be used. Available presets are [simple|git-flow|none].\n\
+                           When not given, prints the currently set model.")
                     .value_name("model")
                     .takes_value(true)
                     .required(false)
@@ -182,7 +239,6 @@ fn from_args() -> Result<(), String> {
     let include_remote = !matches.is_present("local");
 
     let svg = matches.is_present("svg");
-    let colored = !matches.is_present("no-color");
     let pager = !matches.is_present("no-pager");
     let compact = !matches.is_present("sparse");
     let debug = matches.is_present("debug");
@@ -193,11 +249,43 @@ fn from_args() -> Result<(), String> {
 
     let model = get_model(&repository, matches.value_of("model"))?;
 
+    let format = match matches.value_of("format") {
+        None => CommitFormat::OneLine,
+        Some(str) => CommitFormat::from_str(str)?,
+    };
+
+    let colored = if matches.is_present("no-color") {
+        false
+    } else if let Some(mode) = matches.value_of("color") {
+        match mode {
+            "auto" => {
+                atty::is(atty::Stream::Stdout)
+                    && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
+            }
+            "always" => {
+                if cfg!(windows) {
+                    yansi::Paint::enable_windows_ascii();
+                }
+                true
+            }
+            "never" => false,
+            other => {
+                return Err(format!(
+                    "Unknown color mode '{}'. Supports [auto|always|never].",
+                    other
+                ))
+            }
+        }
+    } else {
+        atty::is(atty::Stream::Stdout) && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
+    };
+
     let settings = Settings {
         debug,
         colored,
         compact,
         include_remote,
+        format,
         characters: style,
         branch_order: BranchOrder::ShortestFirst(true),
         branches: BranchSettings::from(model).map_err(|err| err.to_string())?,
@@ -421,7 +509,7 @@ fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
 
             if print_lines == 1 && line_idx < lines.len() - 1 {
                 stdout().execute(Print(
-                    "Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit",
+                    " >>> Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit",
                 ))?;
             }
             print_lines -= 1;
