@@ -43,12 +43,29 @@ const COMMITTER_EMAIL: usize = 12;
 const COMMITTER_DATE: usize = 13;
 const COMMITTER_DATE_SHORT: usize = 14;
 const BODY: usize = 15;
+const BODY_RAW: usize = 16;
+
+const MODE_SPACE: usize = 1;
+const MODE_PLUS: usize = 2;
+const MODE_MINUS: usize = 3;
 
 lazy_static! {
-    pub static ref PLACEHOLDERS: Vec<&'static str> = vec![
-        "%n", "%H", "%h", "%P", "%p", "%d", "%s", "%an", "%ae", "%ad", "%as", "%cn", "%ce", "%cd",
-        "%cs", "%b",
-    ];
+    pub static ref PLACEHOLDERS: Vec<[String; 4]> = {
+        let base = vec![
+            "n", "H", "h", "P", "p", "d", "s", "an", "ae", "ad", "as", "cn", "ce", "cd", "cs", "b",
+            "B",
+        ];
+        base.iter()
+            .map(|b| {
+                [
+                    format!("%{}", b),
+                    format!("% {}", b),
+                    format!("%+{}", b),
+                    format!("%-{}", b),
+                ]
+            })
+            .collect()
+    };
 }
 
 #[allow(dead_code)]
@@ -60,11 +77,21 @@ pub fn format_commit(
 ) -> Result<Vec<String>, String> {
     let mut replacements = vec![];
 
-    for (idx, str) in PLACEHOLDERS.iter().enumerate() {
+    for (idx, arr) in PLACEHOLDERS.iter().enumerate() {
         let mut curr = 0;
-        while let Some(start) = &format[curr..format.len()].find(str) {
-            replacements.push((curr + start, str.len(), idx));
-            curr += start + str.len();
+        loop {
+            let mut found = false;
+            for (mode, str) in arr.iter().enumerate() {
+                if let Some(start) = &format[curr..format.len()].find(str) {
+                    replacements.push((curr + start, str.len(), idx, mode));
+                    curr += start + str.len();
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                break;
+            }
         }
     }
 
@@ -77,36 +104,47 @@ pub fn format_commit(
         lines.push(out);
     } else {
         let mut curr = 0;
-        for (start, len, idx) in replacements {
+        for (start, len, idx, mode) in replacements {
             if idx == NEW_LINE {
                 write!(out, "{}", &format[curr..start]).map_err(|err| err.to_string())?;
-                let mut temp = String::new();
-                std::mem::swap(&mut temp, &mut out);
-                lines.push(temp);
+                add_line(&mut lines, &mut out);
             } else {
-                let prefix = &format[curr..start];
+                write!(out, "{}", &format[curr..start]).map_err(|err| err.to_string())?;
                 match idx {
                     HASH => {
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
                         if let Some(color) = hash_color {
-                            write!(out, "{}{}", prefix, Paint::fixed(color, commit.id()))
+                            write!(out, "{}", Paint::fixed(color, commit.id()))
                         } else {
-                            write!(out, "{}{}", prefix, commit.id())
+                            write!(out, "{}", commit.id())
                         }
                     }
                     HASH_ABBREV => {
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
                         if let Some(color) = hash_color {
                             write!(
                                 out,
-                                "{}{}",
-                                prefix,
+                                "{}",
                                 Paint::fixed(color, &commit.id().to_string()[..7])
                             )
                         } else {
-                            write!(out, "{}{}", prefix, &commit.id().to_string()[..7])
+                            write!(out, "{}", &commit.id().to_string()[..7])
                         }
                     }
                     PARENT_HASHES => {
-                        write!(out, "{}", prefix).map_err(|err| err.to_string())?;
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
                         for i in 0..commit.parent_count() {
                             write!(
                                 out,
@@ -121,7 +159,11 @@ pub fn format_commit(
                         Ok(())
                     }
                     PARENT_HASHES_ABBREV => {
-                        write!(out, "{}", prefix).map_err(|err| err.to_string())?;
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
                         for i in 0..commit.parent_count() {
                             write!(
                                 out,
@@ -138,72 +180,179 @@ pub fn format_commit(
                         }
                         Ok(())
                     }
-                    REFS => write!(out, "{}{}", prefix, branches),
-                    SUBJECT => write!(out, "{}{}", prefix, commit.summary().unwrap_or("")),
-                    AUTHOR => write!(out, "{}{}", prefix, &commit.author().name().unwrap_or("")),
+                    REFS => {
+                        match mode {
+                            MODE_SPACE => {
+                                if !branches.is_empty() {
+                                    write!(out, " ").map_err(|err| err.to_string())?
+                                }
+                            }
+                            MODE_PLUS => {
+                                if !branches.is_empty() {
+                                    add_line(&mut lines, &mut out)
+                                }
+                            }
+                            MODE_MINUS => {
+                                if branches.is_empty() {
+                                    out = remove_empty_lines(&mut lines, out)
+                                }
+                            }
+                            _ => {}
+                        }
+                        write!(out, "{}", branches)
+                    }
+                    SUBJECT => {
+                        let summary = commit.summary().unwrap_or("");
+                        match mode {
+                            MODE_SPACE => {
+                                if !summary.is_empty() {
+                                    write!(out, " ").map_err(|err| err.to_string())?
+                                }
+                            }
+                            MODE_PLUS => {
+                                if !summary.is_empty() {
+                                    add_line(&mut lines, &mut out)
+                                }
+                            }
+                            MODE_MINUS => {
+                                if summary.is_empty() {
+                                    out = remove_empty_lines(&mut lines, out)
+                                }
+                            }
+                            _ => {}
+                        }
+                        write!(out, "{}", summary)
+                    }
+                    AUTHOR => {
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
+                        write!(out, "{}", &commit.author().name().unwrap_or(""))
+                    }
                     AUTHOR_EMAIL => {
-                        write!(out, "{}{}", prefix, &commit.author().email().unwrap_or(""))
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
+                        write!(out, "{}", &commit.author().email().unwrap_or(""))
                     }
                     AUTHOR_DATE => {
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
                         write!(
                             out,
-                            "{}{}",
-                            prefix,
+                            "{}",
                             format_date(commit.author().when(), "%a %b %e %H:%M:%S %Y %z")
                         )
                     }
                     AUTHOR_DATE_SHORT => {
-                        write!(
-                            out,
-                            "{}{}",
-                            prefix,
-                            format_date(commit.author().when(), "%F")
-                        )
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
+                        write!(out, "{}", format_date(commit.author().when(), "%F"))
                     }
-                    COMMITTER => write!(
-                        out,
-                        "{}{}",
-                        prefix,
-                        &commit.committer().name().unwrap_or("")
-                    ),
+                    COMMITTER => {
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
+                        write!(out, "{}", &commit.committer().name().unwrap_or(""))
+                    }
                     COMMITTER_EMAIL => {
-                        write!(
-                            out,
-                            "{}{}",
-                            prefix,
-                            &commit.committer().email().unwrap_or("")
-                        )
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
+                        write!(out, "{}", &commit.committer().email().unwrap_or(""))
                     }
                     COMMITTER_DATE => {
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
                         write!(
                             out,
-                            "{}{}",
-                            prefix,
+                            "{}",
                             format_date(commit.committer().when(), "%a %b %e %H:%M:%S %Y %z")
                         )
                     }
                     COMMITTER_DATE_SHORT => {
-                        write!(
-                            out,
-                            "{}{}",
-                            prefix,
-                            format_date(commit.committer().when(), "%F")
-                        )
+                        match mode {
+                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_PLUS => add_line(&mut lines, &mut out),
+                            _ => {}
+                        }
+                        write!(out, "{}", format_date(commit.committer().when(), "%F"))
                     }
                     BODY => {
-                        write!(out, "{}", prefix).map_err(|err| err.to_string())?;
+                        let message = commit
+                            .message()
+                            .unwrap_or("")
+                            .lines()
+                            .collect::<Vec<&str>>();
 
-                        let parts: Vec<_> = commit.message().unwrap_or("").split('\n').collect();
-                        let num_parts = parts.len();
-                        for (cnt, line) in parts.iter().enumerate() {
-                            if cnt > 1 {
-                                write!(out, "{}", line).map_err(|err| err.to_string())?;
-                                if cnt < num_parts - 1 {
-                                    let mut temp = String::new();
-                                    std::mem::swap(&mut temp, &mut out);
-                                    lines.push(temp);
+                        let num_parts = message.len();
+                        match mode {
+                            MODE_SPACE => {
+                                if num_parts > 2 {
+                                    write!(out, " ").map_err(|err| err.to_string())?
                                 }
                             }
+                            MODE_PLUS => {
+                                if num_parts > 2 {
+                                    add_line(&mut lines, &mut out)
+                                }
+                            }
+                            MODE_MINUS => {
+                                if num_parts <= 2 {
+                                    out = remove_empty_lines(&mut lines, out)
+                                }
+                            }
+                            _ => {}
+                        }
+                        for (cnt, line) in message.iter().enumerate() {
+                            if cnt > 1 {
+                                write!(out, "{}", line).map_err(|err| err.to_string())?;
+                                add_line(&mut lines, &mut out);
+                            }
+                        }
+                        Ok(())
+                    }
+                    BODY_RAW => {
+                        let message = commit.message().unwrap_or("");
+
+                        match mode {
+                            MODE_SPACE => {
+                                if !message.is_empty() {
+                                    write!(out, " ").map_err(|err| err.to_string())?
+                                }
+                            }
+                            MODE_PLUS => {
+                                if !message.is_empty() {
+                                    add_line(&mut lines, &mut out)
+                                }
+                            }
+                            MODE_MINUS => {
+                                if message.is_empty() {
+                                    out = remove_empty_lines(&mut lines, out)
+                                }
+                            }
+                            _ => {}
+                        }
+                        for line in message.lines() {
+                            write!(out, "{}", line).map_err(|err| err.to_string())?;
+                            add_line(&mut lines, &mut out);
                         }
                         Ok(())
                     }
@@ -215,11 +364,25 @@ pub fn format_commit(
         }
         write!(out, "{}", &format[curr..(format.len())]).map_err(|err| err.to_string())?;
 
-        let mut temp = String::new();
-        std::mem::swap(&mut temp, &mut out);
-        lines.push(temp);
+        add_line(&mut lines, &mut out);
     }
     Ok(lines)
+}
+
+fn add_line(lines: &mut Vec<String>, mut line: &mut String) {
+    let mut temp = String::new();
+    std::mem::swap(&mut temp, &mut line);
+    lines.push(temp);
+}
+
+fn remove_empty_lines(lines: &mut Vec<String>, mut line: String) -> String {
+    while !lines.is_empty() && lines.last().unwrap().is_empty() {
+        line = lines.remove(lines.len() - 1);
+    }
+    if !lines.is_empty() {
+        line = lines.remove(lines.len() - 1);
+    }
+    line
 }
 
 pub fn format_oneline(
@@ -315,7 +478,7 @@ pub fn format_multiline(
     } else {
         out_vec.push("".to_string());
         let mut add_line = true;
-        for line in commit.message().unwrap_or("").split('\n') {
+        for line in commit.message().unwrap_or("").lines() {
             out_vec.push(format!("    {}", line));
             add_line = !line.trim().is_empty();
         }

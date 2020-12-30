@@ -153,6 +153,7 @@ fn from_args() -> Result<(), String> {
                                 %d    refs (branches, tags)\n    \
                                 %s    commit summary\n    \
                                 %b    commit message body\n    \
+                                %B    raw body (subject and body)\n    \
                                 %an   author name\n    \
                                 %ae   author email\n    \
                                 %ad   author date\n    \
@@ -160,7 +161,19 @@ fn from_args() -> Result<(), String> {
                                 %cn   committer name\n    \
                                 %ce   committer email\n    \
                                 %cd   committer date\n    \
-                                %cs   committer date in short format `YYYY-MM-DD`")
+                                %cs   committer date in short format `YYYY-MM-DD`\n    \
+                                \n    \
+                                If you add a + (plus sign) after % of a placeholder,\n       \
+                                   a line-feed is inserted immediately before the expansion if\n       \
+                                   and only if the placeholder expands to a non-empty string.\n    \
+                                If you add a - (minus sign) after % of a placeholder, all\n       \
+                                   consecutive line-feeds immediately preceding the expansion are\n       \
+                                   deleted if and only if the placeholder expands to an empty string.\n    \
+                                If you add a ` ` (space) after % of a placeholder, a space is\n       \
+                                   inserted immediately before the expansion if and only if\n       \
+                                   the placeholder expands to a non-empty string.\n\
+                            \n    \
+                                See also the respective git help: https://git-scm.com/docs/pretty-formats\n")
                 .required(false)
                 .takes_value(true),
         )
