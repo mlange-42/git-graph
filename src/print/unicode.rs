@@ -39,10 +39,6 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
         .unwrap()
         + 1;
 
-    let color = settings.colored
-        && atty::is(atty::Stream::Stdout)
-        && (!cfg!(windows) || Paint::enable_windows_ascii());
-
     let head_idx = graph.indices[&graph.head.oid];
 
     let inserts = get_inserts(graph, settings.compact);
@@ -72,7 +68,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
             None
         };
 
-        let lines = format(&settings.format, &graph, &info, head, color)?;
+        let lines = format(&settings.format, &graph, &info, head, settings.colored)?;
         let max_inserts = max(cnt_inserts, lines.len() - 1);
         let add_lines = max_inserts - (lines.len() - 1);
 
@@ -436,10 +432,6 @@ fn print_graph(
     text_lines: Vec<Option<String>>,
     color: bool,
 ) -> Result<Vec<String>, String> {
-    let color = color
-        && atty::is(atty::Stream::Stdout)
-        && (!cfg!(windows) || Paint::enable_windows_ascii());
-
     let mut lines = vec![];
 
     for (row, line) in grid.data.chunks(grid.width).zip(text_lines.into_iter()) {

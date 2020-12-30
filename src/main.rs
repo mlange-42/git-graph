@@ -106,10 +106,19 @@ fn from_args() -> Result<(), String> {
                 .takes_value(false),
         )
         .arg(
+            Arg::with_name("color")
+                .long("color")
+                .help("Specify when colors should be used. One of [auto|always|never].\n\
+                       Default: auto.")
+                .required(false)
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("no-color")
                 .long("no-color")
                 .help("Print without colors. Missing color support should be detected\n\
-                       automatically (e.g. when piping to a file).")
+                       automatically (e.g. when piping to a file).\n\
+                       Overrides option `--color`")
                 .required(false)
                 .takes_value(false),
         )
@@ -217,7 +226,6 @@ fn from_args() -> Result<(), String> {
     let include_remote = !matches.is_present("local");
 
     let svg = matches.is_present("svg");
-    let colored = !matches.is_present("no-color");
     let pager = !matches.is_present("no-pager");
     let compact = !matches.is_present("sparse");
     let debug = matches.is_present("debug");
@@ -231,6 +239,32 @@ fn from_args() -> Result<(), String> {
     let format = match matches.value_of("format") {
         None => CommitFormat::OneLine,
         Some(str) => CommitFormat::from_str(str)?,
+    };
+
+    let colored = if matches.is_present("no-color") {
+        false
+    } else if let Some(mode) = matches.value_of("color") {
+        match mode {
+            "auto" => {
+                atty::is(atty::Stream::Stdout)
+                    && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
+            }
+            "always" => {
+                if cfg!(windows) {
+                    yansi::Paint::enable_windows_ascii();
+                }
+                true
+            }
+            "never" => false,
+            other => {
+                return Err(format!(
+                    "Unknown color mode '{}'. Supports [auto|always|never].",
+                    other
+                ))
+            }
+        }
+    } else {
+        atty::is(atty::Stream::Stdout) && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
     };
 
     let settings = Settings {
