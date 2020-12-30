@@ -444,7 +444,7 @@ fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
 
             if print_lines == 1 && line_idx < lines.len() - 1 {
                 stdout().execute(Print(
-                    "Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit",
+                    " >>> Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit",
                 ))?;
             }
             print_lines -= 1;

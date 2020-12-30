@@ -2,6 +2,7 @@ use git2::Commit;
 use lazy_static::lazy_static;
 use std::fmt::Write;
 use std::str::FromStr;
+use yansi::Paint;
 
 const FORMAT_ONELINE: &str = "%h%d %s";
 const FORMAT_SHORT: &str = "%h%d %s";
@@ -57,6 +58,7 @@ pub fn format_commit(
     format: &str,
     commit: &Commit,
     branches: String,
+    hash_color: Option<u8>,
 ) -> Result<Vec<String>, String> {
     let mut replacements = vec![];
 
@@ -83,14 +85,32 @@ pub fn format_commit(
                 std::mem::swap(&mut temp, &mut out);
                 lines.push(temp);
             } else {
-                let value = match idx {
-                    HASH => commit.id().to_string(),
-                    HASH_ABBREV => commit.id().to_string()[..7].to_string(),
-                    REFS => branches.clone(),
-                    SUBJECT => commit.summary().unwrap_or("").to_string(),
+                let prefix = &format[curr..start];
+                match idx {
+                    HASH => {
+                        if let Some(color) = hash_color {
+                            write!(out, "{}{}", prefix, Paint::fixed(color, commit.id()))
+                        } else {
+                            write!(out, "{}{}", prefix, commit.id())
+                        }
+                    }
+                    HASH_ABBREV => {
+                        if let Some(color) = hash_color {
+                            write!(
+                                out,
+                                "{}{}",
+                                prefix,
+                                Paint::fixed(color, &commit.id().to_string()[..7])
+                            )
+                        } else {
+                            write!(out, "{}{}", prefix, &commit.id().to_string()[..7])
+                        }
+                    }
+                    REFS => write!(out, "{}{}", prefix, branches),
+                    SUBJECT => write!(out, "{}{}", prefix, commit.summary().unwrap_or("")),
                     x => return Err(format!("No commit field at index {}", x)),
-                };
-                write!(out, "{}{}", &format[curr..start], value).map_err(|err| err.to_string())?;
+                }
+                .map_err(|err| err.to_string())?;
             }
             curr = start + len;
         }

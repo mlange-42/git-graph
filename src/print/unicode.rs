@@ -27,6 +27,8 @@ const ARR_L: u8 = 14;
 const ARR_R: u8 = 15;
 
 const WHITE: u8 = 7;
+const HEAD_COLOR: u8 = 14;
+const HASH_COLOR: u8 = 11;
 
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String>, String> {
     let num_cols = 2 * graph
@@ -499,7 +501,7 @@ fn format(
     if let Some(head) = head {
         if !head.is_branch {
             if color {
-                write!(branch_str, "{}", Paint::fixed(14, head_str))
+                write!(branch_str, "{}", Paint::fixed(HEAD_COLOR, head_str))
             } else {
                 write!(branch_str, "{}", head_str)
             }
@@ -567,7 +569,12 @@ fn format(
         write!(branch_str, "]").map_err(|err| err.to_string())?;
     }
 
-    format_commit(format, &commit, branch_str)
+    format_commit(
+        format,
+        &commit,
+        branch_str,
+        if color { Some(HASH_COLOR) } else { None },
+    )
 }
 
 enum Occ {
