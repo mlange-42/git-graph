@@ -1,5 +1,7 @@
 use crate::graph::{CommitInfo, GitGraph, HeadInfo};
-use crate::print::format::format_commit;
+use crate::print::format::{
+    format_commit, format_full, format_medium, format_oneline, format_short, CommitFormat,
+};
 use crate::settings::{Characters, Settings};
 use itertools::Itertools;
 use std::cmp::max;
@@ -47,7 +49,6 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
 
     let inserts = get_inserts(graph, settings.compact);
 
-    let format_str = settings.format.get_format();
     let mut index_map = vec![];
     let mut text_lines = vec![];
     let mut offset = 0;
@@ -73,7 +74,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
             None
         };
 
-        let lines = format(&format_str, &graph, &info, head, color)?;
+        let lines = format(&settings.format, &graph, &info, head, color)?;
         let max_inserts = max(cnt_inserts, lines.len() - 1);
         let add_lines = max_inserts - (lines.len() - 1);
 
@@ -480,7 +481,7 @@ fn print_graph(
 }
 
 fn format(
-    format: &str,
+    format: &CommitFormat,
     graph: &GitGraph,
     info: &CommitInfo,
     head: Option<&HeadInfo>,
@@ -491,6 +492,24 @@ fn format(
         .find_commit(info.oid)
         .map_err(|err| err.message().to_string())?;
 
+    let branch_str = format_branches(&graph, &info, head, color)?;
+
+    let hash_color = if color { Some(HASH_COLOR) } else { None };
+    match format {
+        CommitFormat::OneLine => format_oneline(&commit, branch_str, hash_color),
+        CommitFormat::Short => format_short(&commit, branch_str, hash_color),
+        CommitFormat::Medium => format_medium(&commit, branch_str, hash_color),
+        CommitFormat::Full => format_full(&commit, branch_str, hash_color),
+        CommitFormat::Format(format) => format_commit(format, &commit, branch_str, hash_color),
+    }
+}
+
+fn format_branches(
+    graph: &GitGraph,
+    info: &CommitInfo,
+    head: Option<&HeadInfo>,
+    color: bool,
+) -> Result<String, String> {
     let curr_color = info
         .branch_trace
         .map(|branch_idx| &graph.branches[branch_idx].visual.term_color);
@@ -569,12 +588,7 @@ fn format(
         write!(branch_str, "]").map_err(|err| err.to_string())?;
     }
 
-    format_commit(
-        format,
-        &commit,
-        branch_str,
-        if color { Some(HASH_COLOR) } else { None },
-    )
+    Ok(branch_str)
 }
 
 enum Occ {
