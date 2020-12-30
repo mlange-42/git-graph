@@ -18,6 +18,7 @@ Decide for yourself which graph is the most comprehensible. :sunglasses:
 * [Installation](#installation)
 * [Usage](#usage)
 * [Custom branching models](#custom-branching-models)
+* [Performance](#performance)
 * [Limitations](#limitations)
 * [Missing features / TODOs](#missing-features--todos)
 
@@ -50,7 +51,9 @@ cargo install --git https://github.com/mlange-42/git-graph
 
 ## Usage
 
-For basic usage, run the following command inside a Git repository's folder:
+**For detailed information, see the [manual](docs/manual.md)**.
+
+For basic usage, run the following command insid~~~~e a Git repository's folder:
 
 ```
 git-graph
@@ -61,12 +64,6 @@ git-graph
 > ```
 > C:/path/to/git-graph/git-graph
 > ```
-
-With Git installed, you can use git-graph as a git sub-command:
-
-```
-git graph
-```
 
 **Branching models**
 
@@ -101,15 +98,17 @@ git-graph --help
 
 ## Custom branching models
 
+**For details see the manual, section [Custom branching models](docs/manual.md#custom-branching-models).**
+
 Branching models are configured using the files in `APP_DATA/git-graph/models`. 
 
 * Windows: `C:\Users\<user>\AppData\Roaming\git-graph`
 * Linux: `~/.config/git-graph`
 * OSX: `~/Library/Application Support/git-graph`
 
-Create your own custom branching models by copying, renaming and editing one of the models provided there. The file name (without extension) can then be used in parameter `--model`, or via sub-command `model`. 
+Create your own custom branching models by copying, renaming and editing one of the models provided there. 
 
-E.g., to use a branching model defined in `my-model.toml`, use:
+The file names (without extension) can be used in parameter `--model`, or via sub-command `model`. E.g., to use a branching model defined in `my-model.toml`, use:
 
 ```
 git-graph --model my-model
@@ -122,6 +121,14 @@ git-graph --model my-model
 Further, indices of the 256-color palette are supported. For a full list, see [here](https://jonasjacek.github.io/colors/). Indices must be quoted as strings (e.g. `'16'`)
 
 **SVG colors** support all named web colors (full list [here](https://htmlcolorcodes.com/color-names/)), as well as RGB colors in hex notation, like `#ffffff`.
+
+## Performance
+
+Although doing some heavy lifting when determining the layout of a graph, git-graph is fast and memory-efficient (also thanks to be coded in Rust). 
+
+As a benchmarking example, the repository of the the Rust package manager `cargo` is used. It has over 10.000 commits and 50 active branches. Parsing (i.e. determining arrangement and colors of branches) takes approx. 750ms, and printing the entire graph with commit summaries, piped to a file, takes approx. 400ms. Required memory is about 30 MB.
+
+For an average repository with a few hundred commits, parsing takes a few tens of milliseconds and memory usage is below 5 MB.
 
 ## Limitations
 
