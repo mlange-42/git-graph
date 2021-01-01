@@ -504,7 +504,11 @@ pub fn format_multiline(
         out_vec.push("".to_string());
         let mut add_line = true;
         for line in commit.message().unwrap_or("").lines() {
-            append_wrapped(&mut out_vec, format!("    {}", line), &wrapping);
+            if line.is_empty() {
+                out_vec.push(line.to_string());
+            } else {
+                append_wrapped(&mut out_vec, format!("    {}", line), &wrapping);
+            }
             add_line = !line.trim().is_empty();
         }
         if add_line {

@@ -64,7 +64,6 @@ For a complete list of all available options, see the next section [Options](#op
 All options are explained in the CLI help. View it with `git-graph -h`:
 
 ```
-git-graph 0.1.4
 Structured Git graphs for your branching model.
     https://github.com/mlange-42/git-graph
 
@@ -93,18 +92,21 @@ FLAGS:
     -V, --version     Prints version information
 
 OPTIONS:
-        --color <color>            Specify when colors should be used. One of [auto|always|never].
-                                   Default: auto.
-        --format <format>          Commit format. One of [oneline|short|medium|full|"<string>"].
-                                   Default: oneline.
-                                   For placeholders supported in "<string>", consult `git-graph --help`
-    -n, --max-count <max-count>    Maximum number of commits
-    -m, --model <model>            Branching model. Available presets are [simple|git-flow|none].
-                                   Default: git-flow.
-                                   Permanently set the model for a repository with
-                                   > git-graph model <model>
-    -p, --path <path>              Open repository from this path or above. Default '.'
-    -s, --style <style>            Output style. One of [normal|thin|round|bold|double|ascii].
+        --color <color>      Specify when colors should be used. One of [auto|always|never].
+                             Default: auto.
+        --format <format>    Commit format. One of [oneline|short|medium|full|"<string>"].
+                             Default: oneline.
+                             For placeholders supported in "<string>", consult `git-graph --help`
+    -n, --max-count <n>      Maximum number of commits
+    -m, --model <model>      Branching model. Available presets are [simple|git-flow|none].
+                             Default: git-flow.
+                             Permanently set the model for a repository with
+                             > git-graph model <model>
+    -p, --path <path>        Open repository from this path or above. Default '.'
+    -s, --style <style>      Output style. One of [normal|thin|round|bold|double|ascii].
+    -w, --wrap <wrap>        Line wrapping for formatted commit text. Default: `auto 0 8`
+                             Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]
+                             For examples, consult `git-graph --help`
 
 SUBCOMMANDS:
     help     Prints this message or the help of the given subcommand(s)

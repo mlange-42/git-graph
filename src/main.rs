@@ -60,7 +60,8 @@ fn from_args() -> Result<(), String> {
                 .short("n")
                 .help("Maximum number of commits")
                 .required(false)
-                .takes_value(true),
+                .takes_value(true)
+                .value_name("n"),
         )
         .arg(
             Arg::with_name("model")
