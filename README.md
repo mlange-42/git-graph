@@ -20,18 +20,14 @@ Decide for yourself which graph is the most comprehensible. :sunglasses:
 * [Custom branching models](#custom-branching-models)
 * [Performance](#performance)
 * [Limitations](#limitations)
-* [Missing features / TODOs](#missing-features--todos)
+* [Contributing](#contributing)
 
 ## Features
 
 * View structured graphs directly in the terminal
-* Common branching models included
-* User-defined branching models and coloring
-* Automatic detection of color support (e.g. terminal vs. piped to file)
+* Pre-defined and custom branching models and coloring
 * Different styles, including ASCII-only (i.e. no "special characters")
 * Custom commit formatting, like with `git log --format=...`
-* Graphical output as SVG vector graphics
-* Fast and memory-efficient
 
 ## Installation
 
@@ -79,14 +75,6 @@ Alternatively, set the model for the current repository permanently:
 git-graph model git-flow
 ```
 
-**SVG output**
-
-To create an SVG image of a graph, use option `--svg` and pipe the output to a file:
-
-```
-git-graph --svg > graph.svg
-```
-
 **Get help**
 
 For the full CLI help describing all options, use:
@@ -98,29 +86,19 @@ git-graph --help
 
 ## Custom branching models
 
-**For details see the manual, section [Custom branching models](docs/manual.md#custom-branching-models).**
-
 Branching models are configured using the files in `APP_DATA/git-graph/models`. 
 
 * Windows: `C:\Users\<user>\AppData\Roaming\git-graph`
 * Linux: `~/.config/git-graph`
 * OSX: `~/Library/Application Support/git-graph`
 
-Create your own custom branching models by copying, renaming and editing one of the models provided there. 
-
-The file names (without extension) can be used in parameter `--model`, or via sub-command `model`. E.g., to use a branching model defined in `my-model.toml`, use:
+File names of any `.toml` files in the `models` directory can be used in parameter `--model`, or via sub-command `model`. E.g., to use a branching model defined in `my-model.toml`, use:
 
 ```
 git-graph --model my-model
 ```
 
-**Colors**
-
-**Terminal colors** support the 8 system color names `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan` and `white`, as well as each of them prefixed with `bright_` (e.g. `bright_blue`).
-
-Further, indices of the 256-color palette are supported. For a full list, see [here](https://jonasjacek.github.io/colors/). Indices must be quoted as strings (e.g. `'16'`)
-
-**SVG colors** support all named web colors (full list [here](https://htmlcolorcodes.com/color-names/)), as well as RGB colors in hex notation, like `#ffffff`.
+**For details on how to create your own branching models see the manual, section [Custom branching models](docs/manual.md#custom-branching-models).**
 
 ## Performance
 
@@ -137,11 +115,8 @@ For an average repository with a few hundred commits, parsing takes a few tens o
 * Does currently not support "octopus merges" (i.e. no more than 2 parents)
 * On Windows PowerShell, piping to file output does not work properly (changes encoding), so you may want to use the default Windows console instead
 
-## Missing features / TODOs
+## Contributing
 
-* Commit information in SVG output
-* More pre-defined branching models
-* Better branch sorting into visual columns
-* Support "octopus merges"
-* Support multiple remotes
-* Documentation of algorithms
+Please report any issues and feature requests in the [issue tracker](https://github.com/mlange-42/git-graph/issues).
+
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
