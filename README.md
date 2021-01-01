@@ -124,7 +124,7 @@ Further, indices of the 256-color palette are supported. For a full list, see [h
 
 ## Performance
 
-Although doing some heavy lifting when determining the layout of a graph, git-graph is fast and memory-efficient (also thanks to be coded in Rust). 
+Although doing some heavy lifting when determining the layout of a graph, git-graph is fast and memory-efficient (also thanks to being written in Rust). 
 
 As a benchmarking example, the repository of the the Rust package manager `cargo` is used. It has over 10.000 commits and 50 active branches. Parsing (i.e. determining arrangement and colors of branches) takes approx. 750ms, and printing the entire graph with commit summaries, piped to a file, takes approx. 400ms. Required memory is about 30 MB.
 

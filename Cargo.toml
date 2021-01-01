@@ -1,6 +1,6 @@
 [package]
 name = "git-graph"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Martin Lange <martin_lange_@gmx.net>"]
 description = "Command line tool to show clear git graphs arranged for your branching model"
 repository = "https://github.com/mlange-42/git-graph.git"
@@ -18,17 +18,18 @@ debug-assertions = false
 overflow-checks = false
 
 [dependencies]
-git2 = "0.13"
-regex = "1.4"
+git2 = {version = "0.13", default-features = false, optional = false}
+regex = {version = "1.4", default-features = false, optional = false, features = ["std"]}
 serde = "1.0"
-serde_derive = "1.0"
+serde_derive = {version = "1.0", default-features = false, optional = false}
 toml = "0.5"
 itertools = "0.9"
 svg = "0.8"
-clap = "2.33"
+clap = {version = "2.33", optional = false}
 lazy_static = "1.4"
 yansi = "0.5"
 atty = "0.2"
 platform-dirs = "0.3"
-crossterm = "0.19"
-chrono = "0.4"
+crossterm = {version = "0.19", optional = false}
+chrono = {version = "0.4", optional = false}
+textwrap = {version = "0.13", default-features = false, optional = false, features = ["unicode-width"]}

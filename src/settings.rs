@@ -39,6 +39,8 @@ pub struct Settings {
     pub include_remote: bool,
     /// Formatting for commits
     pub format: CommitFormat,
+    /// Text wrapping options
+    pub wrapping: Option<(Option<usize>, Option<usize>, Option<usize>)>,
     /// Characters to use for text-based graph
     pub characters: Characters,
     /// Branch column sorting algorithm
