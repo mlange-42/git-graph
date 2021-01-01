@@ -1,6 +1,9 @@
+//! ANSI terminal color handling.
+
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 
+/// Converts a color name to the index in the 256-color palette.
 pub fn to_terminal_color(color: &str) -> Result<u8, String> {
     match NAMED_COLORS.get(color) {
         None => match color.parse::<u8>() {
@@ -20,6 +23,7 @@ macro_rules! hashmap {
 }
 
 lazy_static! {
+    /// Named ANSI colors
     pub static ref NAMED_COLORS: HashMap<&'static str, u8> = hashmap![
         "black" => 0,
         "red" => 1,

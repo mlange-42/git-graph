@@ -173,7 +173,7 @@ Branching models are configured using the files in `APP_DATA/git-graph/models`.
 * Linux: `~/.config/git-graph`
 * OSX: `~/Library/Application Support/git-graph`
 
-File names of any `.toml` files in that directory (without extension) can be used in parameter `--model`, or via sub-command `model`. E.g., to use a branching model defined in `my-model.toml`, use:
+File names of any `.toml` files in the `models` directory can be used in parameter `--model`, or via sub-command `model`. E.g., to use a branching model defined in `my-model.toml`, use:
 
 ```
 git-graph --model my-model

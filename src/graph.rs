@@ -1,6 +1,7 @@
+//! A graph structure representing the history of a Git repository.
+
 use crate::print::colors::to_terminal_color;
-use crate::settings::{BranchOrder, BranchSettings, Settings};
-use crate::text;
+use crate::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};
 use git2::{BranchType, Commit, Error, Oid, Reference, Repository};
 use itertools::Itertools;
 use regex::Regex;
@@ -137,6 +138,7 @@ impl GitGraph {
     }
 }
 
+/// Information about the current HEAD
 pub struct HeadInfo {
     pub oid: Oid,
     pub name: String,
@@ -226,9 +228,13 @@ impl BranchInfo {
 
 /// Branch properties for visualization.
 pub struct BranchVis {
+    /// The branch's column group (left to right)
     pub order_group: usize,
+    /// The branch's terminal color (index in 256-color palette)
     pub term_color: u8,
+    /// SVG color (name or RGB in hex annotation)
     pub svg_color: String,
+    /// The column the branch is located in
     pub column: Option<usize>,
 }
 
@@ -434,7 +440,7 @@ fn extract_branches(
                     .parent_id(1)
                     .map_err(|err| err.message().to_string())?;
 
-                let branch_name = text::parse_merge_summary(summary, &settings.merge_patterns)
+                let branch_name = parse_merge_summary(summary, &settings.merge_patterns)
                     .unwrap_or_else(|| "unknown".to_string());
                 let persistence = branch_order(&branch_name, &settings.branches.persistence) as u8;
 
@@ -848,4 +854,58 @@ fn branch_color<T: Clone>(
         .map(|(_pos, col)| &col.1[counter % col.1.len()])
         .unwrap_or_else(|| &unknown[counter % unknown.len()]);
     color.clone()
+}
+
+/// Tries to extract the name of a merged-in branch from the merge commit summary.
+pub fn parse_merge_summary(summary: &str, patterns: &MergePatterns) -> Option<String> {
+    for regex in &patterns.patterns {
+        if let Some(captures) = regex.captures(summary) {
+            if captures.len() == 2 && captures.get(1).is_some() {
+                return captures.get(1).map(|m| m.as_str().to_string());
+            }
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::settings::MergePatterns;
+
+    #[test]
+    fn parse_merge_summary() {
+        let patterns = MergePatterns::default();
+
+        let gitlab_pull = "Merge branch 'feature/my-feature' into 'master'";
+        let git_default = "Merge branch 'feature/my-feature' into dev";
+        let git_master = "Merge branch 'feature/my-feature'";
+        let github_pull = "Merge pull request #1 from user-x/feature/my-feature";
+        let github_pull_2 = "Merge branch 'feature/my-feature' of github.com:user-x/repo";
+        let bitbucket_pull = "Merged in feature/my-feature (pull request #1)";
+
+        assert_eq!(
+            super::parse_merge_summary(&gitlab_pull, &patterns),
+            Some("feature/my-feature".to_string()),
+        );
+        assert_eq!(
+            super::parse_merge_summary(&git_default, &patterns),
+            Some("feature/my-feature".to_string()),
+        );
+        assert_eq!(
+            super::parse_merge_summary(&git_master, &patterns),
+            Some("feature/my-feature".to_string()),
+        );
+        assert_eq!(
+            super::parse_merge_summary(&github_pull, &patterns),
+            Some("feature/my-feature".to_string()),
+        );
+        assert_eq!(
+            super::parse_merge_summary(&github_pull_2, &patterns),
+            Some("feature/my-feature".to_string()),
+        );
+        assert_eq!(
+            super::parse_merge_summary(&bitbucket_pull, &patterns),
+            Some("feature/my-feature".to_string()),
+        );
+    }
 }

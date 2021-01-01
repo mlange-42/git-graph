@@ -1,9 +1,12 @@
+//! Create graphs in SVG format (Scalable Vector Graphics).
+
 use crate::graph::GitGraph;
 use crate::settings::Settings;
 use svg::node::element::path::Data;
 use svg::node::element::{Circle, Line, Path};
 use svg::Document;
 
+/// Creates a SVG visual representation of a graph.
 pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String> {
     let mut document = Document::new();
 

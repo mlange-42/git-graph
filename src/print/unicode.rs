@@ -1,3 +1,5 @@
+//! Create graphs in SVG format (Scalable Vector Graphics).
+
 use crate::graph::{CommitInfo, GitGraph, HeadInfo};
 use crate::print::format::{format_commit, format_multiline, format_oneline, CommitFormat};
 use crate::settings::{Characters, Settings};
@@ -31,6 +33,7 @@ const WHITE: u8 = 7;
 const HEAD_COLOR: u8 = 14;
 const HASH_COLOR: u8 = 11;
 
+/// Creates a text-based visual representation of a graph.
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String>, String> {
     let num_cols = 2 * graph
         .branches
@@ -218,6 +221,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
     print_graph(&settings.characters, &grid, text_lines, settings.colored)
 }
 
+/// Draws a vertical line
 fn vline(grid: &mut Grid, (from, to): (usize, usize), column: usize, color: u8, pers: u8) {
     for i in (from + 1)..to {
         let (curr, _, old_pers) = grid.get_tuple(column * 2, i);
@@ -248,6 +252,7 @@ fn vline(grid: &mut Grid, (from, to): (usize, usize), column: usize, color: u8, 
     }
 }
 
+/// Draws a horizontal line
 fn hline(
     grid: &mut Grid,
     index: usize,
@@ -380,6 +385,7 @@ fn hline(
     }
 }
 
+/// Calculates required additional rows
 fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>> {
     let mut inserts: HashMap<usize, Vec<Vec<Occ>>> = HashMap::new();
 
@@ -475,6 +481,7 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
     inserts
 }
 
+/// Creates the complete graph visualization, incl. formatter commits.
 fn print_graph(
     characters: &Characters,
     grid: &Grid,
@@ -519,6 +526,7 @@ fn print_graph(
     Ok(lines)
 }
 
+/// Format a commit.
 fn format(
     format: &CommitFormat,
     graph: &GitGraph,
@@ -546,6 +554,7 @@ fn format(
     }
 }
 
+/// Format branches and tags.
 fn format_branches(
     graph: &GitGraph,
     info: &CommitInfo,
@@ -633,6 +642,7 @@ fn format_branches(
     Ok(branch_str)
 }
 
+/// Occupied row ranges
 enum Occ {
     Commit(usize, usize),
     Range(usize, usize, usize, usize),
@@ -647,6 +657,7 @@ impl Occ {
     }
 }
 
+/// Sorts two numbers in ascending order
 fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     if v2 > v1 {
         (v1, v2)
@@ -655,8 +666,9 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     }
 }
 
+/// Two-dimensional grid with 3 layers, used to produce the graph representation.
 #[allow(dead_code)]
-pub struct Grid {
+struct Grid {
     width: usize,
     height: usize,
     data: Vec<[u8; 3]>,
@@ -673,23 +685,10 @@ impl Grid {
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }
-    pub fn get(&self, x: usize, y: usize) -> &[u8; 3] {
-        &self.data[self.index(x, y)]
-    }
     pub fn get_tuple(&self, x: usize, y: usize) -> (u8, u8, u8) {
         let v = self.data[self.index(x, y)];
         (v[0], v[1], v[2])
     }
-    pub fn get_char(&self, x: usize, y: usize) -> u8 {
-        self.data[self.index(x, y)][0]
-    }
-    pub fn get_col(&self, x: usize, y: usize) -> u8 {
-        self.data[self.index(x, y)][1]
-    }
-    pub fn get_pers(&self, x: usize, y: usize) -> u8 {
-        self.data[self.index(x, y)][1]
-    }
-
     pub fn set(&mut self, x: usize, y: usize, character: u8, color: u8, pers: u8) {
         let idx = self.index(x, y);
         self.data[idx] = [character, color, pers];

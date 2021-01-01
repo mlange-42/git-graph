@@ -1,3 +1,5 @@
+//! Formatting of commits.
+
 use chrono::{FixedOffset, Local, TimeZone};
 use git2::{Commit, Time};
 use lazy_static::lazy_static;
@@ -6,6 +8,7 @@ use std::str::FromStr;
 use textwrap::{HyphenSplitter, Options};
 use yansi::Paint;
 
+/// Commit formatting options.
 pub enum CommitFormat {
     OneLine,
     Short,
@@ -69,6 +72,7 @@ lazy_static! {
     };
 }
 
+/// Format a commit for `CommitFormat::Format(String)`.
 #[allow(dead_code)]
 pub fn format_commit(
     format: &str,
@@ -377,26 +381,7 @@ pub fn format_commit(
     Ok(lines)
 }
 
-fn add_line(
-    mut lines: &mut Vec<String>,
-    mut line: &mut String,
-    wrapping: &Option<Options<HyphenSplitter>>,
-) {
-    let mut temp = String::new();
-    std::mem::swap(&mut temp, &mut line);
-    append_wrapped(&mut lines, temp, &wrapping);
-}
-
-fn remove_empty_lines(lines: &mut Vec<String>, mut line: String) -> String {
-    while !lines.is_empty() && lines.last().unwrap().is_empty() {
-        line = lines.remove(lines.len() - 1);
-    }
-    if !lines.is_empty() {
-        line = lines.remove(lines.len() - 1);
-    }
-    line
-}
-
+/// Format a commit for `CommitFormat::OneLine`.
 pub fn format_oneline(
     commit: &Commit,
     branches: String,
@@ -428,6 +413,7 @@ pub fn format_oneline(
     }
 }
 
+/// Format a commit for `CommitFormat::Short`, `CommitFormat::Medium` or `CommitFormat::Full`.
 pub fn format_multiline(
     commit: &Commit,
     branches: String,
@@ -537,4 +523,24 @@ fn append_wrapped(vec: &mut Vec<String>, str: String, wrapping: &Option<Options<
     } else {
         vec.push(str);
     }
+}
+
+fn add_line(
+    mut lines: &mut Vec<String>,
+    mut line: &mut String,
+    wrapping: &Option<Options<HyphenSplitter>>,
+) {
+    let mut temp = String::new();
+    std::mem::swap(&mut temp, &mut line);
+    append_wrapped(&mut lines, temp, &wrapping);
+}
+
+fn remove_empty_lines(lines: &mut Vec<String>, mut line: String) -> String {
+    while !lines.is_empty() && lines.last().unwrap().is_empty() {
+        line = lines.remove(lines.len() - 1);
+    }
+    if !lines.is_empty() {
+        line = lines.remove(lines.len() - 1);
+    }
+    line
 }
