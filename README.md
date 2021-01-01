@@ -12,16 +12,6 @@ The image below shows an example using the [GitFlow branching model](https://nvi
 
 Decide for yourself which graph is the most comprehensible. :sunglasses:
 
-**Content**
-
-* [Features](#features)
-* [Installation](#installation)
-* [Usage](#usage)
-* [Custom branching models](#custom-branching-models)
-* [Performance](#performance)
-* [Limitations](#limitations)
-* [Contributing](#contributing)
-
 ## Features
 
 * View structured graphs directly in the terminal
