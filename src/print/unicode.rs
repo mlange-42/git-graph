@@ -47,6 +47,44 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
 
     let inserts = get_inserts(graph, settings.compact);
 
+    let indent1 = if let Some((_, ind, _)) = settings.wrapping {
+        " ".repeat(ind.unwrap_or(0))
+    } else {
+        "".to_string()
+    };
+    let indent2 = if let Some((_, _, ind)) = settings.wrapping {
+        " ".repeat(ind.unwrap_or(0))
+    } else {
+        "".to_string()
+    };
+    let wrap_options = if let Some((width, _, _)) = settings.wrapping {
+        if let Some(width) = width {
+            Some(
+                textwrap::Options::new(width)
+                    .initial_indent(&indent1)
+                    .subsequent_indent(&indent2),
+            )
+        } else if atty::is(atty::Stream::Stdout) {
+            let width = crossterm::terminal::size()
+                .map_err(|err| err.to_string())?
+                .0;
+            let width = if width as usize > num_cols + 4 {
+                width as usize - (num_cols + 4)
+            } else {
+                1
+            };
+            Some(
+                textwrap::Options::new(width)
+                    .initial_indent(&indent1)
+                    .subsequent_indent(&indent2),
+            )
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let mut index_map = vec![];
     let mut text_lines = vec![];
     let mut offset = 0;
@@ -72,57 +110,17 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
             None
         };
 
-        let indent1 = if let Some((_, ind, _)) = settings.wrapping {
-            " ".repeat(ind.unwrap_or(0))
-        } else {
-            "".to_string()
-        };
-        let indent2 = if let Some((_, _, ind)) = settings.wrapping {
-            " ".repeat(ind.unwrap_or(0))
-        } else {
-            "".to_string()
-        };
-        let wrap_options = if let Some((width, _, _)) = settings.wrapping {
-            if let Some(width) = width {
-                Some(
-                    textwrap::Options::new(width)
-                        .initial_indent(&indent1)
-                        .subsequent_indent(&indent2),
-                )
-            } else if atty::is(atty::Stream::Stdout) {
-                let width = crossterm::terminal::size()
-                    .map_err(|err| err.to_string())?
-                    .0;
-                let width = if width as usize > num_cols + 4 {
-                    width as usize - (num_cols + 4)
-                } else {
-                    1
-                };
-                Some(
-                    textwrap::Options::new(width)
-                        .initial_indent(&indent1)
-                        .subsequent_indent(&indent2),
-                )
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
         let lines = format(
             &settings.format,
             &graph,
             &info,
             head,
             settings.colored,
-            wrap_options,
+            &wrap_options,
         )?;
-        let max_inserts = max(
-            cnt_inserts,
-            if lines.is_empty() { 0 } else { lines.len() - 1 },
-        );
-        let add_lines = max_inserts - if lines.is_empty() { 0 } else { lines.len() - 1 };
+        let num_lines = if lines.is_empty() { 0 } else { lines.len() - 1 };
+        let max_inserts = max(cnt_inserts, num_lines);
+        let add_lines = max_inserts - num_lines;
 
         for line in lines.into_iter() {
             text_lines.push(Some(line));
@@ -533,7 +531,7 @@ fn format(
     info: &CommitInfo,
     head: Option<&HeadInfo>,
     color: bool,
-    wrapping: Option<Options<HyphenSplitter>>,
+    wrapping: &Option<Options<HyphenSplitter>>,
 ) -> Result<Vec<String>, String> {
     let commit = graph
         .repository
@@ -544,12 +542,12 @@ fn format(
 
     let hash_color = if color { Some(HASH_COLOR) } else { None };
     match format {
-        CommitFormat::OneLine => format_oneline(&commit, branch_str, wrapping, hash_color),
-        CommitFormat::Short => format_multiline(&commit, branch_str, wrapping, hash_color, 0),
-        CommitFormat::Medium => format_multiline(&commit, branch_str, wrapping, hash_color, 1),
-        CommitFormat::Full => format_multiline(&commit, branch_str, wrapping, hash_color, 2),
+        CommitFormat::OneLine => format_oneline(&commit, branch_str, &wrapping, hash_color),
+        CommitFormat::Short => format_multiline(&commit, branch_str, &wrapping, hash_color, 0),
+        CommitFormat::Medium => format_multiline(&commit, branch_str, &wrapping, hash_color, 1),
+        CommitFormat::Full => format_multiline(&commit, branch_str, &wrapping, hash_color, 2),
         CommitFormat::Format(format) => {
-            format_commit(format, &commit, branch_str, wrapping, hash_color)
+            format_commit(format, &commit, branch_str, &wrapping, hash_color)
         }
     }
 }

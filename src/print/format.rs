@@ -78,7 +78,7 @@ pub fn format_commit(
     format: &str,
     commit: &Commit,
     branches: String,
-    wrapping: Option<Options<HyphenSplitter>>,
+    wrapping: &Option<Options<HyphenSplitter>>,
     hash_color: Option<u8>,
 ) -> Result<Vec<String>, String> {
     let mut replacements = vec![];
@@ -107,7 +107,7 @@ pub fn format_commit(
     let mut out = String::new();
     if replacements.is_empty() {
         write!(out, "{}", format).map_err(|err| err.to_string())?;
-        append_wrapped(&mut lines, out, &wrapping);
+        add_line(&mut lines, &mut out, &wrapping);
     } else {
         let mut curr = 0;
         for (start, len, idx, mode) in replacements {
@@ -377,6 +377,9 @@ pub fn format_commit(
             curr = start + len;
         }
         write!(out, "{}", &format[curr..(format.len())]).map_err(|err| err.to_string())?;
+        if !out.is_empty() {
+            add_line(&mut lines, &mut out, &wrapping);
+        }
     }
     Ok(lines)
 }
@@ -385,7 +388,7 @@ pub fn format_commit(
 pub fn format_oneline(
     commit: &Commit,
     branches: String,
-    wrapping: Option<Options<HyphenSplitter>>,
+    wrapping: &Option<Options<HyphenSplitter>>,
     hash_color: Option<u8>,
 ) -> Result<Vec<String>, String> {
     let mut out = String::new();
@@ -417,7 +420,7 @@ pub fn format_oneline(
 pub fn format_multiline(
     commit: &Commit,
     branches: String,
-    wrapping: Option<Options<HyphenSplitter>>,
+    wrapping: &Option<Options<HyphenSplitter>>,
     hash_color: Option<u8>,
     level: u8,
 ) -> Result<Vec<String>, String> {
