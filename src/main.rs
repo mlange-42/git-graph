@@ -138,6 +138,26 @@ fn from_args() -> Result<(), String> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("wrap")
+                .long("wrap")
+                .short("w")
+                .help("Line wrapping for formatted commit text. Default: `auto 0 8`\n\
+                       Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
+                       For examples, consult `git-graph --help`")
+                .long_help("Line wrapping for formatted commit text. Default: `auto 0 8`\n\
+                       Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
+                       Examples:\n    \
+                           git-graph --wrap auto\n    \
+                           git-graph --wrap auto 0 8\n    \
+                           git-graph --wrap none\n    \
+                           git-graph --wrap 80\n    \
+                           git-graph --wrap 80 0 8\n\
+                       `auto` uses the terminal's width if on a terminal.")
+                .required(false)
+                .min_values(0)
+                .max_values(3),
+        )
+        .arg(
             Arg::with_name("format")
                 .long("format")
                 .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n\
@@ -280,12 +300,57 @@ fn from_args() -> Result<(), String> {
         atty::is(atty::Stream::Stdout) && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
     };
 
+    let wrapping = if let Some(wrap_values) = matches.values_of("wrap") {
+        let strings = wrap_values.collect::<Vec<_>>();
+        if strings.is_empty() {
+            Some((None, Some(0), Some(8)))
+        } else {
+            match strings[0] {
+                "none" => None,
+                "auto" => {
+                    let wrap = strings
+                        .iter()
+                        .skip(1)
+                        .map(|str| str.parse::<usize>())
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|_| {
+                            format!(
+                                "ERROR: Can't parse option --wrap '{}' to integers.",
+                                strings.join(" ")
+                            )
+                        })?;
+                    Some((None, wrap.get(0).cloned(), wrap.get(1).cloned()))
+                }
+                _ => {
+                    let wrap = strings
+                        .iter()
+                        .map(|str| str.parse::<usize>())
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|_| {
+                            format!(
+                                "ERROR: Can't parse option --wrap '{}' to integers.",
+                                strings.join(" ")
+                            )
+                        })?;
+                    Some((
+                        wrap.get(0).cloned(),
+                        wrap.get(1).cloned(),
+                        wrap.get(2).cloned(),
+                    ))
+                }
+            }
+        }
+    } else {
+        Some((None, Some(0), Some(8)))
+    };
+
     let settings = Settings {
         debug,
         colored,
         compact,
         include_remote,
         format,
+        wrapping,
         characters: style,
         branch_order: BranchOrder::ShortestFirst(true),
         branches: BranchSettings::from(model).map_err(|err| err.to_string())?,
@@ -490,12 +555,20 @@ fn run(
 }
 
 fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
-    let height = crossterm::terminal::size()?.1;
+    let (width, height) = crossterm::terminal::size()?;
+    let width = width as usize;
 
     let mut line_idx = 0;
     let mut print_lines = height - 2;
     let mut clear = false;
     let mut abort = false;
+
+    let help = " >>> Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit";
+    let help = if help.len() > width {
+        &help[0..width]
+    } else {
+        help
+    };
 
     while line_idx < lines.len() {
         if print_lines > 0 {
@@ -508,9 +581,7 @@ fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
             stdout().execute(Print(format!("{}\n", lines[line_idx])))?;
 
             if print_lines == 1 && line_idx < lines.len() - 1 {
-                stdout().execute(Print(
-                    " >>> Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit",
-                ))?;
+                stdout().execute(Print(help))?;
             }
             print_lines -= 1;
             line_idx += 1;
