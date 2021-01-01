@@ -1,3 +1,5 @@
+//! Create visual representations of git graphs.
+
 use crate::graph::GitGraph;
 use std::cmp::max;
 

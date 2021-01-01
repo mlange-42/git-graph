@@ -361,6 +361,7 @@ fn from_args() -> Result<(), String> {
     run(repository, &settings, svg, commit_limit, pager)
 }
 
+/// Get the currently set branching model for a repo.
 fn get_model_name(repository: &Repository) -> Result<Option<String>, String> {
     let mut config_path = PathBuf::from(repository.path());
     config_path.push("git-graph.toml");
@@ -376,6 +377,7 @@ fn get_model_name(repository: &Repository) -> Result<Option<String>, String> {
     }
 }
 
+/// Get models available in `APP_DATA/git-graph/models`.
 fn get_available_models() -> Result<Vec<String>, String> {
     let app_dir = AppDirs::new(Some("git-graph"), false).unwrap().config_dir;
     let mut models_dir = app_dir;
@@ -406,6 +408,8 @@ fn get_available_models() -> Result<Vec<String>, String> {
     Ok(models)
 }
 
+/// Try to get the branch settings for a given model.
+/// If no model name is given, returns the branch settings set fot the repo, or the default otherwise.
 fn get_model(repository: &Repository, model: Option<&str>) -> Result<BranchSettingsDef, String> {
     match model {
         Some(model) => read_model(model),
@@ -427,6 +431,7 @@ fn get_model(repository: &Repository, model: Option<&str>) -> Result<BranchSetti
     }
 }
 
+/// Read a branching model file.
 fn read_model(model: &str) -> Result<BranchSettingsDef, String> {
     let app_dir = AppDirs::new(Some("git-graph"), false).unwrap().config_dir;
     let mut models_dir = app_dir;
@@ -451,6 +456,7 @@ fn read_model(model: &str) -> Result<BranchSettingsDef, String> {
     }
 }
 
+/// Permanently sets the branching model for a repository
 fn set_model(repository: &Repository, model: &str) -> Result<(), String> {
     let models = get_available_models()?;
 
@@ -481,6 +487,8 @@ fn set_model(repository: &Repository, model: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Creates the directory `APP_DATA/git-graph/models` if it does not exist,
+/// and writes the files for built-in branching models there.
 fn create_config() -> Result<(), String> {
     let app_dir = AppDirs::new(Some("git-graph"), false).unwrap().config_dir;
     let mut models_dir = app_dir;
@@ -555,6 +563,7 @@ fn run(
     Ok(())
 }
 
+/// Print the graph, paged (i.e. wait for user input once the terminal is filled).
 fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
     let (width, height) = crossterm::terminal::size()?;
     let width = width as usize;
@@ -634,6 +643,7 @@ fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
     Ok(())
 }
 
+/// Print the graph, un-paged.
 fn print_unpaged(lines: &[String]) {
     for line in lines {
         println!("{}", line);

@@ -1,8 +1,12 @@
+//! Graph generation settings.
+
 use crate::print::format::CommitFormat;
 use regex::{Error, Regex};
 use serde_derive::{Deserialize, Serialize};
 use std::str::FromStr;
 
+/// Repository settings for the branching model.
+/// Used to read repo's git-graph.toml
 #[derive(Serialize, Deserialize)]
 pub struct RepoSettings {
     /// The repository's branching model
@@ -51,6 +55,7 @@ pub struct Settings {
     pub merge_patterns: MergePatterns,
 }
 
+/// Helper for reading BranchSettings, required due to RegEx.
 #[derive(Serialize, Deserialize)]
 pub struct BranchSettingsDef {
     /// Branch persistence
@@ -63,6 +68,7 @@ pub struct BranchSettingsDef {
     pub svg_colors: ColorsDef,
 }
 
+/// Helper for reading branch colors, required due to RegEx.
 #[derive(Serialize, Deserialize)]
 pub struct ColorsDef {
     matches: Vec<(String, Vec<String>)>,
@@ -70,6 +76,7 @@ pub struct ColorsDef {
 }
 
 impl BranchSettingsDef {
+    /// The Git-Flow model.
     pub fn git_flow() -> Self {
         BranchSettingsDef {
             persistence: vec![
@@ -126,6 +133,7 @@ impl BranchSettingsDef {
         }
     }
 
+    /// Simple feature-based model.
     pub fn simple() -> Self {
         BranchSettingsDef {
             persistence: vec![r"^(master|main)$".to_string()],
@@ -163,6 +171,7 @@ impl BranchSettingsDef {
         }
     }
 
+    /// Very simple model without any defined branch roles.
     pub fn none() -> Self {
         BranchSettingsDef {
             persistence: vec![],
@@ -194,6 +203,7 @@ impl BranchSettingsDef {
     }
 }
 
+/// Settings defining branching models
 pub struct BranchSettings {
     /// Branch persistence
     pub persistence: Vec<Regex>,
@@ -252,7 +262,9 @@ impl BranchSettings {
     }
 }
 
+/// RegEx patterns for extracting branch names from merge commit summaries.
 pub struct MergePatterns {
+    /// The patterns. Evaluated in the given order.
     pub patterns: Vec<Regex>,
 }
 
@@ -277,6 +289,7 @@ impl Default for MergePatterns {
     }
 }
 
+/// The characters used for drawing text-based graphs.
 pub struct Characters {
     pub chars: Vec<char>,
 }
@@ -297,26 +310,31 @@ impl FromStr for Characters {
 }
 
 impl Characters {
+    /// Default/thin graphs
     pub fn thin() -> Self {
         Characters {
             chars: " ●○│─┼└┌┐┘┤├┴┬<>".chars().collect(),
         }
     }
+    /// Graphs with rounded corners
     pub fn round() -> Self {
         Characters {
             chars: " ●○│─┼╰╭╮╯┤├┴┬<>".chars().collect(),
         }
     }
+    /// Bold/fat graphs
     pub fn bold() -> Self {
         Characters {
             chars: " ●○┃━╋┗┏┓┛┫┣┻┳<>".chars().collect(),
         }
     }
+    /// Double-lined graphs
     pub fn double() -> Self {
         Characters {
             chars: " ●○║═╬╚╔╗╝╣╠╩╦<>".chars().collect(),
         }
     }
+    /// ASCII-only graphs
     pub fn ascii() -> Self {
         Characters {
             chars: " *o|-+'..'||++<>".chars().collect(),
