@@ -202,7 +202,7 @@ persistence = [
 order = [
     '^(master|main)$',      # Matches exactly `master` or `main`
     '^(hotfix|release).*$', # Matches everything starting with `hotfix` or `release`
-    '^(develop|dev)$',      # Matches everything starting with `develop` or `dev`
+    '^(develop|dev)$',      # Matches exactly `develop` or `dev`
 ]
 
 # Colors of branches in terminal output. 

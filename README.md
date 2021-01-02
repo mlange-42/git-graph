@@ -1,6 +1,6 @@
 # git-graph
 
-[![Build Status](https://travis-ci.com/mlange-42/git-graph.svg?branch=master)](https://travis-ci.com/mlange-42/yarner)
+[![Build Status](https://travis-ci.com/mlange-42/git-graph.svg?branch=master)](https://travis-ci.com/mlange-42/git-graph)
 
 A command line tool to visualize Git history graphs in a comprehensible way, following different branching models.
 
@@ -39,7 +39,7 @@ cargo install --git https://github.com/mlange-42/git-graph
 
 **For detailed information, see the [manual](docs/manual.md)**.
 
-For basic usage, run the following command insid~~~~e a Git repository's folder:
+For basic usage, run the following command inside a Git repository's folder:
 
 ```
 git-graph
