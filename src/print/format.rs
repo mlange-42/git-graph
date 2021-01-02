@@ -73,7 +73,6 @@ lazy_static! {
 }
 
 /// Format a commit for `CommitFormat::Format(String)`.
-#[allow(dead_code)]
 pub fn format_commit(
     format: &str,
     commit: &Commit,

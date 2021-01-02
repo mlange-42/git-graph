@@ -66,28 +66,20 @@ impl GitGraph {
         assign_children(&mut commits, &indices);
 
         let mut branches = assign_branches(&repository, &mut commits, &indices, &settings)?;
+        assign_sources_targets(&commits, &indices, &mut branches);
 
-        match settings.branch_order {
-            BranchOrder::FirstComeFirstServed(forward) => {
-                assign_branch_columns_fcfs(&commits, &mut branches, &settings.branches, forward)
-            }
-            BranchOrder::ShortestFirst(forward) => assign_branch_columns_branch_length(
-                &commits,
-                &indices,
-                &mut branches,
-                &settings.branches,
-                true,
-                forward,
-            ),
-            BranchOrder::LongestFirst(forward) => assign_branch_columns_branch_length(
-                &commits,
-                &indices,
-                &mut branches,
-                &settings.branches,
-                false,
-                forward,
-            ),
-        }
+        let (shortest_first, forward) = match settings.branch_order {
+            BranchOrder::ShortestFirst(fwd) => (true, fwd),
+            BranchOrder::LongestFirst(fwd) => (false, fwd),
+        };
+        assign_branch_columns(
+            &commits,
+            &indices,
+            &mut branches,
+            &settings.branches,
+            shortest_first,
+            forward,
+        );
 
         let filtered_commits: Vec<CommitInfo> = commits
             .into_iter()
@@ -230,6 +222,10 @@ impl BranchInfo {
 pub struct BranchVis {
     /// The branch's column group (left to right)
     pub order_group: usize,
+    /// The branch's merge target column group (left to right)
+    pub target_order_group: Option<usize>,
+    /// The branch's source branch column group (left to right)
+    pub source_order_group: Option<usize>,
     /// The branch's terminal color (index in 256-color palette)
     pub term_color: u8,
     /// SVG color (name or RGB in hex annotation)
@@ -242,6 +238,8 @@ impl BranchVis {
     fn new(order_group: usize, term_color: u8, svg_color: String) -> Self {
         BranchVis {
             order_group,
+            target_order_group: None,
+            source_order_group: None,
             term_color,
             svg_color,
             column: None,
@@ -356,6 +354,52 @@ fn assign_branches(
         .collect();
 
     Ok(branches)
+}
+
+fn assign_sources_targets(
+    commits: &[CommitInfo],
+    indices: &HashMap<Oid, usize>,
+    branches: &mut [BranchInfo],
+) {
+    for idx in 0..branches.len() {
+        let group = branches[idx]
+            .merge_target
+            .and_then(|oid| indices.get(&oid))
+            .and_then(|idx| commits.get(*idx))
+            .and_then(|info| info.branch_trace)
+            .and_then(|trace| branches.get(trace))
+            .map(|br| br.visual.order_group);
+        branches[idx].visual.target_order_group = group;
+    }
+    for info in commits {
+        let mut max_par_order = None;
+        for par_oid in info.parents.iter() {
+            let par_info = par_oid
+                .and_then(|oid| indices.get(&oid))
+                .and_then(|idx| commits.get(*idx));
+            if let Some(par_info) = par_info {
+                if par_info.branch_trace != info.branch_trace {
+                    let group = par_info
+                        .branch_trace
+                        .and_then(|trace| branches.get(trace))
+                        .map(|br| br.visual.order_group);
+                    if let Some(gr) = max_par_order {
+                        if let Some(p_group) = group {
+                            if p_group > gr {
+                                max_par_order = group;
+                            }
+                        }
+                    } else {
+                        max_par_order = group;
+                    }
+                }
+            }
+        }
+        let branch = info.branch_trace.and_then(|trace| branches.get_mut(trace));
+        if let Some(branch) = branch {
+            branch.visual.source_order_group = max_par_order;
+        }
+    }
 }
 
 /// Extracts (real or derived from merge summary) and assigns basic properties.
@@ -634,109 +678,8 @@ fn trace_branch<'repo>(
 }
 
 /// Sorts branches into columns for visualization, that all branches can be
-/// visualizes linearly and without overlaps. Uses First-Come First-Served scheduling.
-fn assign_branch_columns_fcfs(
-    commits: &[CommitInfo],
-    branches: &mut [BranchInfo],
-    settings: &BranchSettings,
-    forward: bool,
-) {
-    let mut occupied: Vec<Vec<bool>> = vec![vec![]; settings.order.len() + 1];
-
-    let sort_factor = if forward { 1 } else { -1 };
-
-    let mut start_queue: VecDeque<_> = branches
-        .iter()
-        .enumerate()
-        .filter(|br| br.1.range.0.is_some() || br.1.range.1.is_some())
-        .map(|(idx, br)| (idx, br.range.0.unwrap_or(0)))
-        .sorted_by_key(|tup| tup.1 as i32 * sort_factor)
-        .collect();
-
-    let mut end_queue: VecDeque<_> = branches
-        .iter()
-        .enumerate()
-        .filter(|br| br.1.range.0.is_some() || br.1.range.1.is_some())
-        .map(|(idx, br)| (idx, br.range.1.unwrap_or(branches.len() - 1)))
-        .sorted_by_key(|tup| tup.1 as i32 * sort_factor)
-        .collect();
-
-    if !forward {
-        std::mem::swap(&mut start_queue, &mut end_queue);
-    }
-
-    for i in 0..commits.len() {
-        let idx = if forward { i } else { commits.len() - 1 - i };
-
-        loop {
-            let start = start_queue.pop_front();
-
-            if let Some(start) = start {
-                if start.1 == idx {
-                    let branch = &mut branches[start.0];
-                    let group = &mut occupied[branch.visual.order_group];
-                    let column = group
-                        .iter()
-                        .find_position(|val| !**val)
-                        .unwrap_or_else(|| (group.len(), &false))
-                        .0;
-                    branch.visual.column = Some(column);
-                    if column < group.len() {
-                        group[column] = true;
-                    } else {
-                        group.push(true);
-                    }
-                } else {
-                    start_queue.push_front(start);
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-
-        loop {
-            let end = end_queue.pop_front();
-            if let Some(end) = end {
-                if end.1 == idx {
-                    let branch = &mut branches[end.0];
-                    let group = &mut occupied[branch.visual.order_group];
-                    if let Some(column) = branch.visual.column {
-                        group[column] = false;
-                    }
-                } else {
-                    end_queue.push_front(end);
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-    }
-
-    let group_offset: Vec<usize> = occupied
-        .iter()
-        .scan(0, |acc, group| {
-            *acc += group.len();
-            Some(*acc)
-        })
-        .collect();
-
-    for branch in branches {
-        if let Some(column) = branch.visual.column {
-            let offset = if branch.visual.order_group == 0 {
-                0
-            } else {
-                group_offset[branch.visual.order_group - 1]
-            };
-            branch.visual.column = Some(column + offset);
-        }
-    }
-}
-
-/// Sorts branches into columns for visualization, that all branches can be
 /// visualizes linearly and without overlaps. Uses Shortest-First scheduling.
-fn assign_branch_columns_branch_length(
+fn assign_branch_columns(
     commits: &[CommitInfo],
     indices: &HashMap<Oid, usize>,
     branches: &mut [BranchInfo],
@@ -758,17 +701,24 @@ fn assign_branch_columns_branch_length(
                 idx,
                 br.range.0.unwrap_or(0),
                 br.range.1.unwrap_or(branches.len() - 1),
+                br.visual
+                    .source_order_group
+                    .unwrap_or(settings.order.len() + 1),
+                br.visual
+                    .target_order_group
+                    .unwrap_or(settings.order.len() + 1),
             )
         })
         .sorted_by_key(|tup| {
             (
+                std::cmp::max(tup.3, tup.4),
                 (tup.2 as i32 - tup.1 as i32) * length_sort_factor,
                 tup.1 as i32 * start_sort_factor,
             )
         })
         .collect();
 
-    for (branch_idx, start, end) in branches_sort {
+    for (branch_idx, start, end, _, _) in branches_sort {
         let branch = &branches[branch_idx];
         let group = branch.visual.order_group;
         let group_occ = &mut occupied[group];

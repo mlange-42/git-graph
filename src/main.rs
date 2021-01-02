@@ -528,11 +528,13 @@ fn run(
     if settings.debug {
         for branch in &graph.branches {
             eprintln!(
-                "{} (col {}) ({:?}) {}",
+                "{} (col {}) ({:?}) {} s: {:?}, t: {:?}",
                 branch.name,
                 branch.visual.column.unwrap_or(99),
                 branch.range,
-                if branch.is_merged { "m" } else { "" }
+                if branch.is_merged { "m" } else { "" },
+                branch.visual.source_order_group,
+                branch.visual.target_order_group
             );
         }
     }
