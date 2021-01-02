@@ -119,7 +119,7 @@ fn from_args() -> Result<(), String> {
                 .long("no-color")
                 .help("Print without colors. Missing color support should be detected\n\
                        automatically (e.g. when piping to a file).\n\
-                       Overrides option `--color`")
+                       Overrides option '--color'")
                 .required(false)
                 .takes_value(false),
         )
@@ -134,7 +134,8 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("style")
                 .long("style")
                 .short("s")
-                .help("Output style. One of [normal|thin|round|bold|double|ascii].")
+                .help("Output style. One of [normal/thin|round|bold|double|ascii].\n  \
+                         (First character can be used as abbreviation, e.g. '-s r')")
                 .required(false)
                 .takes_value(true),
         )
@@ -142,10 +143,10 @@ fn from_args() -> Result<(), String> {
             Arg::with_name("wrap")
                 .long("wrap")
                 .short("w")
-                .help("Line wrapping for formatted commit text. Default: `auto 0 8`\n\
+                .help("Line wrapping for formatted commit text. Default: 'auto 0 8'\n\
                        Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
-                       For examples, consult `git-graph --help`")
-                .long_help("Line wrapping for formatted commit text. Default: `auto 0 8`\n\
+                       For examples, consult 'git-graph --help'")
+                .long_help("Line wrapping for formatted commit text. Default: 'auto 0 8'\n\
                        Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
                        Examples:\n    \
                            git-graph --wrap auto\n    \
@@ -153,7 +154,7 @@ fn from_args() -> Result<(), String> {
                            git-graph --wrap none\n    \
                            git-graph --wrap 80\n    \
                            git-graph --wrap 80 0 8\n\
-                       `auto` uses the terminal's width if on a terminal.")
+                       'auto' uses the terminal's width if on a terminal.")
                 .required(false)
                 .min_values(0)
                 .max_values(3),
@@ -161,10 +162,13 @@ fn from_args() -> Result<(), String> {
         .arg(
             Arg::with_name("format")
                 .long("format")
-                .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n\
+                .short("f")
+                .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n  \
+                         (First character can be used as abbreviation, e.g. '-f m')\n\
                        Default: oneline.\n\
-                       For placeholders supported in \"<string>\", consult `git-graph --help`")
-                .long_help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n\
+                       For placeholders supported in \"<string>\", consult 'git-graph --help'")
+                .long_help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n  \
+                              (First character can be used as abbreviation, e.g. '-f m')\n\
                             Formatting placeholders for \"<string>\":\n    \
                                 %n    newline\n    \
                                 %H    commit hash\n    \
@@ -178,11 +182,11 @@ fn from_args() -> Result<(), String> {
                                 %an   author name\n    \
                                 %ae   author email\n    \
                                 %ad   author date\n    \
-                                %as   author date in short format `YYYY-MM-DD`\n    \
+                                %as   author date in short format 'YYYY-MM-DD'\n    \
                                 %cn   committer name\n    \
                                 %ce   committer email\n    \
                                 %cd   committer date\n    \
-                                %cs   committer date in short format `YYYY-MM-DD`\n    \
+                                %cs   committer date in short format 'YYYY-MM-DD'\n    \
                                 \n    \
                                 If you add a + (plus sign) after % of a placeholder,\n       \
                                    a line-feed is inserted immediately before the expansion if\n       \
@@ -190,7 +194,7 @@ fn from_args() -> Result<(), String> {
                                 If you add a - (minus sign) after % of a placeholder, all\n       \
                                    consecutive line-feeds immediately preceding the expansion are\n       \
                                    deleted if and only if the placeholder expands to an empty string.\n    \
-                                If you add a ` ` (space) after % of a placeholder, a space is\n       \
+                                If you add a ' ' (space) after % of a placeholder, a space is\n       \
                                    inserted immediately before the expansion if and only if\n       \
                                    the placeholder expands to a non-empty string.\n\
                             \n    \

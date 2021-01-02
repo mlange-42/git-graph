@@ -22,10 +22,10 @@ impl FromStr for CommitFormat {
 
     fn from_str(str: &str) -> Result<Self, Self::Err> {
         match str {
-            "oneline" => Ok(CommitFormat::OneLine),
-            "short" => Ok(CommitFormat::Short),
-            "medium" => Ok(CommitFormat::Medium),
-            "full" => Ok(CommitFormat::Full),
+            "oneline" | "o" => Ok(CommitFormat::OneLine),
+            "short" | "s" => Ok(CommitFormat::Short),
+            "medium" | "m" => Ok(CommitFormat::Medium),
+            "full" | "f" => Ok(CommitFormat::Full),
             str => Ok(CommitFormat::Format(str.to_string())),
         }
     }
