@@ -47,40 +47,14 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
 
     let inserts = get_inserts(graph, settings.compact);
 
-    let indent1 = if let Some((_, ind, _)) = settings.wrapping {
-        " ".repeat(ind.unwrap_or(0))
+    let (indent1, indent2) = if let Some((_, ind1, ind2)) = settings.wrapping {
+        (" ".repeat(ind1.unwrap_or(0)), " ".repeat(ind2.unwrap_or(0)))
     } else {
-        "".to_string()
+        ("".to_string(), "".to_string())
     };
-    let indent2 = if let Some((_, _, ind)) = settings.wrapping {
-        " ".repeat(ind.unwrap_or(0))
-    } else {
-        "".to_string()
-    };
+
     let wrap_options = if let Some((width, _, _)) = settings.wrapping {
-        if let Some(width) = width {
-            Some(
-                textwrap::Options::new(width)
-                    .initial_indent(&indent1)
-                    .subsequent_indent(&indent2),
-            )
-        } else if atty::is(atty::Stream::Stdout) {
-            let width = crossterm::terminal::size()
-                .map_err(|err| err.to_string())?
-                .0;
-            let width = if width as usize > num_cols + 4 {
-                width as usize - (num_cols + 4)
-            } else {
-                1
-            };
-            Some(
-                textwrap::Options::new(width)
-                    .initial_indent(&indent1)
-                    .subsequent_indent(&indent2),
-            )
-        } else {
-            None
-        }
+        create_wrapping_options(width, &indent1, &indent2, num_cols + 4)?
     } else {
         None
     };
@@ -118,16 +92,13 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
             settings.colored,
             &wrap_options,
         )?;
+
         let num_lines = if lines.is_empty() { 0 } else { lines.len() - 1 };
         let max_inserts = max(cnt_inserts, num_lines);
         let add_lines = max_inserts - num_lines;
 
-        for line in lines.into_iter() {
-            text_lines.push(Some(line));
-        }
-        for _ in 0..add_lines {
-            text_lines.push(None);
-        }
+        text_lines.extend(lines.into_iter().map(Some));
+        text_lines.extend((0..add_lines).map(|_| None));
 
         offset += max_inserts;
     }
@@ -217,6 +188,39 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
     }
 
     print_graph(&settings.characters, &grid, text_lines, settings.colored)
+}
+
+/// Create `textwrap::Options` from width and indent.
+fn create_wrapping_options<'a>(
+    width: Option<usize>,
+    indent1: &'a str,
+    indent2: &'a str,
+    graph_width: usize,
+) -> Result<Option<Options<'a, HyphenSplitter>>, String> {
+    let wrapping = if let Some(width) = width {
+        Some(
+            textwrap::Options::new(width)
+                .initial_indent(&indent1)
+                .subsequent_indent(&indent2),
+        )
+    } else if atty::is(atty::Stream::Stdout) {
+        let width = crossterm::terminal::size()
+            .map_err(|err| err.to_string())?
+            .0;
+        let width = if width as usize > graph_width {
+            width as usize - graph_width
+        } else {
+            1
+        };
+        Some(
+            textwrap::Options::new(width)
+                .initial_indent(&indent1)
+                .subsequent_indent(&indent2),
+        )
+    } else {
+        None
+    };
+    Ok(wrapping)
 }
 
 /// Draws a vertical line
