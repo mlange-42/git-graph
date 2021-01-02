@@ -5,7 +5,7 @@ use crate::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};
 use git2::{BranchType, Commit, Error, Oid, Reference, Repository};
 use itertools::Itertools;
 use regex::Regex;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 const ORIGIN: &str = "origin/";
 
@@ -63,6 +63,7 @@ impl GitGraph {
                 idx += 1;
             }
         }
+
         assign_children(&mut commits, &indices);
 
         let mut branches = assign_branches(&repository, &mut commits, &indices, &settings)?;
@@ -72,6 +73,7 @@ impl GitGraph {
             BranchOrder::ShortestFirst(fwd) => (true, fwd),
             BranchOrder::LongestFirst(fwd) => (false, fwd),
         };
+
         assign_branch_columns(
             &commits,
             &indices,
@@ -255,10 +257,8 @@ fn assign_children(commits: &mut [CommitInfo], indices: &HashMap<Oid, usize>) {
             (info.oid, info.parents)
         };
         for par_oid in &parents {
-            if let Some(par_oid) = par_oid {
-                if let Some(par_idx) = indices.get(par_oid) {
-                    commits[*par_idx].children.push(oid);
-                }
+            if let Some(par_idx) = par_oid.and_then(|oid| indices.get(&oid)) {
+                commits[*par_idx].children.push(oid);
             }
         }
     }
@@ -486,6 +486,7 @@ fn extract_branches(
 
                 let branch_name = parse_merge_summary(summary, &settings.merge_patterns)
                     .unwrap_or_else(|| "unknown".to_string());
+
                 let persistence = branch_order(&branch_name, &settings.branches.persistence) as u8;
 
                 let pos = branch_order(&branch_name, &settings.branches.order);
@@ -692,7 +693,7 @@ fn assign_branch_columns(
     let length_sort_factor = if shortest_first { 1 } else { -1 };
     let start_sort_factor = if forward { 1 } else { -1 };
 
-    let branches_sort: VecDeque<_> = branches
+    let mut branches_sort: Vec<_> = branches
         .iter()
         .enumerate()
         .filter(|(_idx, br)| br.range.0.is_some() || br.range.1.is_some())
@@ -709,14 +710,15 @@ fn assign_branch_columns(
                     .unwrap_or(settings.order.len() + 1),
             )
         })
-        .sorted_by_key(|tup| {
-            (
-                std::cmp::max(tup.3, tup.4),
-                (tup.2 as i32 - tup.1 as i32) * length_sort_factor,
-                tup.1 as i32 * start_sort_factor,
-            )
-        })
         .collect();
+
+    branches_sort.sort_by_cached_key(|tup| {
+        (
+            std::cmp::max(tup.3, tup.4),
+            (tup.2 as i32 - tup.1 as i32) * length_sort_factor,
+            tup.1 as i32 * start_sort_factor,
+        )
+    });
 
     for (branch_idx, start, end, _, _) in branches_sort {
         let branch = &branches[branch_idx];
@@ -785,7 +787,7 @@ fn assign_branch_columns(
 fn branch_order(name: &str, order: &[Regex]) -> usize {
     order
         .iter()
-        .position(|b| b.is_match(name) || (name.starts_with(ORIGIN) && b.is_match(&name[7..])))
+        .position(|b| (name.starts_with(ORIGIN) && b.is_match(&name[7..])) || b.is_match(name))
         .unwrap_or(order.len())
 }
 
@@ -799,7 +801,7 @@ fn branch_color<T: Clone>(
     let color = order
         .iter()
         .find_position(|(b, _)| {
-            b.is_match(name) || (name.starts_with(ORIGIN) && b.is_match(&name[7..]))
+            (name.starts_with(ORIGIN) && b.is_match(&name[7..])) || b.is_match(name)
         })
         .map(|(_pos, col)| &col.1[counter % col.1.len()])
         .unwrap_or_else(|| &unknown[counter % unknown.len()]);
