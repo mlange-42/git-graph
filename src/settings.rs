@@ -295,11 +295,11 @@ impl FromStr for Characters {
 
     fn from_str(str: &str) -> Result<Self, Self::Err> {
         match str {
-            "normal" | "thin" => Ok(Characters::thin()),
-            "round" => Ok(Characters::round()),
-            "bold" => Ok(Characters::bold()),
-            "double" => Ok(Characters::double()),
-            "ascii" => Ok(Characters::ascii()),
+            "normal" | "thin" | "n" | "t" => Ok(Characters::thin()),
+            "round" | "r" => Ok(Characters::round()),
+            "bold" | "b" => Ok(Characters::bold()),
+            "double" | "d" => Ok(Characters::double()),
+            "ascii" | "a" => Ok(Characters::ascii()),
             _ => Err(format!("Unknown characters/style '{}'. Must be one of [normal|thin|round|bold|double|ascii]", str)),
         }
     }
