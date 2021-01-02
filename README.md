@@ -8,7 +8,7 @@ The image below shows an example using the [GitFlow branching model](https://nvi
 
 > GitFlow was chosen for its complexity, while any other branching model is supported, including user-defined ones.
 
-![Graph comparison](https://user-images.githubusercontent.com/44003176/103142438-4e5b1c80-4703-11eb-8b23-9829eecdc54c.jpg)
+![Graph comparison between tools](https://user-images.githubusercontent.com/44003176/103466403-36a81780-4d45-11eb-90cc-167d210d7a52.png)
 
 Decide for yourself which graph is the most comprehensible. :sunglasses:
 
@@ -96,7 +96,12 @@ Although doing some heavy lifting when determining the layout of a graph, git-gr
 
 As a benchmarking example, the repository of the the Rust package manager `cargo` is used. It has over 10.000 commits and 50 active branches. Parsing (i.e. determining arrangement and colors of branches) takes approx. 750ms, and printing the entire graph with commit summaries, piped to a file, takes approx. 400ms. Required memory is about 30 MB.
 
-For an average repository with a few hundred commits, parsing takes a few tens of milliseconds and memory usage is below 5 MB.
+For an average repository with a few hundred commits, parsing takes a few tens to 100 milliseconds and memory usage is below 5 MB.
+
+| Repo (commits)      | Parsing | RAM  |
+| ------------------- | -------:| ----:|
+| cargo (10k)         | 750ms   | 30MB |
+| avg (a few hundred) | ≈100ms  | <5MB |
 
 ## Limitations
 

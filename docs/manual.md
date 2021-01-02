@@ -53,6 +53,8 @@ Git-graph supports different styles. Besides the default `normal` alias `thin`, 
 git-graph --style round
 ```
 
+![styles](https://user-images.githubusercontent.com/44003176/103467621-357ce780-4d51-11eb-8ff9-dd7be8b40f84.png)
+
 **Formatting**
 
 Git-graph supports predefined as well as custom commit formatting through the option `--format`. Available presets follow Git: `oneline` (the default), `short`, `medium` and `full`. For details and custom formatting, see section [Formatting](#formatting).
@@ -84,7 +86,7 @@ FLAGS:
     -l, --local       Show only local branches, no remotes.
         --no-color    Print without colors. Missing color support should be detected
                       automatically (e.g. when piping to a file).
-                      Overrides option `--color`
+                      Overrides option '--color'
         --no-pager    Use no pager (print everything at once without prompt).
     -S, --sparse      Print a less compact graph: merge lines point to target lines
                       rather than merge commits.
@@ -94,19 +96,21 @@ FLAGS:
 OPTIONS:
         --color <color>      Specify when colors should be used. One of [auto|always|never].
                              Default: auto.
-        --format <format>    Commit format. One of [oneline|short|medium|full|"<string>"].
+    -f, --format <format>    Commit format. One of [oneline|short|medium|full|"<string>"].
+                               (First character can be used as abbreviation, e.g. '-f m')
                              Default: oneline.
-                             For placeholders supported in "<string>", consult `git-graph --help`
+                             For placeholders supported in "<string>", consult 'git-graph --help'
     -n, --max-count <n>      Maximum number of commits
     -m, --model <model>      Branching model. Available presets are [simple|git-flow|none].
                              Default: git-flow.
                              Permanently set the model for a repository with
                              > git-graph model <model>
     -p, --path <path>        Open repository from this path or above. Default '.'
-    -s, --style <style>      Output style. One of [normal|thin|round|bold|double|ascii].
-    -w, --wrap <wrap>        Line wrapping for formatted commit text. Default: `auto 0 8`
+    -s, --style <style>      Output style. One of [normal/thin|round|bold|double|ascii].
+                               (First character can be used as abbreviation, e.g. '-s r')
+    -w, --wrap <wrap>        Line wrapping for formatted commit text. Default: 'auto 0 8'
                              Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]
-                             For examples, consult `git-graph --help`
+                             For examples, consult 'git-graph --help'
 
 SUBCOMMANDS:
     help     Prints this message or the help of the given subcommand(s)
@@ -120,6 +124,48 @@ For longer explanations, use `git-graph --help`.
 Formatting can be specified with the `--format` option.
 
 Predefined formats are `oneline` (the default), `short`, `medium` and `full`. They should behave like the Git formatting presets described in the [Git documentation](https://git-scm.com/docs/pretty-formats).
+
+**oneline**
+
+```
+<hash> [<refs>] <title line>
+```
+
+**short**
+
+```
+commit <hash> [<refs>]
+Author: <author>
+
+<title line>
+```
+
+**medium**
+
+```
+commit <hash> [<refs>]
+Author: <author>
+Date:   <author date>
+
+<title line>
+
+<full commit message>
+```
+
+**full**
+
+```
+commit <hash> [<refs>]
+Author: <author>
+Commit: <committer>
+Date:   <author date>
+
+<title line>
+
+<full commit message>
+```
+
+### Custom formatting
 
 Formatting strings use a subset of the placeholders available in `git log --format="..."`:
 
@@ -179,7 +225,7 @@ File names of any `.toml` files in the `models` directory can be used in paramet
 git-graph --model my-model
 ```
 
-**Branching model files** are in TOML format and have several sections, relying on Regular Expressions to categorize branches. The listing below shows the `git-flow` model (slightly abbreviated) with explanatory comments.
+**Branching model files** are in [TOML](https://toml.io/en/) format and have several sections, relying on Regular Expressions to categorize branches. The listing below shows the `git-flow` model (slightly abbreviated) with explanatory comments.
 
 ```toml
 # RegEx patterns for branch groups by persistence, from most persistent
@@ -249,7 +295,9 @@ matches = [
         '^(master|main)$',
         ['blue'],
     ],
-    ...
+    [ 
+        '...',
+    ]
 ]
 unknown = ['gray']
 ```
