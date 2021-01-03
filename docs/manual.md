@@ -23,7 +23,7 @@ Alternatively, the path to the repository to visualize can be specified with opt
 git-graph --path "path/to/repo"
 ```
 
-### Branching models
+**Branching models**
 
 The above call assumes the GitFlow branching model (the default). Different branching models can be used with the option `--model` or `-m`:
 
@@ -51,7 +51,7 @@ git-graph model --list
 
 For **defining your own models**, see section [Custom branching models](#custom-branching-models).
 
-### Styles
+**Styles**
 
 Git-graph supports different styles. Besides the default `normal` (alias `thin`), supported styles are `round`, `bold`, `double` and `ascii`. Use a style with option `--style` or `-s`:
 
@@ -63,7 +63,7 @@ git-graph --style round
 
 Style `ascii` can be used for devices and media that do not support Unicode/UTF-8 characters. 
 
-### Formatting
+**Formatting**
 
 Git-graph supports predefined as well as custom commit formatting through option `--format`. Available presets follow Git: `oneline` (the default), `short`, `medium` and `full`. For details and custom formatting, see section [Formatting](#formatting).
 
@@ -312,11 +312,11 @@ matches = [
 unknown = ['gray']
 ```
 
-### Tags
+**Tags**
 
 Internally, all tags start with `tag/`. To match Git tags, use RegEx patterns like `^tags/.*$`. However, only tags that are not on any branch are ordered and colored separately.
 
-### Colors
+**Colors**
 
 **Terminal colors** support the 8 system color names `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan` and `white`, as well as each of them prefixed with `bright_` (e.g. `bright_blue`).
 

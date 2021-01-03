@@ -21,13 +21,13 @@ Decide for yourself which graph is the most comprehensible. :sunglasses:
 
 ## Installation
 
-### Pre-compiled binaries
+**Pre-compiled binaries**
 
 1. Download the [latest binaries](https://github.com/mlange-42/git-graph/releases) for your platform
 2. Unzip somewhere
 3. *Optional:* add directory `git-graph` to your `PATH` environmental variable
 
-### Using `cargo`
+**Using `cargo`**
 
 In case you have [Rust](https://www.rust-lang.org/) installed, you can install with `cargo`:
 
@@ -51,7 +51,7 @@ git-graph
 > C:/path/to/git-graph/git-graph
 > ```
 
-### Branching models
+**Branching models**
 
 Run git-graph with a specific model, e.g. `simple`:
 
@@ -65,7 +65,7 @@ Alternatively, set the model for the current repository permanently:
 git-graph model simple
 ```
 
-### Get help
+**Get help**
 
 For the full CLI help describing all options, use:
 
@@ -91,19 +91,6 @@ git-graph --model my-model
 ```
 
 **For details on how to create your own branching models see the manual, section [Custom branching models](docs/manual.md#custom-branching-models).**
-
-## Performance
-
-Although doing some heavy lifting when determining the layout of a graph, git-graph is fast and memory-efficient (also thanks to being written in Rust). 
-
-As a benchmarking example, the repository of the the Rust package manager `cargo` is used. It has over 10.000 commits and 50 active branches. Parsing (i.e. determining arrangement and colors of branches) takes approx. 750ms, and printing the entire graph with commit summaries, piped to a file, takes approx. 400ms. Required memory is about 30 MB.
-
-For an average repository with a few hundred commits, parsing takes a few tens to 100 milliseconds and memory usage is below 5 MB.
-
-| Repo (commits)      | Parsing | RAM  |
-| ------------------- | -------:| ----:|
-| cargo (10k)         | 750ms   | 30MB |
-| avg (a few hundred) | ≈100ms  | <5MB |
 
 ## Limitations
 
