@@ -34,7 +34,10 @@ const HEAD_COLOR: u8 = 14;
 const HASH_COLOR: u8 = 11;
 
 /// Creates a text-based visual representation of a graph.
-pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String>, String> {
+pub fn print_unicode(
+    graph: &GitGraph,
+    settings: &Settings,
+) -> Result<(Vec<String>, Vec<usize>), String> {
     let num_cols = 2 * graph
         .branches
         .iter()
@@ -187,7 +190,9 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
         }
     }
 
-    print_graph(&settings.characters, &grid, text_lines, settings.colored)
+    let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored)?;
+
+    Ok((lines, index_map))
 }
 
 /// Create `textwrap::Options` from width and indent.
