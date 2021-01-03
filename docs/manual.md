@@ -17,9 +17,15 @@ git-graph
 
 This works also deeper down the directory tree, so no need to be in the repository's root folder.
 
-**Branching models**
+Alternatively, the path to the repository to visualize can be specified with option `--path`:
 
-The above call assumes the GitFlow branching model. A different branching model can be used with the option `--model` or `-m`:
+```
+git-graph --path "path/to/repo"
+```
+
+### Branching models
+
+The above call assumes the GitFlow branching model (the default). Different branching models can be used with the option `--model` or `-m`:
 
 ```
 git-graph --model simple
@@ -37,7 +43,7 @@ Use the subcommand without argument to view the currently set branching model of
 git-graph model
 ```
 
-To view all available branching models, use option `--list` or `-l`:
+To view all available branching models, use option `--list` or `-l` of the subcommand:
 
 ```
 git-graph model --list
@@ -45,9 +51,9 @@ git-graph model --list
 
 For **defining your own models**, see section [Custom branching models](#custom-branching-models).
 
-**Styles**
+### Styles
 
-Git-graph supports different styles. Besides the default `normal` alias `thin`, supported styles are `round`, `bold` and `double`. Use a style with option `--style` or `-s`:
+Git-graph supports different styles. Besides the default `normal` (alias `thin`), supported styles are `round`, `bold`, `double` and `ascii`. Use a style with option `--style` or `-s`:
 
 ```
 git-graph --style round
@@ -55,9 +61,11 @@ git-graph --style round
 
 ![styles](https://user-images.githubusercontent.com/44003176/103467621-357ce780-4d51-11eb-8ff9-dd7be8b40f84.png)
 
-**Formatting**
+Style `ascii` can be used for devices and media that do not support Unicode/UTF-8 characters. 
 
-Git-graph supports predefined as well as custom commit formatting through the option `--format`. Available presets follow Git: `oneline` (the default), `short`, `medium` and `full`. For details and custom formatting, see section [Formatting](#formatting).
+### Formatting
+
+Git-graph supports predefined as well as custom commit formatting through option `--format`. Available presets follow Git: `oneline` (the default), `short`, `medium` and `full`. For details and custom formatting, see section [Formatting](#formatting).
 
 For a complete list of all available options, see the next section [Options](#options).
 
@@ -197,6 +205,8 @@ If you add a ' ' (space) after % of a placeholder, a space is inserted immediate
 
 See also the [Git documentation](https://git-scm.com/docs/pretty-formats).
 
+More formatting placeholders are planned for later releases.
+
 **Examples**
 
 Format recreating `oneline`:
@@ -252,7 +262,7 @@ order = [
 ]
 
 # Colors of branches in terminal output. 
-# For supported colors, see the next section.
+# For supported colors, see section Colors (below this listing).
 [terminal_colors]
 # Each entry is composed of a RegEx pattern and a list of colors that
 # will be used alternating (see e.g. `feature...`).
@@ -287,8 +297,8 @@ matches = [
 unknown = ['white']
 
 # Colors of branches in SVG output. 
-# Same syntax as terminal_colors. 
-# For supported colors, see the next section.
+# Same structure as terminal_colors. 
+# For supported colors, see section Colors (below this listing).
 [svg_colors]
 matches = [
     [
@@ -302,11 +312,11 @@ matches = [
 unknown = ['gray']
 ```
 
-**Tags**
+### Tags
 
 Internally, all tags start with `tag/`. To match Git tags, use RegEx patterns like `^tags/.*$`. However, only tags that are not on any branch are ordered and colored separately.
 
-**Colors**
+### Colors
 
 **Terminal colors** support the 8 system color names `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan` and `white`, as well as each of them prefixed with `bright_` (e.g. `bright_blue`).
 
