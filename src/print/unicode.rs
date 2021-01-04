@@ -46,7 +46,7 @@ pub fn print_unicode(
         .unwrap()
         + 1;
 
-    let head_idx = graph.indices[&graph.head.oid];
+    let head_idx = graph.indices.get(&graph.head.oid);
 
     let inserts = get_inserts(graph, settings.compact);
 
@@ -81,7 +81,7 @@ pub fn print_unicode(
             0
         };
 
-        let head = if idx == head_idx {
+        let head = if head_idx.map_or(false, |h| h == &idx) {
             Some(&graph.head)
         } else {
             None
@@ -562,7 +562,7 @@ fn format(
 }
 
 /// Format branches and tags.
-fn format_branches(
+pub fn format_branches(
     graph: &GitGraph,
     info: &CommitInfo,
     head: Option<&HeadInfo>,

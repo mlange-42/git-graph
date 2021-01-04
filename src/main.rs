@@ -8,6 +8,7 @@ use git2::Repository;
 use git_graph::config::{
     create_config, get_available_models, get_model, get_model_name, set_model,
 };
+use git_graph::get_repo;
 use git_graph::graph::GitGraph;
 use git_graph::print::format::CommitFormat;
 use git_graph::print::svg::print_svg;
@@ -239,7 +240,7 @@ fn from_args() -> Result<(), String> {
     }
 
     let path = matches.value_of("path").unwrap_or(".");
-    let repository = Repository::discover(path)
+    let repository = get_repo(path)
         .map_err(|err| format!("ERROR: {}\n       Navigate into a repository before running git-graph, or use option --path", err.message()))?;
 
     if let Some(matches) = matches.subcommand_matches("model") {
