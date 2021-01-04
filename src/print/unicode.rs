@@ -1,7 +1,7 @@
 //! Create graphs in SVG format (Scalable Vector Graphics).
 
 use crate::graph::{CommitInfo, GitGraph, HeadInfo};
-use crate::print::format::{format_commit, format_multiline, format_oneline, CommitFormat};
+use crate::print::format::CommitFormat;
 use crate::settings::{Characters, Settings};
 use itertools::Itertools;
 use std::cmp::max;
@@ -550,15 +550,8 @@ fn format(
     let branch_str = format_branches(&graph, &info, head, color)?;
 
     let hash_color = if color { Some(HASH_COLOR) } else { None };
-    match format {
-        CommitFormat::OneLine => format_oneline(&commit, branch_str, &wrapping, hash_color),
-        CommitFormat::Short => format_multiline(&commit, branch_str, &wrapping, hash_color, 0),
-        CommitFormat::Medium => format_multiline(&commit, branch_str, &wrapping, hash_color, 1),
-        CommitFormat::Full => format_multiline(&commit, branch_str, &wrapping, hash_color, 2),
-        CommitFormat::Format(format) => {
-            format_commit(format, &commit, branch_str, &wrapping, hash_color)
-        }
-    }
+
+    crate::print::format::format(&commit, branch_str, &wrapping, hash_color, format)
 }
 
 /// Format branches and tags.

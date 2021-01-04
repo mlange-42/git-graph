@@ -9,6 +9,7 @@ use textwrap::{HyphenSplitter, Options};
 use yansi::Paint;
 
 /// Commit formatting options.
+#[derive(Ord, PartialOrd, Eq, PartialEq)]
 pub enum CommitFormat {
     OneLine,
     Short,
@@ -416,15 +417,24 @@ pub fn format_oneline(
 }
 
 /// Format a commit for `CommitFormat::Short`, `CommitFormat::Medium` or `CommitFormat::Full`.
-pub fn format_multiline(
+pub fn format(
     commit: &Commit,
     branches: String,
     wrapping: &Option<Options<HyphenSplitter>>,
     hash_color: Option<u8>,
-    level: u8,
+    format: &CommitFormat,
 ) -> Result<Vec<String>, String> {
+    match format {
+        CommitFormat::OneLine => return format_oneline(&commit, branches, &wrapping, hash_color),
+        CommitFormat::Format(format) => {
+            return format_commit(format, &commit, branches, &wrapping, hash_color)
+        }
+        _ => {}
+    }
+
     let mut out_vec = vec![];
     let mut out = String::new();
+
     if let Some(color) = hash_color {
         write!(out, "commit {}", Paint::fixed(color, &commit.id()))
     } else {
@@ -457,7 +467,7 @@ pub fn format_multiline(
     .map_err(|err| err.to_string())?;
     append_wrapped(&mut out_vec, out, &wrapping);
 
-    if level > 1 {
+    if format > &CommitFormat::Medium {
         out = String::new();
         write!(
             out,
@@ -469,7 +479,7 @@ pub fn format_multiline(
         append_wrapped(&mut out_vec, out, &wrapping);
     }
 
-    if level > 0 {
+    if format > &CommitFormat::Short {
         out = String::new();
         write!(
             out,
@@ -480,7 +490,7 @@ pub fn format_multiline(
         append_wrapped(&mut out_vec, out, &wrapping);
     }
 
-    if level == 0 {
+    if format == &CommitFormat::Short {
         out_vec.push("".to_string());
         append_wrapped(
             &mut out_vec,
@@ -507,7 +517,7 @@ pub fn format_multiline(
     Ok(out_vec)
 }
 
-fn format_date(time: Time, format: &str) -> String {
+pub fn format_date(time: Time, format: &str) -> String {
     let date =
         Local::from_offset(&FixedOffset::east(time.offset_minutes())).timestamp(time.seconds(), 0);
     format!("{}", date.format(format))
