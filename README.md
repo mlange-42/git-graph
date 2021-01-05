@@ -12,6 +12,8 @@ The image below shows an example using the [GitFlow](https://nvie.com/posts/a-su
 
 Decide for yourself which graph is the most comprehensible. :sunglasses:
 
+If you want an **interactive Git terminal application**, see [**git-igitt**](https://github.com/mlange-42/git-igitt), which is based on git-graph.
+
 ## Features
 
 * View structured graphs directly in the terminal
