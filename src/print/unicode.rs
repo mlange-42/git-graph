@@ -1,7 +1,7 @@
 //! Create graphs in SVG format (Scalable Vector Graphics).
 
 use crate::graph::{CommitInfo, GitGraph, HeadInfo};
-use crate::print::format::{format_commit, format_multiline, format_oneline, CommitFormat};
+use crate::print::format::CommitFormat;
 use crate::settings::{Characters, Settings};
 use itertools::Itertools;
 use std::cmp::max;
@@ -34,7 +34,10 @@ const HEAD_COLOR: u8 = 14;
 const HASH_COLOR: u8 = 11;
 
 /// Creates a text-based visual representation of a graph.
-pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String>, String> {
+pub fn print_unicode(
+    graph: &GitGraph,
+    settings: &Settings,
+) -> Result<(Vec<String>, Vec<usize>), String> {
     let num_cols = 2 * graph
         .branches
         .iter()
@@ -43,7 +46,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
         .unwrap()
         + 1;
 
-    let head_idx = graph.indices[&graph.head.oid];
+    let head_idx = graph.indices.get(&graph.head.oid);
 
     let inserts = get_inserts(graph, settings.compact);
 
@@ -78,7 +81,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
             0
         };
 
-        let head = if idx == head_idx {
+        let head = if head_idx.map_or(false, |h| h == &idx) {
             Some(&graph.head)
         } else {
             None
@@ -187,7 +190,9 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<Vec<String
         }
     }
 
-    print_graph(&settings.characters, &grid, text_lines, settings.colored)
+    let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored)?;
+
+    Ok((lines, index_map))
 }
 
 /// Create `textwrap::Options` from width and indent.
@@ -545,19 +550,12 @@ fn format(
     let branch_str = format_branches(&graph, &info, head, color)?;
 
     let hash_color = if color { Some(HASH_COLOR) } else { None };
-    match format {
-        CommitFormat::OneLine => format_oneline(&commit, branch_str, &wrapping, hash_color),
-        CommitFormat::Short => format_multiline(&commit, branch_str, &wrapping, hash_color, 0),
-        CommitFormat::Medium => format_multiline(&commit, branch_str, &wrapping, hash_color, 1),
-        CommitFormat::Full => format_multiline(&commit, branch_str, &wrapping, hash_color, 2),
-        CommitFormat::Format(format) => {
-            format_commit(format, &commit, branch_str, &wrapping, hash_color)
-        }
-    }
+
+    crate::print::format::format(&commit, branch_str, &wrapping, hash_color, format)
 }
 
 /// Format branches and tags.
-fn format_branches(
+pub fn format_branches(
     graph: &GitGraph,
     info: &CommitInfo,
     head: Option<&HeadInfo>,

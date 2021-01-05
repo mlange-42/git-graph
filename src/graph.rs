@@ -127,6 +127,10 @@ impl GitGraph {
         })
     }
 
+    pub fn take_repository(self) -> Repository {
+        self.repository
+    }
+
     pub fn commit(&self, id: Oid) -> Result<Commit, Error> {
         self.repository.find_commit(id)
     }
