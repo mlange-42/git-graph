@@ -392,7 +392,7 @@ fn run(
     let duration_graph = now.elapsed().as_micros();
 
     if settings.debug {
-        for branch in &graph.branches {
+        for branch in &graph.all_branches {
             eprintln!(
                 "{} (col {}) ({:?}) {} s: {:?}, t: {:?}",
                 branch.name,
