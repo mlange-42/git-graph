@@ -14,7 +14,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
     let mut max_column = 0;
 
     if settings.debug {
-        for branch in &graph.branches {
+        for branch in &graph.all_branches {
             if let (Some(start), Some(end)) = branch.range {
                 document = document.add(bold_line(
                     start,
@@ -29,7 +29,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
 
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
-            let branch = &graph.branches[trace];
+            let branch = &graph.all_branches[trace];
             let branch_color = &branch.visual.svg_color;
 
             if branch.visual.column.unwrap() > max_column {
@@ -40,7 +40,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
                 if let Some(par_oid) = info.parents[p] {
                     if let Some(par_idx) = graph.indices.get(&par_oid) {
                         let par_info = &graph.commits[*par_idx];
-                        let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
+                        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
 
                         let color = if info.is_merge {
                             &par_branch.visual.svg_color

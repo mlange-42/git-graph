@@ -13,8 +13,15 @@ const ORIGIN: &str = "origin/";
 pub struct GitGraph {
     pub repository: Repository,
     pub commits: Vec<CommitInfo>,
+    /// Mapping from commit id to index in `commits`
     pub indices: HashMap<Oid, usize>,
-    pub branches: Vec<BranchInfo>,
+    /// All detected branches and tags, including merged and deleted
+    pub all_branches: Vec<BranchInfo>,
+    /// Indices of all real (still existing) branches in `all_branches`
+    pub branches: Vec<usize>,
+    /// Indices of all tags in `all_branches`
+    pub tags: Vec<usize>,
+    /// The current HEAD
     pub head: HeadInfo,
 }
 
@@ -66,8 +73,8 @@ impl GitGraph {
 
         assign_children(&mut commits, &indices);
 
-        let mut branches = assign_branches(&repository, &mut commits, &indices, &settings)?;
-        assign_sources_targets(&commits, &indices, &mut branches);
+        let mut all_branches = assign_branches(&repository, &mut commits, &indices, &settings)?;
+        assign_sources_targets(&commits, &indices, &mut all_branches);
 
         let (shortest_first, forward) = match settings.branch_order {
             BranchOrder::ShortestFirst(fwd) => (true, fwd),
@@ -77,7 +84,7 @@ impl GitGraph {
         assign_branch_columns(
             &commits,
             &indices,
-            &mut branches,
+            &mut all_branches,
             &settings.branches,
             shortest_first,
             forward,
@@ -99,7 +106,7 @@ impl GitGraph {
             .map(|(oid, index)| (*index, filtered_indices.get(oid)))
             .collect();
 
-        for branch in branches.iter_mut() {
+        for branch in all_branches.iter_mut() {
             if let Some(mut start_idx) = branch.range.0 {
                 let mut idx0 = index_map[&start_idx];
                 while idx0.is_none() {
@@ -118,11 +125,36 @@ impl GitGraph {
             }
         }
 
+        let branches = all_branches
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, br)| {
+                if !br.is_merged && !br.is_tag {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let tags = all_branches
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, br)| {
+                if !br.is_merged && br.is_tag {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         Ok(GitGraph {
             repository,
             commits: filtered_commits,
             indices: filtered_indices,
+            all_branches,
             branches,
+            tags,
             head,
         })
     }

@@ -39,7 +39,7 @@ pub fn print_unicode(
     settings: &Settings,
 ) -> Result<(Vec<String>, Vec<usize>), String> {
     let num_cols = 2 * graph
-        .branches
+        .all_branches
         .iter()
         .map(|b| b.visual.column.unwrap_or(0))
         .max()
@@ -114,7 +114,7 @@ pub fn print_unicode(
 
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
-            let branch = &graph.branches[trace];
+            let branch = &graph.all_branches[trace];
             let column = branch.visual.column.unwrap();
             let idx_map = index_map[idx];
 
@@ -133,7 +133,7 @@ pub fn print_unicode(
                     if let Some(par_idx) = graph.indices.get(&par_oid) {
                         let par_idx_map = index_map[*par_idx];
                         let par_info = &graph.commits[*par_idx];
-                        let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
+                        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
                         let par_column = par_branch.visual.column.unwrap();
 
                         let (color, pers) = if info.is_merge {
@@ -397,7 +397,7 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
     let mut inserts: HashMap<usize, Vec<Vec<Occ>>> = HashMap::new();
 
     for (idx, info) in graph.commits.iter().enumerate() {
-        let column = graph.branches[info.branch_trace.unwrap()]
+        let column = graph.all_branches[info.branch_trace.unwrap()]
             .visual
             .column
             .unwrap();
@@ -407,14 +407,14 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
 
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
-            let branch = &graph.branches[trace];
+            let branch = &graph.all_branches[trace];
             let column = branch.visual.column.unwrap();
 
             for p in 0..2 {
                 if let Some(par_oid) = info.parents[p] {
                     if let Some(par_idx) = graph.indices.get(&par_oid) {
                         let par_info = &graph.commits[*par_idx];
-                        let par_branch = &graph.branches[par_info.branch_trace.unwrap()];
+                        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
                         let par_column = par_branch.visual.column.unwrap();
                         let column_range = sorted(column, par_column);
 
@@ -563,7 +563,7 @@ pub fn format_branches(
 ) -> Result<String, String> {
     let curr_color = info
         .branch_trace
-        .map(|branch_idx| &graph.branches[branch_idx].visual.term_color);
+        .map(|branch_idx| &graph.all_branches[branch_idx].visual.term_color);
 
     let mut branch_str = String::new();
 
@@ -584,14 +584,14 @@ pub fn format_branches(
 
         let branches = info.branches.iter().sorted_by_key(|br| {
             if let Some(head) = head {
-                head.name != graph.branches[**br].name
+                head.name != graph.all_branches[**br].name
             } else {
                 false
             }
         });
 
         for (idx, branch_index) in branches.enumerate() {
-            let branch = &graph.branches[*branch_index];
+            let branch = &graph.all_branches[*branch_index];
             let branch_color = branch.visual.term_color;
 
             if let Some(head) = head {
@@ -622,7 +622,7 @@ pub fn format_branches(
     if !info.tags.is_empty() {
         write!(branch_str, " [").map_err(|err| err.to_string())?;
         for (idx, tag_index) in info.tags.iter().enumerate() {
-            let tag = &graph.branches[*tag_index];
+            let tag = &graph.all_branches[*tag_index];
             let tag_color = curr_color.unwrap_or(&tag.visual.term_color);
 
             if color {
