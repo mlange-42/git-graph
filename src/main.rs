@@ -410,11 +410,11 @@ fn run(
     if svg {
         println!("{}", print_svg(&graph, &settings)?);
     } else {
-        let (lines, _indices) = print_unicode(&graph, &settings)?;
+        let (g_lines, t_lines, _indices) = print_unicode(&graph, &settings)?;
         if pager && atty::is(atty::Stream::Stdout) {
-            print_paged(&lines).map_err(|err| err.to_string())?;
+            print_paged(&g_lines, &t_lines).map_err(|err| err.to_string())?;
         } else {
-            print_unpaged(&lines);
+            print_unpaged(&g_lines, &t_lines);
         }
     };
 
@@ -432,7 +432,7 @@ fn run(
 }
 
 /// Print the graph, paged (i.e. wait for user input once the terminal is filled).
-fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
+fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), ErrorKind> {
     let (width, height) = crossterm::terminal::size()?;
     let width = width as usize;
 
@@ -448,7 +448,7 @@ fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
         help
     };
 
-    while line_idx < lines.len() {
+    while line_idx < graph_lines.len() {
         if print_lines > 0 {
             if clear {
                 stdout()
@@ -456,9 +456,12 @@ fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
                     .execute(MoveToColumn(0))?;
             }
 
-            stdout().execute(Print(format!("{}\n", lines[line_idx])))?;
+            stdout().execute(Print(format!(
+                " {}  {}\n",
+                graph_lines[line_idx], text_lines[line_idx]
+            )))?;
 
-            if print_lines == 1 && line_idx < lines.len() - 1 {
+            if print_lines == 1 && line_idx < graph_lines.len() - 1 {
                 stdout().execute(Print(help))?;
             }
             print_lines -= 1;
@@ -477,7 +480,7 @@ fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
                     }
                     KeyCode::End => {
                         clear = true;
-                        print_lines = lines.len() as u16;
+                        print_lines = graph_lines.len() as u16;
                     }
                     KeyCode::Char(c) => match c {
                         'q' => {
@@ -512,8 +515,8 @@ fn print_paged(lines: &[String]) -> Result<(), ErrorKind> {
 }
 
 /// Print the graph, un-paged.
-fn print_unpaged(lines: &[String]) {
-    for line in lines {
-        println!("{}", line);
+fn print_unpaged(graph_lines: &[String], text_lines: &[String]) {
+    for (g_line, t_line) in graph_lines.iter().zip(text_lines.iter()) {
+        println!(" {}  {}", g_line, t_line);
     }
 }
