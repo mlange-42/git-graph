@@ -33,11 +33,10 @@ const WHITE: u8 = 7;
 const HEAD_COLOR: u8 = 14;
 const HASH_COLOR: u8 = 11;
 
+type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
+
 /// Creates a text-based visual representation of a graph.
-pub fn print_unicode(
-    graph: &GitGraph,
-    settings: &Settings,
-) -> Result<(Vec<String>, Vec<usize>), String> {
+pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
     let num_cols = 2 * graph
         .all_branches
         .iter()
@@ -192,7 +191,7 @@ pub fn print_unicode(
 
     let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored)?;
 
-    Ok((lines, index_map))
+    Ok((lines.0, lines.1, index_map))
 }
 
 /// Create `textwrap::Options` from width and indent.
@@ -494,21 +493,21 @@ fn print_graph(
     grid: &Grid,
     text_lines: Vec<Option<String>>,
     color: bool,
-) -> Result<Vec<String>, String> {
-    let mut lines = vec![];
+) -> Result<(Vec<String>, Vec<String>), String> {
+    let mut g_lines = vec![];
+    let mut t_lines = vec![];
 
     for (row, line) in grid.data.chunks(grid.width).zip(text_lines.into_iter()) {
-        let mut out = String::new();
-
-        write!(out, " ").map_err(|err| err.to_string())?;
+        let mut g_out = String::new();
+        let mut t_out = String::new();
 
         if color {
             for arr in row {
                 if arr[0] == SPACE {
-                    write!(out, "{}", characters.chars[arr[0] as usize])
+                    write!(g_out, "{}", characters.chars[arr[0] as usize])
                 } else {
                     write!(
-                        out,
+                        g_out,
                         "{}",
                         Paint::fixed(arr[1], characters.chars[arr[0] as usize])
                     )
@@ -520,17 +519,18 @@ fn print_graph(
                 .iter()
                 .map(|arr| characters.chars[arr[0] as usize])
                 .collect::<String>();
-            write!(out, "{}", str).map_err(|err| err.to_string())?;
+            write!(g_out, "{}", str).map_err(|err| err.to_string())?;
         }
 
         if let Some(line) = line {
-            write!(out, "  {}", line).map_err(|err| err.to_string())?;
+            write!(t_out, "{}", line).map_err(|err| err.to_string())?;
         }
 
-        lines.push(out);
+        g_lines.push(g_out);
+        t_lines.push(t_out);
     }
 
-    Ok(lines)
+    Ok((g_lines, t_lines))
 }
 
 /// Format a commit.
