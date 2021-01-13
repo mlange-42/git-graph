@@ -138,6 +138,7 @@ impl GitGraph {
                 }
             })
             .collect();
+
         let tags = all_branches
             .iter()
             .enumerate()
@@ -223,6 +224,8 @@ impl CommitInfo {
 pub struct BranchInfo {
     pub target: Oid,
     pub merge_target: Option<Oid>,
+    pub source_branch: Option<usize>,
+    pub target_branch: Option<usize>,
     pub name: String,
     pub persistence: u8,
     pub is_remote: bool,
@@ -247,6 +250,8 @@ impl BranchInfo {
         BranchInfo {
             target,
             merge_target,
+            target_branch: None,
+            source_branch: None,
             name,
             persistence,
             is_remote,
@@ -441,23 +446,33 @@ fn assign_sources_targets(
     branches: &mut [BranchInfo],
 ) {
     for idx in 0..branches.len() {
-        let group = branches[idx]
+        let target_branch_idx = branches[idx]
             .merge_target
             .and_then(|oid| indices.get(&oid))
             .and_then(|idx| commits.get(*idx))
-            .and_then(|info| info.branch_trace)
+            .and_then(|info| info.branch_trace);
+
+        branches[idx].target_branch = target_branch_idx;
+
+        let group = target_branch_idx
             .and_then(|trace| branches.get(trace))
             .map(|br| br.visual.order_group);
+
         branches[idx].visual.target_order_group = group;
     }
     for info in commits {
         let mut max_par_order = None;
+        let mut source_branch_id = None;
         for par_oid in info.parents.iter() {
             let par_info = par_oid
                 .and_then(|oid| indices.get(&oid))
                 .and_then(|idx| commits.get(*idx));
             if let Some(par_info) = par_info {
                 if par_info.branch_trace != info.branch_trace {
+                    if let Some(trace) = par_info.branch_trace {
+                        source_branch_id = Some(trace);
+                    }
+
                     let group = par_info
                         .branch_trace
                         .and_then(|trace| branches.get(trace))
@@ -475,8 +490,13 @@ fn assign_sources_targets(
             }
         }
         let branch = info.branch_trace.and_then(|trace| branches.get_mut(trace));
-        if let (Some(branch), Some(order)) = (branch, max_par_order) {
-            branch.visual.source_order_group = Some(order);
+        if let Some(branch) = branch {
+            if let Some(order) = max_par_order {
+                branch.visual.source_order_group = Some(order);
+            }
+            if let Some(source_id) = source_branch_id {
+                branch.source_branch = Some(source_id);
+            }
         }
     }
 }
