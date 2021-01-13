@@ -824,8 +824,20 @@ fn assign_branch_columns(
         let group = branch.visual.order_group;
         let group_occ = &mut occupied[group];
 
-        let mut found = group_occ.len();
-        for (i, column_occ) in group_occ.iter().enumerate() {
+        let align_right = branch
+            .source_branch
+            .map(|src| branches[src].visual.order_group > branch.visual.order_group)
+            .unwrap_or(false)
+            || branch
+                .target_branch
+                .map(|trg| branches[trg].visual.order_group > branch.visual.order_group)
+                .unwrap_or(false);
+
+        let len = group_occ.len();
+        let mut found = len;
+        for i in 0..len {
+            let index = if align_right { len - i - 1 } else { i };
+            let column_occ = &group_occ[index];
             let mut occ = false;
             for (s, e) in column_occ {
                 if start <= *e && end >= *s {
@@ -842,7 +854,7 @@ fn assign_branch_columns(
                     let merge_branch = &branches[merge_trace];
                     if merge_branch.visual.order_group == branch.visual.order_group {
                         if let Some(merge_column) = merge_branch.visual.column {
-                            if merge_column == i {
+                            if merge_column == index {
                                 occ = true;
                             }
                         }
@@ -850,10 +862,11 @@ fn assign_branch_columns(
                 }
             }
             if !occ {
-                found = i;
+                found = index;
                 break;
             }
         }
+
         let branch = &mut branches[branch_idx];
         branch.visual.column = Some(found);
         if found == group_occ.len() {
