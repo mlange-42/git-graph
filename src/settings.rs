@@ -99,7 +99,7 @@ impl BranchSettingsDef {
                         vec!["bright_yellow".to_string()],
                     ),
                     (
-                        r"^feature.*$".to_string(),
+                        r"^(feature|fork/).*$".to_string(),
                         vec!["bright_magenta".to_string(), "bright_cyan".to_string()],
                     ),
                     (r"^release.*$".to_string(), vec!["bright_green".to_string()]),
@@ -117,7 +117,7 @@ impl BranchSettingsDef {
                     (r"^(master|main)$".to_string(), vec!["blue".to_string()]),
                     (r"^(develop|dev)$".to_string(), vec!["orange".to_string()]),
                     (
-                        r"^feature.*$".to_string(),
+                        r"^(feature|fork/).*$".to_string(),
                         vec!["purple".to_string(), "turquoise".to_string()],
                     ),
                     (r"^release.*$".to_string(), vec!["green".to_string()]),

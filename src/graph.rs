@@ -8,6 +8,7 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 
 const ORIGIN: &str = "origin/";
+const FORK: &str = "fork/";
 
 /// Represents a git history graph.
 pub struct GitGraph {
@@ -74,6 +75,7 @@ impl GitGraph {
         assign_children(&mut commits, &indices);
 
         let mut all_branches = assign_branches(&repository, &mut commits, &indices, &settings)?;
+        correct_fork_merges(&commits, &indices, &mut all_branches, &settings)?;
         assign_sources_targets(&commits, &indices, &mut all_branches);
 
         let (shortest_first, forward) = match settings.branch_order {
@@ -136,6 +138,7 @@ impl GitGraph {
                 }
             })
             .collect();
+
         let tags = all_branches
             .iter()
             .enumerate()
@@ -221,6 +224,8 @@ impl CommitInfo {
 pub struct BranchInfo {
     pub target: Oid,
     pub merge_target: Option<Oid>,
+    pub source_branch: Option<usize>,
+    pub target_branch: Option<usize>,
     pub name: String,
     pub persistence: u8,
     pub is_remote: bool,
@@ -245,6 +250,8 @@ impl BranchInfo {
         BranchInfo {
             target,
             merge_target,
+            target_branch: None,
+            source_branch: None,
             name,
             persistence,
             is_remote,
@@ -392,29 +399,80 @@ fn assign_branches(
     Ok(branches)
 }
 
+fn correct_fork_merges(
+    commits: &[CommitInfo],
+    indices: &HashMap<Oid, usize>,
+    branches: &mut [BranchInfo],
+    settings: &Settings,
+) -> Result<(), String> {
+    for idx in 0..branches.len() {
+        if let Some(merge_target) = branches[idx]
+            .merge_target
+            .and_then(|oid| indices.get(&oid))
+            .and_then(|idx| commits.get(*idx))
+            .and_then(|info| info.branch_trace)
+            .and_then(|trace| branches.get(trace))
+        {
+            if branches[idx].name == merge_target.name {
+                let name = format!("{}{}", FORK, branches[idx].name);
+                let term_col = to_terminal_color(
+                    &branch_color(
+                        &name,
+                        &settings.branches.terminal_colors[..],
+                        &settings.branches.terminal_colors_unknown,
+                        idx,
+                    )[..],
+                )?;
+                let pos = branch_order(&name, &settings.branches.order);
+                let svg_col = branch_color(
+                    &name,
+                    &settings.branches.svg_colors,
+                    &settings.branches.svg_colors_unknown,
+                    idx,
+                );
+
+                branches[idx].name = format!("{}{}", FORK, branches[idx].name);
+                branches[idx].visual.order_group = pos;
+                branches[idx].visual.term_color = term_col;
+                branches[idx].visual.svg_color = svg_col;
+            }
+        }
+    }
+    Ok(())
+}
 fn assign_sources_targets(
     commits: &[CommitInfo],
     indices: &HashMap<Oid, usize>,
     branches: &mut [BranchInfo],
 ) {
     for idx in 0..branches.len() {
-        let group = branches[idx]
+        let target_branch_idx = branches[idx]
             .merge_target
             .and_then(|oid| indices.get(&oid))
             .and_then(|idx| commits.get(*idx))
-            .and_then(|info| info.branch_trace)
+            .and_then(|info| info.branch_trace);
+
+        branches[idx].target_branch = target_branch_idx;
+
+        let group = target_branch_idx
             .and_then(|trace| branches.get(trace))
             .map(|br| br.visual.order_group);
+
         branches[idx].visual.target_order_group = group;
     }
     for info in commits {
         let mut max_par_order = None;
+        let mut source_branch_id = None;
         for par_oid in info.parents.iter() {
             let par_info = par_oid
                 .and_then(|oid| indices.get(&oid))
                 .and_then(|idx| commits.get(*idx));
             if let Some(par_info) = par_info {
                 if par_info.branch_trace != info.branch_trace {
+                    if let Some(trace) = par_info.branch_trace {
+                        source_branch_id = Some(trace);
+                    }
+
                     let group = par_info
                         .branch_trace
                         .and_then(|trace| branches.get(trace))
@@ -433,7 +491,12 @@ fn assign_sources_targets(
         }
         let branch = info.branch_trace.and_then(|trace| branches.get_mut(trace));
         if let Some(branch) = branch {
-            branch.visual.source_order_group = max_par_order;
+            if let Some(order) = max_par_order {
+                branch.visual.source_order_group = Some(order);
+            }
+            if let Some(source_id) = source_branch_id {
+                branch.source_branch = Some(source_id);
+            }
         }
     }
 }
@@ -761,8 +824,20 @@ fn assign_branch_columns(
         let group = branch.visual.order_group;
         let group_occ = &mut occupied[group];
 
-        let mut found = group_occ.len();
-        for (i, column_occ) in group_occ.iter().enumerate() {
+        let align_right = branch
+            .source_branch
+            .map(|src| branches[src].visual.order_group > branch.visual.order_group)
+            .unwrap_or(false)
+            || branch
+                .target_branch
+                .map(|trg| branches[trg].visual.order_group > branch.visual.order_group)
+                .unwrap_or(false);
+
+        let len = group_occ.len();
+        let mut found = len;
+        for i in 0..len {
+            let index = if align_right { len - i - 1 } else { i };
+            let column_occ = &group_occ[index];
             let mut occ = false;
             for (s, e) in column_occ {
                 if start <= *e && end >= *s {
@@ -779,7 +854,7 @@ fn assign_branch_columns(
                     let merge_branch = &branches[merge_trace];
                     if merge_branch.visual.order_group == branch.visual.order_group {
                         if let Some(merge_column) = merge_branch.visual.column {
-                            if merge_column == i {
+                            if merge_column == index {
                                 occ = true;
                             }
                         }
@@ -787,10 +862,11 @@ fn assign_branch_columns(
                 }
             }
             if !occ {
-                found = i;
+                found = index;
                 break;
             }
         }
+
         let branch = &mut branches[branch_idx];
         branch.visual.column = Some(found);
         if found == group_occ.len() {
