@@ -275,8 +275,9 @@ matches = [
         '^(develop|dev)$',
         ['bright_yellow'],
     ],
-    [
-        '^feature.*$',
+    [   # Branches obviously merged in from forks are prefixed with 'fork/'. 
+        # The 'fork/' prefix is only available in order and colors, but not in persistence!
+        '^(feature|fork/).*$',
         ['bright_magenta', 'bright_cyan'], # Multiple colors for alternating use
     ],
         [

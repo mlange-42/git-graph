@@ -8,6 +8,7 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 
 const ORIGIN: &str = "origin/";
+const FORK: &str = "fork/";
 
 /// Represents a git history graph.
 pub struct GitGraph {
@@ -74,6 +75,7 @@ impl GitGraph {
         assign_children(&mut commits, &indices);
 
         let mut all_branches = assign_branches(&repository, &mut commits, &indices, &settings)?;
+        correct_fork_merges(&commits, &indices, &mut all_branches, &settings)?;
         assign_sources_targets(&commits, &indices, &mut all_branches);
 
         let (shortest_first, forward) = match settings.branch_order {
@@ -392,6 +394,47 @@ fn assign_branches(
     Ok(branches)
 }
 
+fn correct_fork_merges(
+    commits: &[CommitInfo],
+    indices: &HashMap<Oid, usize>,
+    branches: &mut [BranchInfo],
+    settings: &Settings,
+) -> Result<(), String> {
+    for idx in 0..branches.len() {
+        if let Some(merge_target) = branches[idx]
+            .merge_target
+            .and_then(|oid| indices.get(&oid))
+            .and_then(|idx| commits.get(*idx))
+            .and_then(|info| info.branch_trace)
+            .and_then(|trace| branches.get(trace))
+        {
+            if branches[idx].name == merge_target.name {
+                let name = format!("{}{}", FORK, branches[idx].name);
+                let term_col = to_terminal_color(
+                    &branch_color(
+                        &name,
+                        &settings.branches.terminal_colors[..],
+                        &settings.branches.terminal_colors_unknown,
+                        idx,
+                    )[..],
+                )?;
+                let pos = branch_order(&name, &settings.branches.order);
+                let svg_col = branch_color(
+                    &name,
+                    &settings.branches.svg_colors,
+                    &settings.branches.svg_colors_unknown,
+                    idx,
+                );
+
+                branches[idx].name = format!("{}{}", FORK, branches[idx].name);
+                branches[idx].visual.order_group = pos;
+                branches[idx].visual.term_color = term_col;
+                branches[idx].visual.svg_color = svg_col;
+            }
+        }
+    }
+    Ok(())
+}
 fn assign_sources_targets(
     commits: &[CommitInfo],
     indices: &HashMap<Oid, usize>,
@@ -432,8 +475,8 @@ fn assign_sources_targets(
             }
         }
         let branch = info.branch_trace.and_then(|trace| branches.get_mut(trace));
-        if let Some(branch) = branch {
-            branch.visual.source_order_group = max_par_order;
+        if let (Some(branch), Some(order)) = (branch, max_par_order) {
+            branch.visual.source_order_group = Some(order);
         }
     }
 }
