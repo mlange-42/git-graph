@@ -567,13 +567,13 @@ pub fn format_branches(
 
     let mut branch_str = String::new();
 
-    let head_str = "HEAD -> ";
+    let head_str = "HEAD ->";
     if let Some(head) = head {
         if !head.is_branch {
             if color {
-                write!(branch_str, "{}", Paint::fixed(HEAD_COLOR, head_str))
+                write!(branch_str, " {}", Paint::fixed(HEAD_COLOR, head_str))
             } else {
-                write!(branch_str, "{}", head_str)
+                write!(branch_str, " {}", head_str)
             }
             .map_err(|err| err.to_string())?;
         }
@@ -597,9 +597,9 @@ pub fn format_branches(
             if let Some(head) = head {
                 if idx == 0 && head.is_branch {
                     if color {
-                        write!(branch_str, "{}", Paint::fixed(14, head_str))
+                        write!(branch_str, "{} ", Paint::fixed(14, head_str))
                     } else {
-                        write!(branch_str, "{}", head_str)
+                        write!(branch_str, "{} ", head_str)
                     }
                     .map_err(|err| err.to_string())?;
                 }
