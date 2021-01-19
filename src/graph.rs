@@ -50,6 +50,10 @@ impl GitGraph {
         walk.push_glob("*")
             .map_err(|err| err.message().to_string())?;
 
+        if repository.is_shallow() {
+            return Err("ERROR: git-graph does not support shallow clones due to a missing feature in the underlying libgit2 library.".to_string());
+        }
+
         let head = HeadInfo::new(&repository.head().map_err(|err| err.message().to_string())?)?;
 
         let mut commits = Vec::new();
@@ -61,14 +65,14 @@ impl GitGraph {
                     break;
                 }
             }
-            let oid = oid.map_err(|err| err.message().to_string())?;
+            if let Ok(oid) = oid {
+                if !stashes.contains(&oid) {
+                    let commit = repository.find_commit(oid).unwrap();
 
-            if !stashes.contains(&oid) {
-                let commit = repository.find_commit(oid).unwrap();
-
-                commits.push(CommitInfo::new(&commit));
-                indices.insert(oid, idx);
-                idx += 1;
+                    commits.push(CommitInfo::new(&commit));
+                    indices.insert(oid, idx);
+                    idx += 1;
+                }
             }
         }
 
