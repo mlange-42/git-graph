@@ -639,8 +639,13 @@ fn extract_branches(
     for (oid, name) in tags {
         let name = std::str::from_utf8(&name[5..]).map_err(|err| err.to_string())?;
 
-        if let Ok(tag) = repository.find_tag(oid) {
-            if let Some(target_index) = indices.get(&tag.target_id()) {
+        let target = repository
+            .find_tag(oid)
+            .map(|tag| tag.target_id())
+            .or_else(|_| repository.find_commit(oid).map(|_| oid));
+
+        if let Ok(target_oid) = target {
+            if let Some(target_index) = indices.get(&target_oid) {
                 counter += 1;
                 let term_col = to_terminal_color(
                     &branch_color(
@@ -658,7 +663,7 @@ fn extract_branches(
                     counter,
                 );
                 let tag_info = BranchInfo::new(
-                    tag.target_id(),
+                    target_oid,
                     None,
                     name.to_string(),
                     settings.branches.persistence.len() as u8 + 1,
