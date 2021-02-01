@@ -189,7 +189,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
         }
     }
 
-    let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored)?;
+    let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored);
 
     Ok((lines.0, lines.1, index_map))
 }
@@ -493,7 +493,7 @@ fn print_graph(
     grid: &Grid,
     text_lines: Vec<Option<String>>,
     color: bool,
-) -> Result<(Vec<String>, Vec<String>), String> {
+) -> (Vec<String>, Vec<String>) {
     let mut g_lines = vec![];
     let mut t_lines = vec![];
 
@@ -512,25 +512,25 @@ fn print_graph(
                         Paint::fixed(arr[1], characters.chars[arr[0] as usize])
                     )
                 }
-                .map_err(|err| err.to_string())?;
+                .unwrap();
             }
         } else {
             let str = row
                 .iter()
                 .map(|arr| characters.chars[arr[0] as usize])
                 .collect::<String>();
-            write!(g_out, "{}", str).map_err(|err| err.to_string())?;
+            write!(g_out, "{}", str).unwrap();
         }
 
         if let Some(line) = line {
-            write!(t_out, "{}", line).map_err(|err| err.to_string())?;
+            write!(t_out, "{}", line).unwrap();
         }
 
         g_lines.push(g_out);
         t_lines.push(t_out);
     }
 
-    Ok((g_lines, t_lines))
+    (g_lines, t_lines)
 }
 
 /// Format a commit.
@@ -547,7 +547,7 @@ fn format(
         .find_commit(info.oid)
         .map_err(|err| err.message().to_string())?;
 
-    let branch_str = format_branches(&graph, &info, head, color)?;
+    let branch_str = format_branches(&graph, &info, head, color);
 
     let hash_color = if color { Some(HASH_COLOR) } else { None };
 
@@ -560,7 +560,7 @@ pub fn format_branches(
     info: &CommitInfo,
     head: Option<&HeadInfo>,
     color: bool,
-) -> Result<String, String> {
+) -> String {
     let curr_color = info
         .branch_trace
         .map(|branch_idx| &graph.all_branches[branch_idx].visual.term_color);
@@ -575,12 +575,12 @@ pub fn format_branches(
             } else {
                 write!(branch_str, " {}", head_str)
             }
-            .map_err(|err| err.to_string())?;
+            .unwrap();
         }
     }
 
     if !info.branches.is_empty() {
-        write!(branch_str, " (").map_err(|err| err.to_string())?;
+        write!(branch_str, " (").unwrap();
 
         let branches = info.branches.iter().sorted_by_key(|br| {
             if let Some(head) = head {
@@ -601,7 +601,7 @@ pub fn format_branches(
                     } else {
                         write!(branch_str, "{} ", head_str)
                     }
-                    .map_err(|err| err.to_string())?;
+                    .unwrap();
                 }
             }
 
@@ -610,17 +610,17 @@ pub fn format_branches(
             } else {
                 write!(branch_str, "{}", &branch.name)
             }
-            .map_err(|err| err.to_string())?;
+            .unwrap();
 
             if idx < info.branches.len() - 1 {
-                write!(branch_str, ", ").map_err(|err| err.to_string())?;
+                write!(branch_str, ", ").unwrap();
             }
         }
-        write!(branch_str, ")").map_err(|err| err.to_string())?;
+        write!(branch_str, ")").unwrap();
     }
 
     if !info.tags.is_empty() {
-        write!(branch_str, " [").map_err(|err| err.to_string())?;
+        write!(branch_str, " [").unwrap();
         for (idx, tag_index) in info.tags.iter().enumerate() {
             let tag = &graph.all_branches[*tag_index];
             let tag_color = curr_color.unwrap_or(&tag.visual.term_color);
@@ -630,16 +630,16 @@ pub fn format_branches(
             } else {
                 write!(branch_str, "{}", &tag.name[5..])
             }
-            .map_err(|err| err.to_string())?;
+            .unwrap();
 
             if idx < info.tags.len() - 1 {
-                write!(branch_str, ", ").map_err(|err| err.to_string())?;
+                write!(branch_str, ", ").unwrap();
             }
         }
-        write!(branch_str, "]").map_err(|err| err.to_string())?;
+        write!(branch_str, "]").unwrap();
     }
 
-    Ok(branch_str)
+    branch_str
 }
 
 /// Occupied row ranges

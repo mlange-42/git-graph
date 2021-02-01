@@ -106,20 +106,20 @@ pub fn format_commit(
     let mut lines = vec![];
     let mut out = String::new();
     if replacements.is_empty() {
-        write!(out, "{}", format).map_err(|err| err.to_string())?;
+        write!(out, "{}", format).unwrap();
         add_line(&mut lines, &mut out, &wrapping);
     } else {
         let mut curr = 0;
         for (start, len, idx, mode) in replacements {
             if idx == NEW_LINE {
-                write!(out, "{}", &format[curr..start]).map_err(|err| err.to_string())?;
+                write!(out, "{}", &format[curr..start]).unwrap();
                 add_line(&mut lines, &mut out, &wrapping);
             } else {
-                write!(out, "{}", &format[curr..start]).map_err(|err| err.to_string())?;
+                write!(out, "{}", &format[curr..start]).unwrap();
                 match idx {
                     HASH => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -131,7 +131,7 @@ pub fn format_commit(
                     }
                     HASH_ABBREV => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -147,26 +147,21 @@ pub fn format_commit(
                     }
                     PARENT_HASHES => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
                         for i in 0..commit.parent_count() {
-                            write!(
-                                out,
-                                "{}",
-                                commit.parent_id(i).map_err(|err| err.to_string())?
-                            )
-                            .map_err(|err| err.to_string())?;
+                            write!(out, "{}", commit.parent_id(i).unwrap()).unwrap();
                             if i < commit.parent_count() - 1 {
-                                write!(out, " ").map_err(|err| err.to_string())?;
+                                write!(out, " ").unwrap();
                             }
                         }
                         Ok(())
                     }
                     PARENT_HASHES_ABBREV => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -179,9 +174,9 @@ pub fn format_commit(
                                     .map_err(|err| err.to_string())?
                                     .to_string()[..7]
                             )
-                            .map_err(|err| err.to_string())?;
+                            .unwrap();
                             if i < commit.parent_count() - 1 {
-                                write!(out, " ").map_err(|err| err.to_string())?;
+                                write!(out, " ").unwrap();
                             }
                         }
                         Ok(())
@@ -190,7 +185,7 @@ pub fn format_commit(
                         match mode {
                             MODE_SPACE => {
                                 if !branches.is_empty() {
-                                    write!(out, " ").map_err(|err| err.to_string())?
+                                    write!(out, " ").unwrap()
                                 }
                             }
                             MODE_PLUS => {
@@ -212,7 +207,7 @@ pub fn format_commit(
                         match mode {
                             MODE_SPACE => {
                                 if !summary.is_empty() {
-                                    write!(out, " ").map_err(|err| err.to_string())?
+                                    write!(out, " ").unwrap()
                                 }
                             }
                             MODE_PLUS => {
@@ -231,7 +226,7 @@ pub fn format_commit(
                     }
                     AUTHOR => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -239,7 +234,7 @@ pub fn format_commit(
                     }
                     AUTHOR_EMAIL => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -247,7 +242,7 @@ pub fn format_commit(
                     }
                     AUTHOR_DATE => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -259,7 +254,7 @@ pub fn format_commit(
                     }
                     AUTHOR_DATE_SHORT => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -267,7 +262,7 @@ pub fn format_commit(
                     }
                     COMMITTER => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -275,7 +270,7 @@ pub fn format_commit(
                     }
                     COMMITTER_EMAIL => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -283,7 +278,7 @@ pub fn format_commit(
                     }
                     COMMITTER_DATE => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -295,7 +290,7 @@ pub fn format_commit(
                     }
                     COMMITTER_DATE_SHORT => {
                         match mode {
-                            MODE_SPACE => write!(out, " ").map_err(|err| err.to_string())?,
+                            MODE_SPACE => write!(out, " ").unwrap(),
                             MODE_PLUS => add_line(&mut lines, &mut out, &wrapping),
                             _ => {}
                         }
@@ -312,7 +307,7 @@ pub fn format_commit(
                         match mode {
                             MODE_SPACE => {
                                 if num_parts > 2 {
-                                    write!(out, " ").map_err(|err| err.to_string())?
+                                    write!(out, " ").unwrap()
                                 }
                             }
                             MODE_PLUS => {
@@ -329,7 +324,7 @@ pub fn format_commit(
                         }
                         for (cnt, line) in message.iter().enumerate() {
                             if cnt > 1 && (cnt < num_parts - 1 || !line.is_empty()) {
-                                write!(out, "{}", line).map_err(|err| err.to_string())?;
+                                write!(out, "{}", line).unwrap();
                                 add_line(&mut lines, &mut out, &wrapping);
                             }
                         }
@@ -347,7 +342,7 @@ pub fn format_commit(
                         match mode {
                             MODE_SPACE => {
                                 if !message.is_empty() {
-                                    write!(out, " ").map_err(|err| err.to_string())?
+                                    write!(out, " ").unwrap()
                                 }
                             }
                             MODE_PLUS => {
@@ -364,7 +359,7 @@ pub fn format_commit(
                         }
                         for (cnt, line) in message.iter().enumerate() {
                             if cnt < num_parts - 1 || !line.is_empty() {
-                                write!(out, "{}", line).map_err(|err| err.to_string())?;
+                                write!(out, "{}", line).unwrap();
                                 add_line(&mut lines, &mut out, &wrapping);
                             }
                         }
@@ -372,11 +367,11 @@ pub fn format_commit(
                     }
                     x => return Err(format!("No commit field at index {}", x)),
                 }
-                .map_err(|err| err.to_string())?;
+                .unwrap();
             }
             curr = start + len;
         }
-        write!(out, "{}", &format[curr..(format.len())]).map_err(|err| err.to_string())?;
+        write!(out, "{}", &format[curr..(format.len())]).unwrap();
         if !out.is_empty() {
             add_line(&mut lines, &mut out, &wrapping);
         }
@@ -390,7 +385,7 @@ pub fn format_oneline(
     branches: String,
     wrapping: &Option<Options<HyphenSplitter>>,
     hash_color: Option<u8>,
-) -> Result<Vec<String>, String> {
+) -> Vec<String> {
     let mut out = String::new();
     if let Some(color) = hash_color {
         write!(
@@ -401,18 +396,17 @@ pub fn format_oneline(
     } else {
         write!(out, "{}", &commit.id().to_string()[..7])
     }
-    .map_err(|err| err.to_string())?;
+    .unwrap();
 
-    write!(out, "{} {}", branches, commit.summary().unwrap_or(""))
-        .map_err(|err| err.to_string())?;
+    write!(out, "{} {}", branches, commit.summary().unwrap_or("")).unwrap();
 
     if let Some(wrap) = wrapping {
-        Ok(textwrap::fill(&out, wrap)
+        textwrap::fill(&out, wrap)
             .lines()
             .map(|str| str.to_string())
-            .collect())
+            .collect()
     } else {
-        Ok(vec![out])
+        vec![out]
     }
 }
 
@@ -425,7 +419,9 @@ pub fn format(
     format: &CommitFormat,
 ) -> Result<Vec<String>, String> {
     match format {
-        CommitFormat::OneLine => return format_oneline(&commit, branches, &wrapping, hash_color),
+        CommitFormat::OneLine => {
+            return Ok(format_oneline(&commit, branches, &wrapping, hash_color))
+        }
         CommitFormat::Format(format) => {
             return format_commit(format, &commit, branches, &wrapping, hash_color)
         }
