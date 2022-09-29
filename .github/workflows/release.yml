@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  release:
+    types: [ created ]
+
+env:
+  CARGO_TERM_COLOR: always
+  REPO: git-graph
+
+jobs:
+  release:
+    name: Release for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            bin_extension: ""
+            os_name: "linux-amd64"
+          - os: windows-latest
+            bin_extension: ".exe"
+            os_name: "windows-amd64"
+          - os: macos-latest
+            bin_extension: ""
+            os_name: "macos-amd64"
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get tag
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        shell: bash
+      - name: Build
+        run: |
+          cargo build --release
+      - name: Compress
+        run: |
+          cp -f target/release/$REPO${{ matrix.bin_extension }} .
+          tar -czf release.tar.gz $REPO${{ matrix.bin_extension }}
+        shell: bash
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: release.tar.gz
+          asset_name: ${{ env.REPO }}-${{ env.RELEASE_VERSION }}-${{ matrix.os_name }}.tar.gz
+          tag: ${{ github.ref }}

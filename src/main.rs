@@ -278,7 +278,7 @@ fn from_args() -> Result<(), String> {
     let debug = matches.is_present("debug");
     let style = matches
         .value_of("style")
-        .map(|s| Characters::from_str(s))
+        .map(Characters::from_str)
         .unwrap_or_else(|| Ok(Characters::thin()))?;
 
     let model = get_model(
@@ -338,7 +338,7 @@ fn from_args() -> Result<(), String> {
                                 strings.join(" ")
                             )
                         })?;
-                    Some((None, wrap.get(0).cloned(), wrap.get(1).cloned()))
+                    Some((None, wrap.first().cloned(), wrap.get(1).cloned()))
                 }
                 _ => {
                     let wrap = strings
@@ -352,7 +352,7 @@ fn from_args() -> Result<(), String> {
                             )
                         })?;
                     Some((
-                        wrap.get(0).cloned(),
+                        wrap.first().cloned(),
                         wrap.get(1).cloned(),
                         wrap.get(2).cloned(),
                     ))
@@ -408,9 +408,9 @@ fn run(
     let now = Instant::now();
 
     if svg {
-        println!("{}", print_svg(&graph, &settings)?);
+        println!("{}", print_svg(&graph, settings)?);
     } else {
-        let (g_lines, t_lines, _indices) = print_unicode(&graph, &settings)?;
+        let (g_lines, t_lines, _indices) = print_unicode(&graph, settings)?;
         if pager && atty::is(atty::Stream::Stdout) {
             print_paged(&g_lines, &t_lines).map_err(|err| err.to_string())?;
         } else {
