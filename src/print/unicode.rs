@@ -88,8 +88,8 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
 
         let lines = format(
             &settings.format,
-            &graph,
-            &info,
+            graph,
+            info,
             head,
             settings.colored,
             &wrap_options,
@@ -146,7 +146,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
                                 vline(&mut grid, (idx_map, par_idx_map), column, color, pers);
                             }
                         } else {
-                            let split_index = super::get_deviate_index(&graph, idx, *par_idx);
+                            let split_index = super::get_deviate_index(graph, idx, *par_idx);
                             let split_idx_map = index_map[split_index];
                             let inserts = &inserts[&split_index];
                             for (insert_idx, sub_entry) in inserts.iter().enumerate() {
@@ -204,8 +204,8 @@ fn create_wrapping_options<'a>(
     let wrapping = if let Some(width) = width {
         Some(
             textwrap::Options::new(width)
-                .initial_indent(&indent1)
-                .subsequent_indent(&indent2),
+                .initial_indent(indent1)
+                .subsequent_indent(indent2),
         )
     } else if atty::is(atty::Stream::Stdout) {
         let width = crossterm::terminal::size()
@@ -218,8 +218,8 @@ fn create_wrapping_options<'a>(
         };
         Some(
             textwrap::Options::new(width)
-                .initial_indent(&indent1)
-                .subsequent_indent(&indent2),
+                .initial_indent(indent1)
+                .subsequent_indent(indent2),
         )
     } else {
         None
@@ -418,7 +418,7 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
                         let column_range = sorted(column, par_column);
 
                         if column != par_column {
-                            let split_index = super::get_deviate_index(&graph, idx, *par_idx);
+                            let split_index = super::get_deviate_index(graph, idx, *par_idx);
                             match inserts.entry(split_index) {
                                 Occupied(mut entry) => {
                                     let mut insert_at = entry.get().len();
@@ -547,11 +547,11 @@ fn format(
         .find_commit(info.oid)
         .map_err(|err| err.message().to_string())?;
 
-    let branch_str = format_branches(&graph, &info, head, color);
+    let branch_str = format_branches(graph, info, head, color);
 
     let hash_color = if color { Some(HASH_COLOR) } else { None };
 
-    crate::print::format::format(&commit, branch_str, &wrapping, hash_color, format)
+    crate::print::format::format(&commit, branch_str, wrapping, hash_color, format)
 }
 
 /// Format branches and tags.

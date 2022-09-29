@@ -78,8 +78,8 @@ impl GitGraph {
 
         assign_children(&mut commits, &indices);
 
-        let mut all_branches = assign_branches(&repository, &mut commits, &indices, &settings)?;
-        correct_fork_merges(&commits, &indices, &mut all_branches, &settings)?;
+        let mut all_branches = assign_branches(&repository, &mut commits, &indices, settings)?;
+        correct_fork_merges(&commits, &indices, &mut all_branches, settings)?;
         assign_sources_targets(&commits, &indices, &mut all_branches);
 
         let (shortest_first, forward) = match settings.branch_order {
@@ -325,7 +325,7 @@ fn assign_branches(
 ) -> Result<Vec<BranchInfo>, String> {
     let mut branch_idx = 0;
 
-    let mut branches = extract_branches(repository, commits, &indices, settings)?;
+    let mut branches = extract_branches(repository, commits, indices, settings)?;
 
     let mut index_map: Vec<_> = (0..branches.len())
         .map(|old_idx| {
@@ -342,7 +342,7 @@ fn assign_branches(
                 }
                 let oid = info.oid;
                 let any_assigned =
-                    trace_branch(repository, commits, &indices, &mut branches, oid, old_idx)
+                    trace_branch(repository, commits, indices, &mut branches, oid, old_idx)
                         .unwrap_or(false);
 
                 if any_assigned || !is_merged {
@@ -649,15 +649,15 @@ fn extract_branches(
                 counter += 1;
                 let term_col = to_terminal_color(
                     &branch_color(
-                        &name,
+                        name,
                         &settings.branches.terminal_colors[..],
                         &settings.branches.terminal_colors_unknown,
                         counter,
                     )[..],
                 )?;
-                let pos = branch_order(&name, &settings.branches.order);
+                let pos = branch_order(name, &settings.branches.order);
                 let svg_col = branch_color(
-                    &name,
+                    name,
                     &settings.branches.svg_colors,
                     &settings.branches.svg_colors_unknown,
                     counter,
@@ -736,7 +736,7 @@ fn trace_branch<'repo>(
                             let mut temp_index = prev_index;
                             for sibling_oid in &commits[*index].children {
                                 if sibling_oid != &curr_oid {
-                                    let sibling_index = indices[&sibling_oid];
+                                    let sibling_index = indices[sibling_oid];
                                     if sibling_index > temp_index {
                                         temp_index = sibling_index;
                                     }
@@ -957,27 +957,27 @@ mod tests {
         let bitbucket_pull = "Merged in feature/my-feature (pull request #1)";
 
         assert_eq!(
-            super::parse_merge_summary(&gitlab_pull, &patterns),
+            super::parse_merge_summary(gitlab_pull, &patterns),
             Some("feature/my-feature".to_string()),
         );
         assert_eq!(
-            super::parse_merge_summary(&git_default, &patterns),
+            super::parse_merge_summary(git_default, &patterns),
             Some("feature/my-feature".to_string()),
         );
         assert_eq!(
-            super::parse_merge_summary(&git_master, &patterns),
+            super::parse_merge_summary(git_master, &patterns),
             Some("feature/my-feature".to_string()),
         );
         assert_eq!(
-            super::parse_merge_summary(&github_pull, &patterns),
+            super::parse_merge_summary(github_pull, &patterns),
             Some("feature/my-feature".to_string()),
         );
         assert_eq!(
-            super::parse_merge_summary(&github_pull_2, &patterns),
+            super::parse_merge_summary(github_pull_2, &patterns),
             Some("feature/my-feature".to_string()),
         );
         assert_eq!(
-            super::parse_merge_summary(&bitbucket_pull, &patterns),
+            super::parse_merge_summary(bitbucket_pull, &patterns),
             Some("feature/my-feature".to_string()),
         );
     }

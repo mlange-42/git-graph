@@ -57,7 +57,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
                                 color,
                             ));
                         } else {
-                            let split_index = super::get_deviate_index(&graph, idx, *par_idx);
+                            let split_index = super::get_deviate_index(graph, idx, *par_idx);
                             document = document.add(path(
                                 idx,
                                 branch.visual.column.unwrap(),

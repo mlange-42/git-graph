@@ -34,11 +34,8 @@ pub fn get_available_models<P: AsRef<Path>>(app_model_path: &P) -> Result<Vec<St
             Ok(e) => {
                 if let (Some(name), Some(ext)) = (e.path().file_name(), e.path().extension()) {
                     if ext == "toml" {
-                        if let Some(name) = name.to_str() {
-                            Some((&name[..(name.len() - 5)]).to_string())
-                        } else {
-                            None
-                        }
+                        name.to_str()
+                            .map(|name| (name[..(name.len() - 5)]).to_string())
                     } else {
                         None
                     }
