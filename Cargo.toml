@@ -7,7 +7,7 @@ repository = "https://github.com/mlange-42/git-graph.git"
 keywords = ["git", "graph"]
 license = "MIT"
 readme = "README.md"
-edition = "2018"
+edition = "2021"
 
 [profile.release]
 opt-level = 3
@@ -19,7 +19,7 @@ overflow-checks = false
 
 [dependencies]
 git2 = {version = "0.13", default-features = false, optional = false}
-regex = {version = "1.4", default-features = false, optional = false, features = ["std"]}
+regex = {version = "1.6", default-features = false, optional = false, features = ["std"]}
 serde = "1.0"
 serde_derive = {version = "1.0", default-features = false, optional = false}
 toml = "0.5"
