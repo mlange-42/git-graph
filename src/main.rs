@@ -477,7 +477,7 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
                     }
                     KeyCode::Enter | KeyCode::PageDown => {
                         clear = true;
-                        print_lines = height + 2;
+                        print_lines = height - 2;
                     }
                     KeyCode::End => {
                         clear = true;
