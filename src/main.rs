@@ -2,7 +2,7 @@ use clap::{crate_version, App, Arg, SubCommand};
 use crossterm::cursor::MoveToColumn;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use crossterm::style::Print;
-use crossterm::terminal::{Clear, ClearType};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
 use crossterm::{ErrorKind, ExecutableCommand};
 use git2::Repository;
 use git_graph::config::{
@@ -441,7 +441,7 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
     let mut clear = false;
     let mut abort = false;
 
-    let help = " >>> Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit";
+    let help = "\r >>> Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit\r";
     let help = if help.len() > width {
         &help[0..width]
     } else {
@@ -467,6 +467,7 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
             print_lines -= 1;
             line_idx += 1;
         } else {
+            enable_raw_mode()?;
             let input = crossterm::event::read()?;
             match input {
                 Event::Key(evt) => match evt.code {
@@ -510,6 +511,7 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
             .execute(MoveToColumn(0))?
             .execute(Print(" ...\n"))?;
     }
+    disable_raw_mode()?;
 
     Ok(())
 }
