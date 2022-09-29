@@ -1,6 +1,9 @@
 # git-graph
 
-[![Build Status](https://travis-ci.com/mlange-42/git-graph.svg?branch=master)](https://travis-ci.com/mlange-42/git-graph)
+[![Tests](https://github.com/mlange-42/git-graph/actions/workflows/tests.yml/badge.svg)](https://github.com/mlange-42/git-graph/actions/workflows/tests.yml)
+[![GitHub](https://img.shields.io/badge/github-repo-blue?logo=github)](https://github.com/mlange-42/git-graph)
+[![Crate](https://img.shields.io/crates/v/git-graph.svg)](https://crates.io/crates/git-graph)
+[![MIT license](https://img.shields.io/github/license/mlange-42/git-graph)](https://github.com/mlange-42/git-graph/blob/master/LICENSE)
 
 A command line tool to visualize Git history graphs in a comprehensible way, following different branching models.
 
