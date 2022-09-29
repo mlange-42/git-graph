@@ -34,7 +34,7 @@ If you want an **interactive Git terminal application**, see [**git-igitt**](htt
 In case you have [Rust](https://www.rust-lang.org/) installed, you can install with `cargo`:
 
 ```
-cargo install --git https://github.com/mlange-42/git-graph
+cargo install git-graph
 ```
 
 ## Usage
