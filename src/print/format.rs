@@ -5,7 +5,7 @@ use git2::{Commit, Time};
 use lazy_static::lazy_static;
 use std::fmt::Write;
 use std::str::FromStr;
-use textwrap::{HyphenSplitter, Options};
+use textwrap::Options;
 use yansi::Paint;
 
 /// Commit formatting options.
@@ -78,7 +78,7 @@ pub fn format_commit(
     format: &str,
     commit: &Commit,
     branches: String,
-    wrapping: &Option<Options<HyphenSplitter>>,
+    wrapping: &Option<Options>,
     hash_color: Option<u8>,
 ) -> Result<Vec<String>, String> {
     let mut replacements = vec![];
@@ -383,7 +383,7 @@ pub fn format_commit(
 pub fn format_oneline(
     commit: &Commit,
     branches: String,
-    wrapping: &Option<Options<HyphenSplitter>>,
+    wrapping: &Option<Options>,
     hash_color: Option<u8>,
 ) -> Vec<String> {
     let mut out = String::new();
@@ -414,7 +414,7 @@ pub fn format_oneline(
 pub fn format(
     commit: &Commit,
     branches: String,
-    wrapping: &Option<Options<HyphenSplitter>>,
+    wrapping: &Option<Options>,
     hash_color: Option<u8>,
     format: &CommitFormat,
 ) -> Result<Vec<String>, String> {
@@ -517,7 +517,7 @@ pub fn format_date(time: Time, format: &str) -> String {
     format!("{}", date.format(format))
 }
 
-fn append_wrapped(vec: &mut Vec<String>, str: String, wrapping: &Option<Options<HyphenSplitter>>) {
+fn append_wrapped(vec: &mut Vec<String>, str: String, wrapping: &Option<Options>) {
     if str.is_empty() {
         vec.push(str);
     } else if let Some(wrap) = wrapping {
@@ -531,11 +531,7 @@ fn append_wrapped(vec: &mut Vec<String>, str: String, wrapping: &Option<Options<
     }
 }
 
-fn add_line(
-    lines: &mut Vec<String>,
-    line: &mut String,
-    wrapping: &Option<Options<HyphenSplitter>>,
-) {
+fn add_line(lines: &mut Vec<String>, line: &mut String, wrapping: &Option<Options>) {
     let mut temp = String::new();
     std::mem::swap(&mut temp, line);
     append_wrapped(lines, temp, wrapping);

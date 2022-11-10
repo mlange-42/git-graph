@@ -1,4 +1,4 @@
-use clap::{crate_version, App, Arg, SubCommand};
+use clap::{crate_version, Arg, Command};
 use crossterm::cursor::MoveToColumn;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use crossterm::style::Print;
@@ -38,7 +38,7 @@ fn from_args() -> Result<(), String> {
 
     create_config(&models_dir)?;
 
-    let app = App::new("git-graph")
+    let app = Command::new("git-graph")
         .version(crate_version!())
         .about(
             "Structured Git graphs for your branching model.\n    \
@@ -53,102 +53,102 @@ fn from_args() -> Result<(), String> {
                  git-graph model <model>     -> Permanently set model <model> for this repo",
         )
         .arg(
-            Arg::with_name("path")
+            Arg::new("path")
                 .long("path")
-                .short("p")
+                .short('p')
                 .help("Open repository from this path or above. Default '.'")
                 .required(false)
-                .takes_value(true),
+                .num_args(1),
         )
         .arg(
-            Arg::with_name("max-count")
+            Arg::new("max-count")
                 .long("max-count")
-                .short("n")
+                .short('n')
                 .help("Maximum number of commits")
                 .required(false)
-                .takes_value(true)
+                .num_args(1)
                 .value_name("n"),
         )
         .arg(
-            Arg::with_name("model")
+            Arg::new("model")
                 .long("model")
-                .short("m")
+                .short('m')
                 .help("Branching model. Available presets are [simple|git-flow|none].\n\
                        Default: git-flow. \n\
                        Permanently set the model for a repository with\n\
                          > git-graph model <model>")
                 .required(false)
-                .takes_value(true),
+                .num_args(1),
         )
         .arg(
-            Arg::with_name("local")
+            Arg::new("local")
                 .long("local")
-                .short("l")
+                .short('l')
                 .help("Show only local branches, no remotes.")
                 .required(false)
-                .takes_value(false),
+                .num_args(0),
         )
         .arg(
-            Arg::with_name("svg")
+            Arg::new("svg")
                 .long("svg")
                 .help("Render graph as SVG instead of text-based.")
                 .required(false)
-                .takes_value(false),
+                .num_args(0),
         )
         .arg(
-            Arg::with_name("debug")
+            Arg::new("debug")
                 .long("debug")
-                .short("d")
+                .short('d')
                 .help("Additional debug output and graphics.")
                 .required(false)
-                .takes_value(false),
+                .num_args(0),
         )
         .arg(
-            Arg::with_name("sparse")
+            Arg::new("sparse")
                 .long("sparse")
-                .short("S")
+                .short('S')
                 .help("Print a less compact graph: merge lines point to target lines\n\
                        rather than merge commits.")
                 .required(false)
-                .takes_value(false),
+                .num_args(0),
         )
         .arg(
-            Arg::with_name("color")
+            Arg::new("color")
                 .long("color")
                 .help("Specify when colors should be used. One of [auto|always|never].\n\
                        Default: auto.")
                 .required(false)
-                .takes_value(true),
+                .num_args(1),
         )
         .arg(
-            Arg::with_name("no-color")
+            Arg::new("no-color")
                 .long("no-color")
                 .help("Print without colors. Missing color support should be detected\n\
                        automatically (e.g. when piping to a file).\n\
                        Overrides option '--color'")
                 .required(false)
-                .takes_value(false),
+                .num_args(0),
         )
         .arg(
-            Arg::with_name("no-pager")
+            Arg::new("no-pager")
                 .long("no-pager")
                 .help("Use no pager (print everything at once without prompt).")
                 .required(false)
-                .takes_value(false),
+                .num_args(0),
         )
         .arg(
-            Arg::with_name("style")
+            Arg::new("style")
                 .long("style")
-                .short("s")
+                .short('s')
                 .help("Output style. One of [normal/thin|round|bold|double|ascii].\n  \
                          (First character can be used as abbreviation, e.g. '-s r')")
                 .required(false)
-                .takes_value(true),
+                .num_args(1),
         )
         .arg(
-            Arg::with_name("wrap")
+            Arg::new("wrap")
                 .long("wrap")
-                .short("w")
+                .short('w')
                 .help("Line wrapping for formatted commit text. Default: 'auto 0 8'\n\
                        Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
                        For examples, consult 'git-graph --help'")
@@ -162,13 +162,12 @@ fn from_args() -> Result<(), String> {
                            git-graph --wrap 80 0 8\n\
                        'auto' uses the terminal's width if on a terminal.")
                 .required(false)
-                .min_values(0)
-                .max_values(3),
+                .num_args(0..=3),
         )
         .arg(
-            Arg::with_name("format")
+            Arg::new("format")
                 .long("format")
-                .short("f")
+                .short('f')
                 .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n  \
                          (First character can be used as abbreviation, e.g. '-f m')\n\
                        Default: oneline.\n\
@@ -206,31 +205,31 @@ fn from_args() -> Result<(), String> {
                             \n    \
                                 See also the respective git help: https://git-scm.com/docs/pretty-formats\n")
                 .required(false)
-                .takes_value(true),
+                .num_args(1),
         )
-        .subcommand(SubCommand::with_name("model")
+        .subcommand(Command::new("model")
             .about("Prints or permanently sets the branching model for a repository.")
             .arg(
-                Arg::with_name("model")
+                Arg::new("model")
                     .help("The branching model to be used. Available presets are [simple|git-flow|none].\n\
                            When not given, prints the currently set model.")
                     .value_name("model")
-                    .takes_value(true)
+                    .num_args(1)
                     .required(false)
                     .index(1))
             .arg(
-                Arg::with_name("list")
+                Arg::new("list")
                     .long("list")
-                    .short("l")
+                    .short('l')
                     .help("List all available branching models.")
                     .required(false)
-                    .takes_value(false),
+                    .num_args(0),
         ));
 
-    let matches = app.clone().get_matches();
+    let matches = app.get_matches();
 
     if let Some(matches) = matches.subcommand_matches("model") {
-        if matches.is_present("list") {
+        if matches.contains_id("list") {
             println!(
                 "{}",
                 itertools::join(get_available_models(&models_dir)?, "\n")
@@ -239,12 +238,12 @@ fn from_args() -> Result<(), String> {
         }
     }
 
-    let path = matches.value_of("path").unwrap_or(".");
+    let path = matches.get_one("path").unwrap_or(&".");
     let repository = get_repo(path)
         .map_err(|err| format!("ERROR: {}\n       Navigate into a repository before running git-graph, or use option --path", err.message()))?;
 
     if let Some(matches) = matches.subcommand_matches("model") {
-        match matches.value_of("model") {
+        match matches.get_one::<&str>("model") {
             None => {
                 let curr_model = get_model_name(&repository, REPO_CONFIG_FILE)?;
                 match curr_model {
@@ -257,7 +256,7 @@ fn from_args() -> Result<(), String> {
         return Ok(());
     }
 
-    let commit_limit = match matches.value_of("max-count") {
+    let commit_limit = match matches.get_one::<&str>("max-count") {
         None => None,
         Some(str) => match str.parse::<usize>() {
             Ok(val) => Some(val),
@@ -270,44 +269,44 @@ fn from_args() -> Result<(), String> {
         },
     };
 
-    let include_remote = !matches.is_present("local");
+    let include_remote = !matches.contains_id("local");
 
-    let svg = matches.is_present("svg");
-    let pager = !matches.is_present("no-pager");
-    let compact = !matches.is_present("sparse");
-    let debug = matches.is_present("debug");
+    let svg = matches.contains_id("svg");
+    let pager = !matches.contains_id("no-pager");
+    let compact = !matches.contains_id("sparse");
+    let debug = matches.contains_id("debug");
     let style = matches
-        .value_of("style")
-        .map(Characters::from_str)
+        .get_one::<&str>("style")
+        .map(|s| Characters::from_str(s))
         .unwrap_or_else(|| Ok(Characters::thin()))?;
 
     let model = get_model(
         &repository,
-        matches.value_of("model"),
+        matches.get_one::<&str>("model").copied(),
         REPO_CONFIG_FILE,
         &models_dir,
     )?;
 
-    let format = match matches.value_of("format") {
+    let format = match matches.get_one::<&str>("format") {
         None => CommitFormat::OneLine,
         Some(str) => CommitFormat::from_str(str)?,
     };
 
-    let colored = if matches.is_present("no-color") {
+    let colored = if matches.contains_id("no-color") {
         false
-    } else if let Some(mode) = matches.value_of("color") {
+    } else if let Some(mode) = matches.get_one::<&str>("color") {
         match mode {
-            "auto" => {
+            &"auto" => {
                 atty::is(atty::Stream::Stdout)
                     && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
             }
-            "always" => {
+            &"always" => {
                 if cfg!(windows) {
                     yansi::Paint::enable_windows_ascii();
                 }
                 true
             }
-            "never" => false,
+            &"never" => false,
             other => {
                 return Err(format!(
                     "Unknown color mode '{}'. Supports [auto|always|never].",
@@ -319,8 +318,8 @@ fn from_args() -> Result<(), String> {
         atty::is(atty::Stream::Stdout) && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
     };
 
-    let wrapping = if let Some(wrap_values) = matches.values_of("wrap") {
-        let strings = wrap_values.collect::<Vec<_>>();
+    let wrapping = if let Some(wrap_values) = matches.get_many::<&str>("wrap") {
+        let strings = wrap_values.copied().collect::<Vec<_>>();
         if strings.is_empty() {
             Some((None, Some(0), Some(8)))
         } else {
@@ -469,8 +468,8 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
         } else {
             enable_raw_mode()?;
             let input = crossterm::event::read()?;
-            match input {
-                Event::Key(evt) => match evt.code {
+            if let Event::Key(evt) = input {
+                match evt.code {
                     KeyCode::Down => {
                         clear = true;
                         print_lines = 1;
@@ -499,9 +498,7 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
                         break;
                     }
                     _ => {}
-                },
-                Event::Mouse(_) => {}
-                Event::Resize(_, _) => {}
+                }
             }
         }
     }
