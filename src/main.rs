@@ -229,7 +229,7 @@ fn from_args() -> Result<(), String> {
     let matches = app.get_matches();
 
     if let Some(matches) = matches.subcommand_matches("model") {
-        if matches.contains_id("list") {
+        if matches.get_flag("list") {
             println!(
                 "{}",
                 itertools::join(get_available_models(&models_dir)?, "\n")
@@ -238,12 +238,13 @@ fn from_args() -> Result<(), String> {
         }
     }
 
-    let path = matches.get_one("path").unwrap_or(&".");
+    let dot = ".".to_string();
+    let path = matches.get_one::<String>("path").unwrap_or(&dot);
     let repository = get_repo(path)
         .map_err(|err| format!("ERROR: {}\n       Navigate into a repository before running git-graph, or use option --path", err.message()))?;
 
     if let Some(matches) = matches.subcommand_matches("model") {
-        match matches.get_one::<&str>("model") {
+        match matches.get_one::<String>("model") {
             None => {
                 let curr_model = get_model_name(&repository, REPO_CONFIG_FILE)?;
                 match curr_model {
@@ -256,7 +257,7 @@ fn from_args() -> Result<(), String> {
         return Ok(());
     }
 
-    let commit_limit = match matches.get_one::<&str>("max-count") {
+    let commit_limit = match matches.get_one::<String>("max-count") {
         None => None,
         Some(str) => match str.parse::<usize>() {
             Ok(val) => Some(val),
@@ -269,44 +270,44 @@ fn from_args() -> Result<(), String> {
         },
     };
 
-    let include_remote = !matches.contains_id("local");
+    let include_remote = !matches.get_flag("local");
 
-    let svg = matches.contains_id("svg");
-    let pager = !matches.contains_id("no-pager");
-    let compact = !matches.contains_id("sparse");
-    let debug = matches.contains_id("debug");
+    let svg = matches.get_flag("svg");
+    let pager = !matches.get_flag("no-pager");
+    let compact = !matches.get_flag("sparse");
+    let debug = matches.get_flag("debug");
     let style = matches
-        .get_one::<&str>("style")
+        .get_one::<String>("style")
         .map(|s| Characters::from_str(s))
         .unwrap_or_else(|| Ok(Characters::thin()))?;
 
     let model = get_model(
         &repository,
-        matches.get_one::<&str>("model").copied(),
+        matches.get_one::<String>("model").map(|s| &s[..]),
         REPO_CONFIG_FILE,
         &models_dir,
     )?;
 
-    let format = match matches.get_one::<&str>("format") {
+    let format = match matches.get_one::<String>("format") {
         None => CommitFormat::OneLine,
         Some(str) => CommitFormat::from_str(str)?,
     };
 
-    let colored = if matches.contains_id("no-color") {
+    let colored = if matches.get_flag("no-color") {
         false
-    } else if let Some(mode) = matches.get_one::<&str>("color") {
-        match mode {
-            &"auto" => {
+    } else if let Some(mode) = matches.get_one::<String>("color") {
+        match &mode[..] {
+            "auto" => {
                 atty::is(atty::Stream::Stdout)
                     && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
             }
-            &"always" => {
+            "always" => {
                 if cfg!(windows) {
                     yansi::Paint::enable_windows_ascii();
                 }
                 true
             }
-            &"never" => false,
+            "never" => false,
             other => {
                 return Err(format!(
                     "Unknown color mode '{}'. Supports [auto|always|never].",
@@ -318,8 +319,8 @@ fn from_args() -> Result<(), String> {
         atty::is(atty::Stream::Stdout) && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
     };
 
-    let wrapping = if let Some(wrap_values) = matches.get_many::<&str>("wrap") {
-        let strings = wrap_values.copied().collect::<Vec<_>>();
+    let wrapping = if let Some(wrap_values) = matches.get_many::<String>("wrap") {
+        let strings = wrap_values.map(|s| s.as_str()).collect::<Vec<_>>();
         if strings.is_empty() {
             Some((None, Some(0), Some(8)))
         } else {
