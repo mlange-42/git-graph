@@ -8,7 +8,7 @@ use std::cmp::max;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use std::fmt::Write;
-use textwrap::{HyphenSplitter, Options};
+use textwrap::Options;
 use yansi::Paint;
 
 const SPACE: u8 = 0;
@@ -200,7 +200,7 @@ fn create_wrapping_options<'a>(
     indent1: &'a str,
     indent2: &'a str,
     graph_width: usize,
-) -> Result<Option<Options<'a, HyphenSplitter>>, String> {
+) -> Result<Option<Options<'a>>, String> {
     let wrapping = if let Some(width) = width {
         Some(
             textwrap::Options::new(width)
@@ -540,7 +540,7 @@ fn format(
     info: &CommitInfo,
     head: Option<&HeadInfo>,
     color: bool,
-    wrapping: &Option<Options<HyphenSplitter>>,
+    wrapping: &Option<Options>,
 ) -> Result<Vec<String>, String> {
     let commit = graph
         .repository
