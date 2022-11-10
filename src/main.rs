@@ -237,7 +237,7 @@ fn from_args() -> Result<(), String> {
             return Ok(());
         }
     }
-    
+
     let path = matches.get_one("path").unwrap_or(&".");
     let repository = get_repo(path)
         .map_err(|err| format!("ERROR: {}\n       Navigate into a repository before running git-graph, or use option --path", err.message()))?;
