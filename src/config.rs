@@ -67,7 +67,7 @@ pub fn get_model_name(repository: &Repository, file_name: &str) -> Result<Option
 }
 
 /// Try to get the branch settings for a given model.
-/// If no model name is given, returns the branch settings set fot the repo, or the default otherwise.
+/// If no model name is given, returns the branch settings set for the repo, or the default otherwise.
 pub fn get_model<P: AsRef<Path> + AsRef<OsStr>>(
     repository: &Repository,
     model: Option<&str>,
