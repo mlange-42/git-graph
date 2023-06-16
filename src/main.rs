@@ -23,7 +23,7 @@ const REPO_CONFIG_FILE: &str = "git-graph.toml";
 
 #[derive(serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct CommitFormatToml {
-    pub format: String,
+    pub format: Option<String>,
 }
 
 fn main() {
@@ -302,7 +302,10 @@ fn from_args() -> Result<(), String> {
                     &std::fs::read_to_string(config_path).map_err(|err| err.to_string())?,
                 )
                 .map_err(|err| err.to_string()).unwrap();
-                CommitFormat::from_str(&commit_format_toml.format)?
+                match commit_format_toml.format {
+                    None => CommitFormat::OneLine,
+                    Some(format) => CommitFormat::from_str(&format)?
+                }
             } else {
                 CommitFormat::OneLine
             }
