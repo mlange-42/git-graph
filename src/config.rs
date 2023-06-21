@@ -88,8 +88,8 @@ pub fn get_model<P: AsRef<Path> + AsRef<OsStr>>(
 
                 match repo_config.model {
                     None => Ok(read_model("git-flow", app_model_path)
-                                .unwrap_or_else(|_| BranchSettingsDef::git_flow())),
-                    Some(model) => read_model(&model, app_model_path)
+                        .unwrap_or_else(|_| BranchSettingsDef::git_flow())),
+                    Some(model) => read_model(&model, app_model_path),
                 }
             } else {
                 Ok(read_model("git-flow", app_model_path)
