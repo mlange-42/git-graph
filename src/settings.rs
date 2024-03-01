@@ -29,6 +29,8 @@ pub enum BranchOrder {
 
 /// Top-level settings
 pub struct Settings {
+    /// Reverse the order of commits
+    pub reverse_commit_order: bool,
     /// Debug printing and drawing
     pub debug: bool,
     /// Compact text-based graph
@@ -335,5 +337,20 @@ impl Characters {
         Characters {
             chars: " *o|-+'..'||++<>".chars().collect(),
         }
+    }
+
+    pub fn reverse(self) -> Self {
+        let mut chars = self.chars;
+
+        chars.swap(6, 8);
+        chars.swap(7, 9);
+        chars.swap(10, 11);
+        chars.swap(12, 13);
+        chars.swap(14, 15);
+
+        return Characters {
+            chars
+        };
+
     }
 }
