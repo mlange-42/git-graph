@@ -683,8 +683,8 @@ fn extract_branches(
 
 /// Traces back branches by following 1st commit parent,
 /// until a commit is reached that already has a trace.
-fn trace_branch<'repo>(
-    repository: &'repo Repository,
+fn trace_branch(
+    repository: &Repository,
     commits: &mut [CommitInfo],
     indices: &HashMap<Oid, usize>,
     branches: &mut [BranchInfo],

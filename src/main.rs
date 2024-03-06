@@ -53,6 +53,14 @@ fn from_args() -> Result<(), String> {
                  git-graph model <model>     -> Permanently set model <model> for this repo",
         )
         .arg(
+            Arg::new("reverse")
+                .long("reverse")
+                .short('r')
+                .help("Reverse the order of commits.")
+                .required(false)
+                .num_args(0),
+        )
+        .arg(
             Arg::new("path")
                 .long("path")
                 .short('p')
@@ -272,6 +280,8 @@ fn from_args() -> Result<(), String> {
 
     let include_remote = !matches.get_flag("local");
 
+    let reverse_commit_order = matches.get_flag("reverse");
+
     let svg = matches.get_flag("svg");
     let pager = !matches.get_flag("no-pager");
     let compact = !matches.get_flag("sparse");
@@ -280,6 +290,12 @@ fn from_args() -> Result<(), String> {
         .get_one::<String>("style")
         .map(|s| Characters::from_str(s))
         .unwrap_or_else(|| Ok(Characters::thin()))?;
+
+    let style = if reverse_commit_order {
+        style.reverse()
+    } else {
+        style
+    };
 
     let model = get_model(
         &repository,
@@ -364,6 +380,7 @@ fn from_args() -> Result<(), String> {
     };
 
     let settings = Settings {
+        reverse_commit_order,
         debug,
         colored,
         compact,
