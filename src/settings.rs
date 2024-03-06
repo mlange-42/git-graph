@@ -348,9 +348,6 @@ impl Characters {
         chars.swap(12, 13);
         chars.swap(14, 15);
 
-        return Characters {
-            chars
-        };
-
+        Characters { chars }
     }
 }
