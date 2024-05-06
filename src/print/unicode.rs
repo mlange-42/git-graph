@@ -189,6 +189,11 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
         }
     }
 
+    if settings.reverse_commit_order {
+        text_lines.reverse();
+        grid.reverse();
+    }
+
     let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored);
 
     Ok((lines.0, lines.1, index_map))
@@ -681,6 +686,10 @@ impl Grid {
             height,
             data: vec![initial; width * height],
         }
+    }
+
+    pub fn reverse(&mut self) {
+        self.data.reverse();
     }
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
