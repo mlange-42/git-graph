@@ -10,7 +10,7 @@ use std::str::FromStr;
 #[derive(Serialize, Deserialize)]
 pub struct RepoSettings {
     /// The repository's branching model
-    pub model: String,
+    pub model: Option<String>,
 }
 
 /// Ordering policy for branches in visual columns.
