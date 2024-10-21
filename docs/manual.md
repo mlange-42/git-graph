@@ -242,7 +242,7 @@ git-graph --model my-model
 # to most short-leved branches. This is used to back-trace branches.
 # Branches not matching any pattern are assumed least persistent.
 persistence = [
-    '^(master|main)$', # Matches exactly `master` or `main`
+    '^(master|main|trunk)$', # Matches exactly `master` or `main`  or `trunk`
     '^(develop|dev)$',
     '^feature.*$',     # Matches everything starting with `feature`
     '^release.*$',
@@ -251,12 +251,12 @@ persistence = [
 ]
 
 # RegEx patterns for visual ordering of branches, from left to right.
-# Here, `master` or `main` are shown left-most, followed by branches
+# Here, `master`, `main` or `trunk` are shown left-most, followed by branches
 # starting with `hotfix` or `release`, followed by `develop` or `dev`.
 # Branches not matching any pattern (e.g. starting with `feature`)
 # are displayed further to the right.
 order = [
-    '^(master|main)$',      # Matches exactly `master` or `main`
+    '^(master|main|trunk)$',      # Matches exactly `master` or `main` or `trunk`
     '^(hotfix|release).*$', # Matches everything starting with `hotfix` or `release`
     '^(develop|dev)$',      # Matches exactly `develop` or `dev`
 ]
@@ -268,7 +268,7 @@ order = [
 # will be used alternating (see e.g. `feature...`).
 matches = [
     [
-        '^(master|main)$',
+        '^(master|main|trunk)$',
         ['bright_blue'],
     ],
     [
@@ -303,7 +303,7 @@ unknown = ['white']
 [svg_colors]
 matches = [
     [
-        '^(master|main)$',
+        '^(master|main|trunk)$',
         ['blue'],
     ],
     [ 
