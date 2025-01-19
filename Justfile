@@ -10,7 +10,7 @@ red := '\033[0;31m'
 reset := '\033[0m'
 
 # Checks if all requirements to work on this project are installed
-check-requiements:
+check-requirements:
     @command -v cargo &>/dev/null && echo -e "{{ green }}✓{{ reset}} cargo installed" || echo -e "{{ red }}✖{{ reset }} cargo missing"
 
 # Runs the same linters as the pipeline with fix option
