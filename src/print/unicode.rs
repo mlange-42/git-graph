@@ -80,7 +80,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
             0
         };
 
-        let head = if head_idx.map_or(false, |h| h == idx) {
+        let head = if head_idx == Some(&idx) {
             Some(&graph.head)
         } else {
             None
