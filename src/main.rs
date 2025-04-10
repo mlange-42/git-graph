@@ -215,6 +215,15 @@ fn from_args() -> Result<(), String> {
                 .required(false)
                 .num_args(1),
         )
+        .arg(
+            Arg::new("skip-repo-owner-validation")
+                .long("skip-repo-owner-validation")
+                .help("Skip owner validation for the repository.\n\
+                       This will turn off libgit2's owner validation, which may increase security risks.\n\
+                       Please do not disable this validation for repositories you do not trust.")
+                .required(false)
+                .num_args(0)
+        )
         .subcommand(Command::new("model")
             .about("Prints or permanently sets the branching model for a repository.")
             .arg(
@@ -246,9 +255,13 @@ fn from_args() -> Result<(), String> {
         }
     }
 
+    let skip_repo_owner_validation = matches.get_flag("skip-repo-owner-validation");
+    if(skip_repo_owner_validation) {
+        print!("Warning: skip-repo-owner-validation is set! \n");
+    }
     let dot = ".".to_string();
     let path = matches.get_one::<String>("path").unwrap_or(&dot);
-    let repository = get_repo(path)
+    let repository = get_repo(path, skip_repo_owner_validation)
         .map_err(|err| format!("ERROR: {}\n       Navigate into a repository before running git-graph, or use option --path", err.message()))?;
 
     if let Some(matches) = matches.subcommand_matches("model") {
