@@ -256,7 +256,7 @@ fn from_args() -> Result<(), String> {
     }
 
     let skip_repo_owner_validation = matches.get_flag("skip-repo-owner-validation");
-    if(skip_repo_owner_validation) {
+    if (skip_repo_owner_validation) {
         print!("Warning: skip-repo-owner-validation is set! \n");
     }
     let dot = ".".to_string();
