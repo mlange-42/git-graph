@@ -3,7 +3,8 @@
 use crate::graph::GitGraph;
 use crate::settings::Settings;
 use svg::node::element::path::Data;
-use svg::node::element::{Circle, Line, Path};
+use svg::node::element::{Circle, Line, Path, Text};
+use svg::node::Text as TextNode;
 use svg::Document;
 
 /// Creates a SVG visual representation of a graph.
@@ -33,7 +34,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
             let branch_color = &branch.visual.svg_color;
 
             if branch.visual.column.unwrap() > max_column {
-                max_column = branch.visual.column.unwrap();
+                max_column = branch.visual.column.unwrap() + 5; // +5 for commit hash
             }
 
             for p in 0..2 {
@@ -77,6 +78,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
                 branch_color,
                 !info.is_merge,
             ));
+            document = document.add(commit_hash(idx, &info.oid.to_string(), true));
         }
     }
     let (x_max, y_max) = commit_coord(max_idx + 1, max_column + 1);
@@ -88,6 +90,18 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
     let mut out: Vec<u8> = vec![];
     svg::write(&mut out, &document).map_err(|err| err.to_string())?;
     Ok(String::from_utf8(out).unwrap_or_else(|_| "Invalid UTF8 character.".to_string()))
+}
+
+fn commit_hash(index: usize, hash: &str, shorten: bool) -> Text {
+    let (x, y) = commit_coord(index, 2);
+    Text::new()
+        .set("x", x)
+        .set("y", y)
+        .set("stroke", "goldenrod")
+        .set("font-size", 12)
+        .set("font-family", "open sans")
+        .set("letter-spacing", 0.75)
+        .add(TextNode::new(if shorten { &hash[..7] } else { hash }))
 }
 
 fn commit_dot(index: usize, column: usize, color: &str, filled: bool) -> Circle {
