@@ -147,7 +147,5 @@ pub fn set_model<P: AsRef<Path>>(
     let str = toml::to_string_pretty(&config).map_err(|err| err.to_string())?;
     std::fs::write(&config_path, str).map_err(|err| err.to_string())?;
 
-    eprint!("Branching model set to '{}'", model);
-
     Ok(())
 }

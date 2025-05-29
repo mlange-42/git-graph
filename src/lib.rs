@@ -1,4 +1,6 @@
-//! Command line tool to show clear git graphs arranged for your branching model.
+//! git-graph shows clear git graphs arranged for your branching model.
+//!
+//! It provides both a library and a command line tool.
 
 use git2::Repository;
 use std::path::Path;
