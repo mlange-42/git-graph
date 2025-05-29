@@ -84,7 +84,8 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
         None
     };
 
-    // Compute commit text into text_lines
+    // Compute commit text into text_lines and add blank rows
+    // if needed to match branch graph inserts.
     let mut index_map = vec![];
     let mut text_lines = vec![];
     let mut offset = 0;
@@ -421,11 +422,38 @@ fn hline(
     }
 }
 
-/// Calculates required additional rows
+/// Calculates required additional rows to visually connect commits that
+/// are not direct descendants in the main commit list. These "inserts"
+//  represent the horizontal lines in the graph.
+///
+/// # Arguments
+///
+/// * `graph`: A reference to the `GitGraph` structure containing the
+//             commit and branch information.
+/// * `compact`: A boolean indicating whether to use a compact layout,
+//               potentially merging some insertions with commits.
+///
+/// # Returns
+///
+/// A `HashMap` where the keys are the indices of commits in the
+/// `graph.commits` vector, and the values are vectors of vectors
+/// of `Occ`. Each inner vector represents a potential row of
+/// insertions needed *before* the commit at the key index. The
+/// `Occ` enum describes what occupies a cell in that row
+/// (either a commit or a range representing a connection).
+///
 fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>> {
+    // Initialize an empty HashMap to store the required insertions. The key is the commit
+    // index, and the value is a vector of rows, where each row is a vector of Occupations (`Occ`).
     let mut inserts: HashMap<usize, Vec<Vec<Occ>>> = HashMap::new();
 
+    // First, for each commit, we initialize an entry in the `inserts`
+    // map with a single row containing the commit itself. This ensures
+    // that every commit has a position in the grid.
     for (idx, info) in graph.commits.iter().enumerate() {
+        // Get the visual column assigned to the branch of this commit. Unwrap is safe here
+        // because `branch_trace` should always point to a valid branch with an assigned column
+        // for commits that are included in the filtered graph.
         let column = graph.all_branches[info.branch_trace.unwrap()]
             .visual
             .column
@@ -434,30 +462,56 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
         inserts.insert(idx, vec![vec![Occ::Commit(idx, column)]]);
     }
 
+    // Now, iterate through the commits again to identify connections
+    // needed between parents that are not directly adjacent in the
+    // `graph.commits` list.
     for (idx, info) in graph.commits.iter().enumerate() {
+        // If the commit has a branch trace (meaning it belongs to a visualized branch).
         if let Some(trace) = info.branch_trace {
+            // Get the `BranchInfo` for the current commit's branch.
             let branch = &graph.all_branches[trace];
+            // Get the visual column of the current commit's branch. Unwrap is safe as explained above.
             let column = branch.visual.column.unwrap();
 
+            // Iterate through the two possible parents of the current commit.
             for p in 0..2 {
+                // If the commit has a parent at this index (0 for the first parent, 1 for the second).
                 if let Some(par_oid) = info.parents[p] {
+                    // Try to find the index of the parent commit in the `graph.commits` vector.
                     if let Some(par_idx) = graph.indices.get(&par_oid) {
                         let par_info = &graph.commits[*par_idx];
                         let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
                         let par_column = par_branch.visual.column.unwrap();
+                        // Determine the sorted range of columns between the current commit and its parent.
                         let column_range = sorted(column, par_column);
 
+                        // If the column of the current commit is different from the column of its parent,
+                        // it means we need to draw a horizontal line (an "insert") to connect them.
                         if column != par_column {
+                            // Find the index in the `graph.commits` list where the visual connection
+                            // should deviate from the parent's line. This helps in drawing the graph
+                            // correctly when branches diverge or merge.
                             let split_index = super::get_deviate_index(graph, idx, *par_idx);
+                            // Access the entry in the `inserts` map for the `split_index`.
                             match inserts.entry(split_index) {
+                                // If there's already an entry at this `split_index` (meaning other
+                                // insertions might be needed before this commit).
                                 Occupied(mut entry) => {
+                                    // Find the first available row in the existing vector of rows
+                                    // where the new range doesn't overlap with existing occupations.
                                     let mut insert_at = entry.get().len();
                                     for (insert_idx, sub_entry) in entry.get().iter().enumerate() {
                                         let mut occ = false;
+                                        // Check for overlaps with existing `Occ` in the current row.
                                         for other_range in sub_entry {
+                                            // Check if the current column range overlaps with the other range.
                                             if other_range.overlaps(&column_range) {
                                                 match other_range {
+                                                    // If the other occupation is a commit.
                                                     Occ::Commit(target_index, _) => {
+                                                        // In compact mode, we might allow overlap with the commit itself
+                                                        // for merge commits (specifically the second parent) to keep the
+                                                        // graph tighter.
                                                         if !compact
                                                             || !info.is_merge
                                                             || idx != *target_index
@@ -467,7 +521,9 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
                                                             break;
                                                         }
                                                     }
+                                                    // If the other occupation is a range (another connection).
                                                     Occ::Range(o_idx, o_par_idx, _, _) => {
+                                                        // Avoid overlap with connections between the same commits.
                                                         if idx != *o_idx && par_idx != o_par_idx {
                                                             occ = true;
                                                             break;
@@ -476,12 +532,15 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
                                                 }
                                             }
                                         }
+                                        // If no overlap is found in this row, we can insert here.
                                         if !occ {
                                             insert_at = insert_idx;
                                             break;
                                         }
                                     }
+                                    // Get a mutable reference to the vector of rows for this `split_index`.
                                     let vec = entry.get_mut();
+                                    // If no suitable row was found, add a new row.
                                     if insert_at == vec.len() {
                                         vec.push(vec![Occ::Range(
                                             idx,
@@ -490,6 +549,7 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
                                             column_range.1,
                                         )]);
                                     } else {
+                                        // Otherwise, insert the new range into the found row.
                                         vec[insert_at].push(Occ::Range(
                                             idx,
                                             *par_idx,
@@ -498,7 +558,9 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
                                         ));
                                     }
                                 }
+                                // If there's no entry at this `split_index` yet.
                                 Vacant(entry) => {
+                                    // Create a new entry with a single row containing the range.
                                     entry.insert(vec![vec![Occ::Range(
                                         idx,
                                         *par_idx,
@@ -514,6 +576,7 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
         }
     }
 
+    // Return the map of required insertions.
     inserts
 }
 
