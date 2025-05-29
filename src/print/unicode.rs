@@ -83,6 +83,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
         None
     };
 
+    // Compute commit text into text_lines
     let mut index_map = vec![];
     let mut text_lines = vec![];
     let mut offset = 0;
@@ -133,6 +134,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
         [SPACE, WHITE, settings.branches.persistence.len() as u8 + 2],
     );
 
+    // Compute branch lines in grid
     for (idx, info) in graph.commits.iter().enumerate() {
         if let Some(trace) = info.branch_trace {
             let branch = &graph.all_branches[trace];
