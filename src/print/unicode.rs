@@ -737,8 +737,19 @@ pub fn format_branches(
 
 /// Occupied row ranges
 enum Occ {
-    Commit(usize, usize),
-    Range(usize, usize, usize, usize),
+    /// Horizontal position of commit markers
+    // First  field (usize): The index of a commit within the graph.commits vector.
+    // Second field (usize): The visual column in the grid where this commit is located. This column is determined by the branch the commit belongs to.
+    // Purpose: This variant of Occ signifies that a specific row in the grid is occupied by a commit marker (dot or circle) at a particular column.
+    Commit(usize, usize), // index in Graph.commits, column
+
+    /// Horizontal line connecting two commits
+    // First  field (usize): The index of the starting commit of a visual connection (usually the child commit).
+    // Second field (usize): The index of the ending commit of a visual connection (usually the parent commit).
+    // Third  field (usize): The starting visual column of the range occupied by the connection line between the two commits. This is the minimum of the columns of the two connected commits.
+    // Fourth field (usize): The ending visual column of the range occupied by the connection line between the two commits. This is the maximum of the columns of the two connected commits.
+    // Purpose: This variant of Occ signifies that a range of columns in a particular row is occupied by a horizontal line segment connecting a commit to one of its parents. The range spans from the visual column of one commit to the visual column of the other.
+    Range(usize, usize, usize, usize), // ?child index, parent index, leftmost column, rightmost column
 }
 
 impl Occ {
