@@ -530,9 +530,12 @@ pub fn format(
 }
 
 pub fn format_date(time: Time, format: &str) -> String {
-    let date =
-        Local::from_offset(&FixedOffset::east(time.offset_minutes())).timestamp(time.seconds(), 0);
-    format!("{}", date.format(format))
+    let offset = FixedOffset::east_opt(time.offset_minutes() * 60).expect("Invalid offset minutes");
+    let date = offset
+        .timestamp_opt(time.seconds(), 0)
+        .single()
+        .expect("Invalid timestamp, maybe a fold or gap in local time");
+    date.format(format).to_string()
 }
 
 /// Format a time as a relative time string (e.g., "21 hours ago", "4 days ago")
