@@ -44,12 +44,14 @@ pub struct GitGraph {
 }
 
 impl GitGraph {
+    /// Generate a branch graph for a repository
     pub fn new(
         mut repository: Repository,
         settings: &Settings,
         start_point: Option<String>,
         max_count: Option<usize>,
     ) -> Result<Self, String> {
+        #![doc = include_str!("branch_assignment.md")]
         let mut stashes = HashSet::new();
         repository
             .stash_foreach(|_, _, oid| {
