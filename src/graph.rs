@@ -85,6 +85,8 @@ impl GitGraph {
 
         let head = HeadInfo::new(&repository.head().map_err(|err| err.message().to_string())?)?;
 
+        // commits will hold the CommitInfo for all commits covered
+        // indices maps git object id to an index into commits.
         let mut commits = Vec::new();
         let mut indices = HashMap::new();
         let mut idx = 0;
@@ -125,22 +127,26 @@ impl GitGraph {
             forward,
         );
 
+        // Remove commits not on a branch. This will give all commits a new index.
         let filtered_commits: Vec<CommitInfo> = commits
             .into_iter()
             .filter(|info| info.branch_trace.is_some())
             .collect();
 
+        // Create indices from git object id into the filtered commits
         let filtered_indices: HashMap<Oid, usize> = filtered_commits
             .iter()
             .enumerate()
             .map(|(idx, info)| (info.oid, idx))
             .collect();
 
+        // Map from old index to new index. None, if old index was removed
         let index_map: HashMap<usize, Option<&usize>> = indices
             .iter()
             .map(|(oid, index)| (*index, filtered_indices.get(oid)))
             .collect();
 
+        // Update branch.range from old to new index. Shrink if endpoints were removed.
         for branch in all_branches.iter_mut() {
             if let Some(mut start_idx) = branch.range.0 {
                 let mut idx0 = index_map[&start_idx];
