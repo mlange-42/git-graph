@@ -770,11 +770,17 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     }
 }
 
-/// Two-dimensional grid with 3 layers, used to produce the graph representation.
+/// Two-dimensional grid used to produce the graph representation.
 #[allow(dead_code)]
 struct Grid {
     width: usize,
     height: usize,
+
+    /// Grid cells are stored in the data vector, layout row wise.
+    /// For each cell in the grid, three values are stored:
+    /// - Character (symbol)
+    /// - Colour
+    /// - Persistence level (z-order, lower numbers take preceedence)
     data: Vec<[u8; 3]>,
 }
 
@@ -790,6 +796,7 @@ impl Grid {
     pub fn reverse(&mut self) {
         self.data.reverse();
     }
+    /// Turn a 2D coordinate into an index of Grid.data
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }
