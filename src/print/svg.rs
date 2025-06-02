@@ -41,6 +41,16 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
                     continue;
                 };
                 let Some(par_idx) = graph.indices.get(par_oid) else {
+                    // Parent is outside scope of graph.indices
+                    // so draw a vertical line to the bottom
+                    let idx_bottom = max_idx;
+                    document = document.add(line(
+                        idx,
+                        branch.visual.column.unwrap(),
+                        idx_bottom,
+                        branch.visual.column.unwrap(),
+                        branch_color,
+                    ));
                     continue;
                 };
                 let par_info = &graph.commits[*par_idx];
