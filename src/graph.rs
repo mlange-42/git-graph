@@ -43,6 +43,7 @@ impl GitGraph {
     pub fn new(
         mut repository: Repository,
         settings: &Settings,
+        start_point: Option<String>,
         max_count: Option<usize>,
     ) -> Result<Self, String> {
         #![doc = include_str!("../docs/branch_assignment.md")]
@@ -61,8 +62,17 @@ impl GitGraph {
         walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
             .map_err(|err| err.message().to_string())?;
 
-        walk.push_glob("*")
-            .map_err(|err| err.message().to_string())?;
+        // Use starting point if specified
+        if let Some(start) = start_point {
+            let object = repository
+                .revparse_single(&start)
+                .map_err(|err| format!("Failed to resolve start point '{}': {}", start, err))?;
+            walk.push(object.id())
+                .map_err(|err| err.message().to_string())?;
+        } else {
+            walk.push_glob("*")
+                .map_err(|err| err.message().to_string())?;
+        }
 
         if repository.is_shallow() {
             return Err("ERROR: git-graph does not support shallow clones due to a missing feature in the underlying libgit2 library.".to_string());
