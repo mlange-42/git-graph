@@ -1,4 +1,21 @@
 //! A graph structure representing the history of a Git repository.
+//!
+//! To generate a graph, call [GitGraph::new()].
+//!
+//! ### Visualization of branches
+//! git-graph uses the term *branch* a little different from how git uses it.
+//! In git-lingo this means "a label on some commit", whereas in git-graph
+//! it means "a path in the ancestor graph of a repository". Nodes are
+//! commits, edges are directed from a child to its parents.
+//!
+//! In the text below, the term
+//! - *git-branch* is a label on a commit.
+//! - *branch* is the visualization of an ancestor path.
+//!
+//! git-graph visualizes branches as a vertical line. Only
+//! the primary parent of a commit can be on the same branch as the
+//! commit. Horizontal lines represent forks (multiple children) or
+//! merges (multiple parents), and show the remaining parent relations.
 
 use crate::print::colors::to_terminal_color;
 use crate::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};

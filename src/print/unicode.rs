@@ -1,4 +1,4 @@
-//! Create graphs in SVG format (Scalable Vector Graphics).
+//! Create graphs in Unicode format with ANSI X3.64 / ISO 6429 colour codes
 
 use crate::graph::{CommitInfo, GitGraph, HeadInfo};
 use crate::print::format::CommitFormat;
