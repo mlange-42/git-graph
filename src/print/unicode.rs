@@ -158,6 +158,16 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
                 continue;
             };
             let Some(par_idx) = graph.indices.get(par_oid) else {
+                // Parent is outside scope of graph.indices
+                // so draw a vertical line to the bottom
+                let idx_bottom = grid.height;
+                vline(
+                    &mut grid,
+                    (idx_map, idx_bottom),
+                    column,
+                    branch_color,
+                    branch.persistence,
+                );
                 continue;
             };
 
