@@ -33,7 +33,27 @@ const WHITE: u8 = 7;
 const HEAD_COLOR: u8 = 14;
 const HASH_COLOR: u8 = 11;
 
-type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
+/**
+UnicodeGraphInfo is a type alias for a tuple containing three elements:
+graph-lines, text-lines, start-row
+
+1.  graph_lines: `Vec<String>` - This represents the lines of the generated text-based graph
+    visualization. Each `String` in this vector corresponds to a single row of
+    the graph output, containing characters that form the visual representation
+    of the commit history (like lines, dots, and branch intersections).
+
+2.  text_lines: `Vec<String>`: This represents the lines of the commit messages or other
+    textual information associated with each commit in the graph. Each `String`
+    in this vector corresponds to a line of text that is displayed alongside
+    the graph. This can include commit hashes, author information, commit
+    messages, branch names, and tags, depending on the formatting settings.
+    Some entries in this vector might be empty strings or correspond to
+    inserted blank lines for visual spacing.
+
+3.  start_row: `Vec<usize>`: Starting row for commit in the `graph.commits` vector.
+*/
+pub type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
+
 
 /// Creates a text-based visual representation of a graph.
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
