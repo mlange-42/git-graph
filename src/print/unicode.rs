@@ -163,6 +163,16 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
                 continue;
             };
             let Some(par_idx) = graph.indices.get(&par_oid) else {
+                // Parent is outside scope of graph.indices
+                // so draw a vertical line to the bottom
+                let idx_bottom = grid.height;
+                vline(
+                    &mut grid,
+                    (idx_map, idx_bottom),
+                    column,
+                    branch_color,
+                    branch.persistence,
+                );
                 continue;
             };
 
@@ -800,6 +810,7 @@ impl GridCell {
 /// This can be rendered as unicode text or as SVG.
 struct Grid {
     width: usize,
+    height: usize,
 
     /// Grid cells are stored in row-major order.
     data: Vec<GridCell>,
@@ -809,6 +820,7 @@ impl Grid {
     pub fn new(width: usize, height: usize, initial: GridCell) -> Self {
         Grid {
             width,
+            height,
             data: vec![initial; width * height],
         }
     }
