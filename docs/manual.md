@@ -192,10 +192,12 @@ Formatting strings use a subset of the placeholders available in `git log --form
 | %ae         | author email                                |
 | %ad         | author date                                 |
 | %as         | author date in short format `YYYY-MM-DD`    |
+| %ar         | author date, relative format (e.g., "21 hours ago") |
 | %cn         | committer name                              |
 | %ce         | committer email                             |
 | %cd         | committer date                              |
 | %cs         | committer date in short format `YYYY-MM-DD` |
+| %cr         | committer date, relative format (e.g., "4 days ago") |
 
 If you add a '+' (plus sign) after % of a placeholder, a line-feed is inserted immediately before the expansion if and only if the placeholder expands to a non-empty string.
 
