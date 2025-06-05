@@ -1,5 +1,5 @@
 use clap::{crate_version, Arg, Command};
-use crossterm::cursor::MoveToColumn;
+use crossterm::cursor::MoveToRow;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
@@ -464,68 +464,68 @@ fn run(
 /// Print the graph, paged (i.e. wait for user input once the terminal is filled).
 fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), ErrorKind> {
     let (width, height) = crossterm::terminal::size()?;
-    let width = width as usize;
-
-    let mut line_idx = 0;
-    let mut print_lines = height - 2;
-    let mut clear = false;
-    let mut abort = false;
-
-    let help = "\r >>> Down: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit\r";
-    let help = if help.len() > width {
-        &help[0..width]
+    let mut start_idx: usize = 0;
+    let mut should_update: bool = true;
+    let visible_lines: usize = height as usize - 1;
+    let help = "\r >>> Down/Up: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit\r";
+    let help = if help.len() > width as usize {
+        &help[0..width as usize]
     } else {
         help
     };
 
-    while line_idx < graph_lines.len() {
-        if print_lines > 0 {
-            if clear {
+    enable_raw_mode()?;
+    while start_idx + visible_lines < graph_lines.len() {
+        // Print commits
+        if should_update {
+            should_update = false;
+            stdout()
+                .execute(MoveToRow(0))?
+                .execute(Clear(ClearType::CurrentLine))?;
+            for curr_idx in 0..visible_lines {
                 stdout()
                     .execute(Clear(ClearType::CurrentLine))?
-                    .execute(MoveToColumn(0))?;
+                    .execute(Print(format!(
+                        " {}  {}\r\n",
+                        graph_lines[start_idx + curr_idx],
+                        text_lines[start_idx + curr_idx]
+                    )))?;
             }
-
-            stdout().execute(Print(format!(
-                " {}  {}\n",
-                graph_lines[line_idx], text_lines[line_idx]
-            )))?;
-
-            if print_lines == 1 && line_idx < graph_lines.len() - 1 {
-                stdout().execute(Print(help))?;
-            }
-            print_lines -= 1;
-            line_idx += 1;
+            // Print help at the end
+            stdout().execute(Print(help))?;
         } else {
-            enable_raw_mode()?;
             let input = crossterm::event::read()?;
             if let Event::Key(evt) = input {
                 match evt.code {
                     KeyCode::Down => {
-                        clear = true;
-                        print_lines = 1;
+                        start_idx += 1;
+                        should_update = true;
+                    }
+                    KeyCode::Up => {
+                        if start_idx > 0 {
+                            start_idx -= 1;
+                            should_update = true;
+                        }
                     }
                     KeyCode::Enter | KeyCode::PageDown => {
-                        clear = true;
-                        print_lines = height - 2;
+                        start_idx += height as usize - 2;
+                        should_update = true;
                     }
                     KeyCode::End => {
-                        clear = true;
-                        print_lines = graph_lines.len() as u16;
+                        start_idx = graph_lines.len() - height as usize - 2;
+                        should_update = true;
+                        // TODO: maybe make this better
                     }
                     KeyCode::Char(c) => match c {
                         'q' => {
-                            abort = true;
                             break;
                         }
                         'c' if evt.modifiers == KeyModifiers::CONTROL => {
-                            abort = true;
                             break;
                         }
                         _ => {}
                     },
                     KeyCode::Esc => {
-                        abort = true;
                         break;
                     }
                     _ => {}
@@ -533,14 +533,8 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
             }
         }
     }
-    if abort {
-        stdout()
-            .execute(Clear(ClearType::CurrentLine))?
-            .execute(MoveToColumn(0))?
-            .execute(Print(" ...\n"))?;
-    }
-    disable_raw_mode()?;
 
+    disable_raw_mode()?;
     Ok(())
 }
 
