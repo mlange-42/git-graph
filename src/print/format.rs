@@ -43,12 +43,14 @@ const AUTHOR: usize = 7;
 const AUTHOR_EMAIL: usize = 8;
 const AUTHOR_DATE: usize = 9;
 const AUTHOR_DATE_SHORT: usize = 10;
-const COMMITTER: usize = 11;
-const COMMITTER_EMAIL: usize = 12;
-const COMMITTER_DATE: usize = 13;
-const COMMITTER_DATE_SHORT: usize = 14;
-const BODY: usize = 15;
-const BODY_RAW: usize = 16;
+const AUTHOR_DATE_RELATIVE: usize = 11;
+const COMMITTER: usize = 12;
+const COMMITTER_EMAIL: usize = 13;
+const COMMITTER_DATE: usize = 14;
+const COMMITTER_DATE_SHORT: usize = 15;
+const COMMITTER_DATE_RELATIVE: usize = 16;
+const BODY: usize = 17;
+const BODY_RAW: usize = 18;
 
 const MODE_SPACE: usize = 1;
 const MODE_PLUS: usize = 2;
@@ -57,8 +59,8 @@ const MODE_MINUS: usize = 3;
 lazy_static! {
     pub static ref PLACEHOLDERS: Vec<[String; 4]> = {
         let base = vec![
-            "n", "H", "h", "P", "p", "d", "s", "an", "ae", "ad", "as", "cn", "ce", "cd", "cs", "b",
-            "B",
+            "n", "H", "h", "P", "p", "d", "s", "an", "ae", "ad", "as", "ar", "cn", "ce", "cd",
+            "cs", "cr", "b", "B",
         ];
         base.iter()
             .map(|b| {
@@ -260,6 +262,14 @@ pub fn format_commit(
                         }
                         write!(out, "{}", format_date(commit.author().when(), "%F"))
                     }
+                    AUTHOR_DATE_RELATIVE => {
+                        match mode {
+                            MODE_SPACE => write!(out, " ").unwrap(),
+                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
+                            _ => {}
+                        }
+                        write!(out, "{}", format_relative_time(commit.author().when()))
+                    }
                     COMMITTER => {
                         match mode {
                             MODE_SPACE => write!(out, " ").unwrap(),
@@ -295,6 +305,14 @@ pub fn format_commit(
                             _ => {}
                         }
                         write!(out, "{}", format_date(commit.committer().when(), "%F"))
+                    }
+                    COMMITTER_DATE_RELATIVE => {
+                        match mode {
+                            MODE_SPACE => write!(out, " ").unwrap(),
+                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
+                            _ => {}
+                        }
+                        write!(out, "{}", format_relative_time(commit.committer().when()))
                     }
                     BODY => {
                         let message = commit
@@ -515,6 +533,38 @@ pub fn format_date(time: Time, format: &str) -> String {
     let date =
         Local::from_offset(&FixedOffset::east(time.offset_minutes())).timestamp(time.seconds(), 0);
     format!("{}", date.format(format))
+}
+
+/// Format a time as a relative time string (e.g., "21 hours ago", "4 days ago")
+pub fn format_relative_time(time: Time) -> String {
+    let commit_time =
+        Local::from_offset(&FixedOffset::east(time.offset_minutes())).timestamp(time.seconds(), 0);
+    let now = Local::now();
+    let duration = now.signed_duration_since(commit_time);
+
+    let seconds = duration.num_seconds();
+    let minutes = duration.num_minutes();
+    let hours = duration.num_hours();
+    let days = duration.num_hours() / 24;
+    let weeks = days / 7;
+    let months = days / 30;
+    let years = days / 365;
+
+    if seconds < 60 {
+        format!("{} seconds ago", seconds)
+    } else if minutes < 60 {
+        format!("{} minutes ago", minutes)
+    } else if hours < 24 {
+        format!("{} hours ago", hours)
+    } else if days < 7 {
+        format!("{} days ago", days)
+    } else if weeks < 4 {
+        format!("{} weeks ago", weeks)
+    } else if months < 12 {
+        format!("{} months ago", months)
+    } else {
+        format!("{} years ago", years)
+    }
 }
 
 fn append_wrapped(vec: &mut Vec<String>, str: String, wrapping: &Option<Options>) {
