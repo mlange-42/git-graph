@@ -1,3 +1,5 @@
+//! Command line tool to show clear git graphs arranged for your branching model.
+
 use clap::{crate_version, Arg, Command};
 use crossterm::cursor::MoveToRow;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
@@ -273,7 +275,10 @@ fn from_args() -> Result<(), String> {
                     Some(model) => print!("{}", model),
                 }
             }
-            Some(model) => set_model(&repository, model, REPO_CONFIG_FILE, &models_dir)?,
+            Some(model) => {
+                set_model(&repository, model, REPO_CONFIG_FILE, &models_dir)?;
+                eprint!("Branching model set to '{}'", model);
+            }
         };
         return Ok(());
     }
