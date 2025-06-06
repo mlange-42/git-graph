@@ -530,9 +530,44 @@ pub fn format(
 }
 
 pub fn format_date(time: Time, format: &str) -> String {
-    let date =
+    let offset = FixedOffset::east_opt(time.offset_minutes() * 60).expect("Invalid offset minutes");
+    let date = offset
+        .timestamp_opt(time.seconds(), 0)
+        .single()
+        .expect("Invalid timestamp, maybe a fold or gap in local time");
+    date.format(format).to_string()
+}
+
+/// Format a time as a relative time string (e.g., "21 hours ago", "4 days ago")
+pub fn format_relative_time(time: Time) -> String {
+    let commit_time =
         Local::from_offset(&FixedOffset::east(time.offset_minutes())).timestamp(time.seconds(), 0);
-    format!("{}", date.format(format))
+    let now = Local::now();
+    let duration = now.signed_duration_since(commit_time);
+
+    let seconds = duration.num_seconds();
+    let minutes = duration.num_minutes();
+    let hours = duration.num_hours();
+    let days = duration.num_hours() / 24;
+    let weeks = days / 7;
+    let months = days / 30;
+    let years = days / 365;
+
+    if seconds < 60 {
+        format!("{} seconds ago", seconds)
+    } else if minutes < 60 {
+        format!("{} minutes ago", minutes)
+    } else if hours < 24 {
+        format!("{} hours ago", hours)
+    } else if days < 7 {
+        format!("{} days ago", days)
+    } else if weeks < 4 {
+        format!("{} weeks ago", weeks)
+    } else if months < 12 {
+        format!("{} months ago", months)
+    } else {
+        format!("{} years ago", years)
+    }
 }
 
 /// Format a time as a relative time string (e.g., "21 hours ago", "4 days ago")
