@@ -184,25 +184,14 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
             } else {
                 let split_index = super::get_deviate_index(graph, idx, *par_idx);
                 let split_idx_map = index_map[split_index];
-                let inserts = &inserts[&split_index];
-                for (insert_idx, sub_entry) in inserts.iter().enumerate() {
-                    for occ in sub_entry {
-                        match occ {
-                            Occ::Commit(_, _) => {}
-                            Occ::Range(i1, i2, _, _) => {
-                                if *i1 == idx && i2 == par_idx {
-                                    let idx_split = split_idx_map + insert_idx;
+                let insert_idx = find_insert_idx(&inserts[&split_index], idx, *par_idx).unwrap();
+                let idx_split = split_idx_map + insert_idx;
 
-                                    let is_secondary_merge = info.is_merge && p > 0;
+                let is_secondary_merge = info.is_merge && p > 0;
 
-                                    let row123 = (idx_map, idx_split, par_idx_map);
-                                    let col12 = (column, par_column);
-                                    zig_zag_line(&mut grid, row123, col12, is_secondary_merge, color, pers);
-                                }
-                            }
-                        }
-                    }
-                }
+                let row123 = (idx_map, idx_split, par_idx_map);
+                let col12 = (column, par_column);
+                zig_zag_line(&mut grid, row123, col12, is_secondary_merge, color, pers);
             }
         }
     }
@@ -248,6 +237,20 @@ fn create_wrapping_options<'a>(
         None
     };
     Ok(wrapping)
+}
+
+/// Find the index of the insert that connects the two commits
+fn find_insert_idx(inserts: &[Vec<Occ>], child_idx: usize, parent_idx: usize) -> Option<usize> {
+    for (insert_idx, sub_entry) in inserts.iter().enumerate() {
+        for occ in sub_entry {
+            if let Occ::Range(i1, i2, _, _) = occ {
+                if *i1 == child_idx && *i2 == parent_idx {
+                    return Some(insert_idx);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Draw a line that connects two commits on different columns
