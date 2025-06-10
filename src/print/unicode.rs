@@ -191,28 +191,13 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
                             Occ::Commit(_, _) => {}
                             Occ::Range(i1, i2, _, _) => {
                                 if *i1 == idx && i2 == par_idx {
-                                    vline(
-                                        &mut grid,
-                                        (idx_map, split_idx_map + insert_idx),
-                                        column,
-                                        color,
-                                        pers,
-                                    );
-                                    hline(
-                                        &mut grid,
-                                        split_idx_map + insert_idx,
-                                        (par_column, column),
-                                        info.is_merge && p > 0,
-                                        color,
-                                        pers,
-                                    );
-                                    vline(
-                                        &mut grid,
-                                        (split_idx_map + insert_idx, par_idx_map),
-                                        par_column,
-                                        color,
-                                        pers,
-                                    );
+                                    let idx_split = split_idx_map + insert_idx;
+
+                                    let is_secondary_merge = info.is_merge && p > 0;
+
+                                    let row123 = (idx_map, idx_split, par_idx_map);
+                                    let col12 = (column, par_column);
+                                    zig_zag_line(&mut grid, row123, col12, is_secondary_merge, color, pers);
                                 }
                             }
                         }
@@ -263,6 +248,22 @@ fn create_wrapping_options<'a>(
         None
     };
     Ok(wrapping)
+}
+
+/// Draw a line that connects two commits on different columns
+fn zig_zag_line(
+    grid: &mut Grid,
+    row123: (usize, usize, usize),
+    col12: (usize, usize),
+    is_merge: bool,
+    color: u8,
+    pers: u8,
+) {
+    let (row1, row2, row3) = row123;
+    let (col1, col2) = col12;
+    vline(grid, (row1, row2), col1, color, pers);
+    hline(grid, row2, (col2, col1), is_merge, color, pers);
+    vline(grid, (row2, row3), col2, color, pers);
 }
 
 /// Draws a vertical line
