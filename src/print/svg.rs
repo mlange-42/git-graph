@@ -36,10 +36,7 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
                 max_column = branch.visual.column.unwrap();
             }
 
-            for parent in info.parents.iter() {
-                let Some(par_oid) = parent else {
-                    continue;
-                };
+            for par_oid in info.parents.iter() {
                 let Some(par_idx) = graph.indices.get(par_oid) else {
                     // Parent is outside scope of graph.indices
                     // so draw a vertical line to the bottom

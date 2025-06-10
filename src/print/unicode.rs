@@ -153,10 +153,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
             branch_color,
             branch.persistence,
         );
-        for (p, parent) in info.parents.iter().enumerate() {
-            let Some(par_oid) = parent else {
-                continue;
-            };
+        for (p, par_oid) in info.parents.iter().enumerate() {
             let Some(par_idx) = graph.indices.get(par_oid) else {
                 // Parent is outside scope of graph.indices
                 // so draw a vertical line to the bottom
@@ -490,10 +487,7 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
             let column = branch.visual.column.unwrap();
 
             // Iterate through the two possible parents of the current commit.
-            for (p, parent) in info.parents.iter().enumerate() {
-                let Some(par_oid) = parent else {
-                    continue;
-                };
+            for (p, par_oid) in info.parents.iter().enumerate() {
                 // Try to find the index of the parent commit in the `graph.commits` vector.
                 if let Some(par_idx) = graph.indices.get(par_oid) {
                     let par_info = &graph.commits[*par_idx];

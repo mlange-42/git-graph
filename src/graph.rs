@@ -238,7 +238,7 @@ impl HeadInfo {
 pub struct CommitInfo {
     pub oid: Oid,
     pub is_merge: bool,
-    pub parents: [Option<Oid>; 2],
+    pub parents: Vec<Oid>,
     pub children: Vec<Oid>,
     pub branches: Vec<usize>,
     pub tags: Vec<usize>,
@@ -247,10 +247,11 @@ pub struct CommitInfo {
 
 impl CommitInfo {
     fn new(commit: &Commit) -> Self {
+        let parents = commit.parent_ids().collect();
         CommitInfo {
             oid: commit.id(),
             is_merge: commit.parent_count() > 1,
-            parents: [commit.parent_id(0).ok(), commit.parent_id(1).ok()],
+            parents,
             children: Vec::new(),
             branches: Vec::new(),
             tags: Vec::new(),
@@ -336,10 +337,10 @@ fn assign_children(commits: &mut [CommitInfo], indices: &HashMap<Oid, usize>) {
     for idx in 0..commits.len() {
         let (oid, parents) = {
             let info = &commits[idx];
-            (info.oid, info.parents)
+            (info.oid, info.parents.clone())
         };
-        for par_oid in &parents {
-            if let Some(par_idx) = par_oid.and_then(|oid| indices.get(&oid)) {
+        for par_oid in parents {
+            if let Some(par_idx) = indices.get(&par_oid) {
                 commits[*par_idx].children.push(oid);
             }
         }
@@ -503,9 +504,7 @@ fn assign_sources_targets(
         let mut max_par_order = None;
         let mut source_branch_id = None;
         for par_oid in info.parents.iter() {
-            let par_info = par_oid
-                .and_then(|oid| indices.get(&oid))
-                .and_then(|idx| commits.get(*idx));
+            let par_info = indices.get(par_oid).and_then(|idx| commits.get(*idx));
             if let Some(par_info) = par_info {
                 if par_info.branch_trace != info.branch_trace {
                     if let Some(trace) = par_info.branch_trace {
@@ -966,6 +965,9 @@ fn branch_color<T: Clone>(
 
 /// Tries to extract the name of a merged-in branch from the merge commit summary.
 pub fn parse_merge_summary(summary: &str, patterns: &MergePatterns) -> Option<String> {
+    // TODO: Match octo-merge
+    // Example with 3 parents, f1 is primary:
+    //   Merge branches 'f1', 'f2' and 'f3'
     for regex in &patterns.patterns {
         if let Some(captures) = regex.captures(summary) {
             if captures.len() == 2 && captures.get(1).is_some() {
