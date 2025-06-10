@@ -141,74 +141,78 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
 
     // Compute branch lines in grid
     for (idx, info) in graph.commits.iter().enumerate() {
-        if let Some(trace) = info.branch_trace {
-            let branch = &graph.all_branches[trace];
-            let column = branch.visual.column.unwrap();
-            let idx_map = index_map[idx];
+        let Some(trace) = info.branch_trace else {
+            continue;
+        };
+        let branch = &graph.all_branches[trace];
+        let column = branch.visual.column.unwrap();
+        let idx_map = index_map[idx];
 
-            let branch_color = branch.visual.term_color;
+        let branch_color = branch.visual.term_color;
 
-            grid.set(
-                column * 2,
-                idx_map,
-                if info.is_merge { CIRCLE } else { DOT },
-                branch_color,
-                branch.persistence,
-            );
+        grid.set(
+            column * 2,
+            idx_map,
+            if info.is_merge { CIRCLE } else { DOT },
+            branch_color,
+            branch.persistence,
+        );
+        for p in 0..2 {
+            let parent = info.parents[p];
+            let Some(par_oid) = parent else {
+                continue;
+            };
+            let Some(par_idx) = graph.indices.get(&par_oid) else {
+                continue;
+            };
 
-            for p in 0..2 {
-                if let Some(par_oid) = info.parents[p] {
-                    if let Some(par_idx) = graph.indices.get(&par_oid) {
-                        let par_idx_map = index_map[*par_idx];
-                        let par_info = &graph.commits[*par_idx];
-                        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
-                        let par_column = par_branch.visual.column.unwrap();
+            let par_idx_map = index_map[*par_idx];
+            let par_info = &graph.commits[*par_idx];
+            let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
+            let par_column = par_branch.visual.column.unwrap();
 
-                        let (color, pers) = if info.is_merge {
-                            (par_branch.visual.term_color, par_branch.persistence)
-                        } else {
-                            (branch_color, branch.persistence)
-                        };
+            let (color, pers) = if info.is_merge {
+                (par_branch.visual.term_color, par_branch.persistence)
+            } else {
+                (branch_color, branch.persistence)
+            };
 
-                        if branch.visual.column == par_branch.visual.column {
-                            if par_idx_map > idx_map + 1 {
-                                vline(&mut grid, (idx_map, par_idx_map), column, color, pers);
-                            }
-                        } else {
-                            let split_index = super::get_deviate_index(graph, idx, *par_idx);
-                            let split_idx_map = index_map[split_index];
-                            let inserts = &inserts[&split_index];
-                            for (insert_idx, sub_entry) in inserts.iter().enumerate() {
-                                for occ in sub_entry {
-                                    match occ {
-                                        Occ::Commit(_, _) => {}
-                                        Occ::Range(i1, i2, _, _) => {
-                                            if *i1 == idx && i2 == par_idx {
-                                                vline(
-                                                    &mut grid,
-                                                    (idx_map, split_idx_map + insert_idx),
-                                                    column,
-                                                    color,
-                                                    pers,
-                                                );
-                                                hline(
-                                                    &mut grid,
-                                                    split_idx_map + insert_idx,
-                                                    (par_column, column),
-                                                    info.is_merge && p > 0,
-                                                    color,
-                                                    pers,
-                                                );
-                                                vline(
-                                                    &mut grid,
-                                                    (split_idx_map + insert_idx, par_idx_map),
-                                                    par_column,
-                                                    color,
-                                                    pers,
-                                                );
-                                            }
-                                        }
-                                    }
+            if branch.visual.column == par_branch.visual.column {
+                if par_idx_map > idx_map + 1 {
+                    vline(&mut grid, (idx_map, par_idx_map), column, color, pers);
+                }
+            } else {
+                let split_index = super::get_deviate_index(graph, idx, *par_idx);
+                let split_idx_map = index_map[split_index];
+                let inserts = &inserts[&split_index];
+                for (insert_idx, sub_entry) in inserts.iter().enumerate() {
+                    for occ in sub_entry {
+                        match occ {
+                            Occ::Commit(_, _) => {}
+                            Occ::Range(i1, i2, _, _) => {
+                                if *i1 == idx && i2 == par_idx {
+                                    vline(
+                                        &mut grid,
+                                        (idx_map, split_idx_map + insert_idx),
+                                        column,
+                                        color,
+                                        pers,
+                                    );
+                                    hline(
+                                        &mut grid,
+                                        split_idx_map + insert_idx,
+                                        (par_column, column),
+                                        info.is_merge && p > 0,
+                                        color,
+                                        pers,
+                                    );
+                                    vline(
+                                        &mut grid,
+                                        (split_idx_map + insert_idx, par_idx_map),
+                                        par_column,
+                                        color,
+                                        pers,
+                                    );
                                 }
                             }
                         }
@@ -478,99 +482,100 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
 
             // Iterate through the two possible parents of the current commit.
             for p in 0..2 {
-                // If the commit has a parent at this index (0 for the first parent, 1 for the second).
-                if let Some(par_oid) = info.parents[p] {
-                    // Try to find the index of the parent commit in the `graph.commits` vector.
-                    if let Some(par_idx) = graph.indices.get(&par_oid) {
-                        let par_info = &graph.commits[*par_idx];
-                        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
-                        let par_column = par_branch.visual.column.unwrap();
-                        // Determine the sorted range of columns between the current commit and its parent.
-                        let column_range = sorted(column, par_column);
+                let parent = info.parents[p];
+                let Some(par_oid) = parent else {
+                    continue;
+                };
+                // Try to find the index of the parent commit in the `graph.commits` vector.
+                if let Some(par_idx) = graph.indices.get(&par_oid) {
+                    let par_info = &graph.commits[*par_idx];
+                    let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
+                    let par_column = par_branch.visual.column.unwrap();
+                    // Determine the sorted range of columns between the current commit and its parent.
+                    let column_range = sorted(column, par_column);
 
-                        // If the column of the current commit is different from the column of its parent,
-                        // it means we need to draw a horizontal line (an "insert") to connect them.
-                        if column != par_column {
-                            // Find the index in the `graph.commits` list where the visual connection
-                            // should deviate from the parent's line. This helps in drawing the graph
-                            // correctly when branches diverge or merge.
-                            let split_index = super::get_deviate_index(graph, idx, *par_idx);
-                            // Access the entry in the `inserts` map for the `split_index`.
-                            match inserts.entry(split_index) {
-                                // If there's already an entry at this `split_index` (meaning other
-                                // insertions might be needed before this commit).
-                                Occupied(mut entry) => {
-                                    // Find the first available row in the existing vector of rows
-                                    // where the new range doesn't overlap with existing occupations.
-                                    let mut insert_at = entry.get().len();
-                                    for (insert_idx, sub_entry) in entry.get().iter().enumerate() {
-                                        let mut occ = false;
-                                        // Check for overlaps with existing `Occ` in the current row.
-                                        for other_range in sub_entry {
-                                            // Check if the current column range overlaps with the other range.
-                                            if other_range.overlaps(&column_range) {
-                                                match other_range {
-                                                    // If the other occupation is a commit.
-                                                    Occ::Commit(target_index, _) => {
-                                                        // In compact mode, we might allow overlap with the commit itself
-                                                        // for merge commits (specifically the second parent) to keep the
-                                                        // graph tighter.
-                                                        if !compact
-                                                            || !info.is_merge
-                                                            || idx != *target_index
-                                                            || p == 0
-                                                        {
-                                                            occ = true;
-                                                            break;
-                                                        }
+                    // If the column of the current commit is different from the column of its parent,
+                    // it means we need to draw a horizontal line (an "insert") to connect them.
+                    if column != par_column {
+                        // Find the index in the `graph.commits` list where the visual connection
+                        // should deviate from the parent's line. This helps in drawing the graph
+                        // correctly when branches diverge or merge.
+                        let split_index = super::get_deviate_index(graph, idx, *par_idx);
+                        // Access the entry in the `inserts` map for the `split_index`.
+                        match inserts.entry(split_index) {
+                            // If there's already an entry at this `split_index` (meaning other
+                            // insertions might be needed before this commit).
+                            Occupied(mut entry) => {
+                                // Find the first available row in the existing vector of rows
+                                // where the new range doesn't overlap with existing occupations.
+                                let mut insert_at = entry.get().len();
+                                for (insert_idx, sub_entry) in entry.get().iter().enumerate() {
+                                    let mut occ = false;
+                                    // Check for overlaps with existing `Occ` in the current row.
+                                    for other_range in sub_entry {
+                                        // Check if the current column range overlaps with the other range.
+                                        if other_range.overlaps(&column_range) {
+                                            match other_range {
+                                                // If the other occupation is a commit.
+                                                Occ::Commit(target_index, _) => {
+                                                    // In compact mode, we might allow overlap with the commit itself
+                                                    // for merge commits (specifically the second parent) to keep the
+                                                    // graph tighter.
+                                                    if !compact
+                                                        || !info.is_merge
+                                                        || idx != *target_index
+                                                        || p == 0
+                                                    {
+                                                        occ = true;
+                                                        break;
                                                     }
-                                                    // If the other occupation is a range (another connection).
-                                                    Occ::Range(o_idx, o_par_idx, _, _) => {
-                                                        // Avoid overlap with connections between the same commits.
-                                                        if idx != *o_idx && par_idx != o_par_idx {
-                                                            occ = true;
-                                                            break;
-                                                        }
+                                                }
+                                                // If the other occupation is a range (another connection).
+                                                Occ::Range(o_idx, o_par_idx, _, _) => {
+                                                    // Avoid overlap with connections between the same commits.
+                                                    if idx != *o_idx && par_idx != o_par_idx {
+                                                        occ = true;
+                                                        break;
                                                     }
                                                 }
                                             }
                                         }
-                                        // If no overlap is found in this row, we can insert here.
-                                        if !occ {
-                                            insert_at = insert_idx;
-                                            break;
-                                        }
                                     }
-                                    // Get a mutable reference to the vector of rows for this `split_index`.
-                                    let vec = entry.get_mut();
-                                    // If no suitable row was found, add a new row.
-                                    if insert_at == vec.len() {
-                                        vec.push(vec![Occ::Range(
-                                            idx,
-                                            *par_idx,
-                                            column_range.0,
-                                            column_range.1,
-                                        )]);
-                                    } else {
-                                        // Otherwise, insert the new range into the found row.
-                                        vec[insert_at].push(Occ::Range(
-                                            idx,
-                                            *par_idx,
-                                            column_range.0,
-                                            column_range.1,
-                                        ));
+                                    // If no overlap is found in this row, we can insert here.
+                                    if !occ {
+                                        insert_at = insert_idx;
+                                        break;
                                     }
                                 }
-                                // If there's no entry at this `split_index` yet.
-                                Vacant(entry) => {
-                                    // Create a new entry with a single row containing the range.
-                                    entry.insert(vec![vec![Occ::Range(
+                                // Get a mutable reference to the vector of rows for this `split_index`.
+                                let vec = entry.get_mut();
+                                // If no suitable row was found, add a new row.
+                                if insert_at == vec.len() {
+                                    vec.push(vec![Occ::Range(
                                         idx,
                                         *par_idx,
                                         column_range.0,
                                         column_range.1,
-                                    )]]);
+                                    )]);
+                                } else {
+                                    // Otherwise, insert the new range into the found row.
+                                    vec[insert_at].push(Occ::Range(
+                                        idx,
+                                        *par_idx,
+                                        column_range.0,
+                                        column_range.1,
+                                    ));
                                 }
+                            }
+                            // If there's no entry at this `split_index` yet.
+                            Vacant(entry) => {
+                                // Create a new entry with a single row containing the range.
+                                entry.insert(vec![vec![Occ::Range(
+                                    idx,
+                                    *par_idx,
+                                    column_range.0,
+                                    column_range.1,
+                                )]]);
                             }
                         }
                     }
