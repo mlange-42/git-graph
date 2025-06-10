@@ -37,37 +37,40 @@ pub fn print_svg(graph: &GitGraph, settings: &Settings) -> Result<String, String
             }
 
             for p in 0..2 {
-                if let Some(par_oid) = info.parents[p] {
-                    if let Some(par_idx) = graph.indices.get(&par_oid) {
-                        let par_info = &graph.commits[*par_idx];
-                        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
+                let parent = info.parents[p];
+                let Some(par_oid) = parent else {
+                    continue;
+                };
+                let Some(par_idx) = graph.indices.get(&par_oid) else {
+                    continue;
+                };
+                let par_info = &graph.commits[*par_idx];
+                let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
 
-                        let color = if info.is_merge {
-                            &par_branch.visual.svg_color
-                        } else {
-                            branch_color
-                        };
+                let color = if info.is_merge {
+                    &par_branch.visual.svg_color
+                } else {
+                    branch_color
+                };
 
-                        if branch.visual.column == par_branch.visual.column {
-                            document = document.add(line(
-                                idx,
-                                branch.visual.column.unwrap(),
-                                *par_idx,
-                                par_branch.visual.column.unwrap(),
-                                color,
-                            ));
-                        } else {
-                            let split_index = super::get_deviate_index(graph, idx, *par_idx);
-                            document = document.add(path(
-                                idx,
-                                branch.visual.column.unwrap(),
-                                *par_idx,
-                                par_branch.visual.column.unwrap(),
-                                split_index,
-                                color,
-                            ));
-                        }
-                    }
+                if branch.visual.column == par_branch.visual.column {
+                    document = document.add(line(
+                        idx,
+                        branch.visual.column.unwrap(),
+                        *par_idx,
+                        par_branch.visual.column.unwrap(),
+                        color,
+                    ));
+                } else {
+                    let split_index = super::get_deviate_index(graph, idx, *par_idx);
+                    document = document.add(path(
+                        idx,
+                        branch.visual.column.unwrap(),
+                        *par_idx,
+                        par_branch.visual.column.unwrap(),
+                        split_index,
+                        color,
+                    ));
                 }
             }
 
