@@ -1,4 +1,16 @@
 //! Graph generation settings.
+//!
+//! The settings control how a branching graph is layed out.
+//! They are used in the [print][super::print] module when generating
+//! a visualization and persisted to disk in the [config][super::config] module.
+//!
+//! These are the main structs
+//! * [Settings] The main settings object, which contains:
+//!   * [CommitFormat] Format of the commit summary text to the right of the graph.
+//!   * [Characters] The symbols to use when rendering a graph as text.
+//!   * [BranchSettings] Control how a graph is formatted.
+//!   * [BranchOrder] Determines the left-to-right order of branches.
+//!   * [MergePatterns] Regex that extract branch names from a merge commit.
 
 use crate::print::format::CommitFormat;
 use regex::{Error, Regex};

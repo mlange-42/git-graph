@@ -1,4 +1,21 @@
 //! A graph structure representing the history of a Git repository.
+//!
+//! To generate a graph, call [GitGraph::new()].
+//!
+//! ### Visualization of branches
+//! git-graph uses the term *branch* a little different from how git uses it.
+//! In git-lingo this means "a label on some commit", whereas in git-graph
+//! it means "a path in the ancestor graph of a repository". Nodes are
+//! commits, edges are directed from a child to its parents.
+//!
+//! In the text below, the term
+//! - *git-branch* is a label on a commit.
+//! - *branch* is the visualization of an ancestor path.
+//!
+//! git-graph visualizes branches as a vertical line. Only
+//! the primary parent of a commit can be on the same branch as the
+//! commit. Horizontal lines represent forks (multiple children) or
+//! merges (multiple parents), and show the remaining parent relations.
 
 use crate::print::colors::to_terminal_color;
 use crate::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};
@@ -27,11 +44,14 @@ pub struct GitGraph {
 }
 
 impl GitGraph {
+    /// Generate a branch graph for a repository
     pub fn new(
         mut repository: Repository,
         settings: &Settings,
+        start_point: Option<String>,
         max_count: Option<usize>,
     ) -> Result<Self, String> {
+        #![doc = include_str!("branch_assignment.md")]
         let mut stashes = HashSet::new();
         repository
             .stash_foreach(|_, _, oid| {
@@ -47,8 +67,17 @@ impl GitGraph {
         walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
             .map_err(|err| err.message().to_string())?;
 
-        walk.push_glob("*")
-            .map_err(|err| err.message().to_string())?;
+        // Use starting point if specified
+        if let Some(start) = start_point {
+            let object = repository
+                .revparse_single(&start)
+                .map_err(|err| format!("Failed to resolve start point '{}': {}", start, err))?;
+            walk.push(object.id())
+                .map_err(|err| err.message().to_string())?;
+        } else {
+            walk.push_glob("*")
+                .map_err(|err| err.message().to_string())?;
+        }
 
         if repository.is_shallow() {
             return Err("ERROR: git-graph does not support shallow clones due to a missing feature in the underlying libgit2 library.".to_string());
@@ -56,6 +85,8 @@ impl GitGraph {
 
         let head = HeadInfo::new(&repository.head().map_err(|err| err.message().to_string())?)?;
 
+        // commits will hold the CommitInfo for all commits covered
+        // indices maps git object id to an index into commits.
         let mut commits = Vec::new();
         let mut indices = HashMap::new();
         let mut idx = 0;
@@ -96,22 +127,26 @@ impl GitGraph {
             forward,
         );
 
+        // Remove commits not on a branch. This will give all commits a new index.
         let filtered_commits: Vec<CommitInfo> = commits
             .into_iter()
             .filter(|info| info.branch_trace.is_some())
             .collect();
 
+        // Create indices from git object id into the filtered commits
         let filtered_indices: HashMap<Oid, usize> = filtered_commits
             .iter()
             .enumerate()
             .map(|(idx, info)| (info.oid, idx))
             .collect();
 
+        // Map from old index to new index. None, if old index was removed
         let index_map: HashMap<usize, Option<&usize>> = indices
             .iter()
             .map(|(oid, index)| (*index, filtered_indices.get(oid)))
             .collect();
 
+        // Update branch.range from old to new index. Shrink if endpoints were removed.
         for branch in all_branches.iter_mut() {
             if let Some(mut start_idx) = branch.range.0 {
                 let mut idx0 = index_map[&start_idx];
@@ -203,7 +238,7 @@ impl HeadInfo {
 pub struct CommitInfo {
     pub oid: Oid,
     pub is_merge: bool,
-    pub parents: [Option<Oid>; 2],
+    pub parents: Vec<Oid>,
     pub children: Vec<Oid>,
     pub branches: Vec<usize>,
     pub tags: Vec<usize>,
@@ -212,10 +247,11 @@ pub struct CommitInfo {
 
 impl CommitInfo {
     fn new(commit: &Commit) -> Self {
+        let parents = commit.parent_ids().collect();
         CommitInfo {
             oid: commit.id(),
             is_merge: commit.parent_count() > 1,
-            parents: [commit.parent_id(0).ok(), commit.parent_id(1).ok()],
+            parents,
             children: Vec::new(),
             branches: Vec::new(),
             tags: Vec::new(),
@@ -301,10 +337,10 @@ fn assign_children(commits: &mut [CommitInfo], indices: &HashMap<Oid, usize>) {
     for idx in 0..commits.len() {
         let (oid, parents) = {
             let info = &commits[idx];
-            (info.oid, info.parents)
+            (info.oid, info.parents.clone())
         };
-        for par_oid in &parents {
-            if let Some(par_idx) = par_oid.and_then(|oid| indices.get(&oid)) {
+        for par_oid in parents {
+            if let Some(par_idx) = indices.get(&par_oid) {
                 commits[*par_idx].children.push(oid);
             }
         }
@@ -468,9 +504,7 @@ fn assign_sources_targets(
         let mut max_par_order = None;
         let mut source_branch_id = None;
         for par_oid in info.parents.iter() {
-            let par_info = par_oid
-                .and_then(|oid| indices.get(&oid))
-                .and_then(|idx| commits.get(*idx));
+            let par_info = indices.get(par_oid).and_then(|idx| commits.get(*idx));
             if let Some(par_info) = par_info {
                 if par_info.branch_trace != info.branch_trace {
                     if let Some(trace) = par_info.branch_trace {
@@ -931,6 +965,9 @@ fn branch_color<T: Clone>(
 
 /// Tries to extract the name of a merged-in branch from the merge commit summary.
 pub fn parse_merge_summary(summary: &str, patterns: &MergePatterns) -> Option<String> {
+    // TODO: Match octo-merge
+    // Example with 3 parents, f1 is primary:
+    //   Merge branches 'f1', 'f2' and 'f3'
     for regex in &patterns.patterns {
         if let Some(captures) = regex.captures(summary) {
             if captures.len() == 2 && captures.get(1).is_some() {

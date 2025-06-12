@@ -422,7 +422,7 @@ fn run(
     pager: bool,
 ) -> Result<(), String> {
     let now = Instant::now();
-    let graph = GitGraph::new(repository, settings, max_commits)?;
+    let graph = GitGraph::new(repository, settings, None, max_commits)?;
 
     let duration_graph = now.elapsed().as_micros();
 
