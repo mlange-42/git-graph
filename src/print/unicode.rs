@@ -37,6 +37,9 @@ type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
 
 /// Creates a text-based visual representation of a graph.
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
+    if graph.all_branches.is_empty() {
+        return Ok((vec![], vec![], vec![]));
+    }
     let num_cols = 2 * graph
         .all_branches
         .iter()
