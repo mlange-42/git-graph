@@ -1,6 +1,11 @@
 //! git-graph shows clear git graphs arranged for your branching model.
 //!
 //! It provides both a library and a command line tool.
+//!
+//! The main steps are:
+//! 1. Read branching model configuration (See [config] and [settings])
+//! 2. Lay out the graph structure according to the branching model (See [graph])
+//! 3. Render the layout to text or SVG (See [mod@print])
 
 use git2::Repository;
 use std::path::Path;

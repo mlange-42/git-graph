@@ -1,4 +1,4 @@
-//! Create graphs in SVG format (Scalable Vector Graphics).
+//! Create graphs in Unicode format with ANSI X3.64 / ISO 6429 colour codes
 
 use crate::graph::{CommitInfo, GitGraph, HeadInfo};
 use crate::print::format::CommitFormat;
@@ -33,7 +33,26 @@ const WHITE: u8 = 7;
 const HEAD_COLOR: u8 = 14;
 const HASH_COLOR: u8 = 11;
 
-type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
+/**
+UnicodeGraphInfo is a type alias for a tuple containing three elements:
+graph-lines, text-lines, start-row
+
+1.  graph_lines: `Vec<String>` - This represents the lines of the generated text-based graph
+    visualization. Each `String` in this vector corresponds to a single row of
+    the graph output, containing characters that form the visual representation
+    of the commit history (like lines, dots, and branch intersections).
+
+2.  text_lines: `Vec<String>`: This represents the lines of the commit messages or other
+    textual information associated with each commit in the graph. Each `String`
+    in this vector corresponds to a line of text that is displayed alongside
+    the graph. This can include commit hashes, author information, commit
+    messages, branch names, and tags, depending on the formatting settings.
+    Some entries in this vector might be empty strings or correspond to
+    inserted blank lines for visual spacing.
+
+3.  start_row: `Vec<usize>`: Starting row for commit in the `graph.commits` vector.
+*/
+pub type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
 
 /// Creates a text-based visual representation of a graph.
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
@@ -64,6 +83,8 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
         None
     };
 
+    // Compute commit text into text_lines and add blank rows
+    // if needed to match branch graph inserts.
     let mut index_map = vec![];
     let mut text_lines = vec![];
     let mut offset = 0;
@@ -114,80 +135,65 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
         [SPACE, WHITE, settings.branches.persistence.len() as u8 + 2],
     );
 
+    // Compute branch lines in grid
     for (idx, info) in graph.commits.iter().enumerate() {
-        if let Some(trace) = info.branch_trace {
-            let branch = &graph.all_branches[trace];
-            let column = branch.visual.column.unwrap();
-            let idx_map = index_map[idx];
+        let Some(trace) = info.branch_trace else {
+            continue;
+        };
+        let branch = &graph.all_branches[trace];
+        let column = branch.visual.column.unwrap();
+        let idx_map = index_map[idx];
 
-            let branch_color = branch.visual.term_color;
+        let branch_color = branch.visual.term_color;
 
-            grid.set(
-                column * 2,
-                idx_map,
-                if info.is_merge { CIRCLE } else { DOT },
-                branch_color,
-                branch.persistence,
-            );
+        grid.set(
+            column * 2,
+            idx_map,
+            if info.is_merge { CIRCLE } else { DOT },
+            branch_color,
+            branch.persistence,
+        );
+        for (p, par_oid) in info.parents.iter().enumerate() {
+            let Some(par_idx) = graph.indices.get(par_oid) else {
+                // Parent is outside scope of graph.indices
+                // so draw a vertical line to the bottom
+                let idx_bottom = grid.height;
+                vline(
+                    &mut grid,
+                    (idx_map, idx_bottom),
+                    column,
+                    branch_color,
+                    branch.persistence,
+                );
+                continue;
+            };
 
-            for p in 0..2 {
-                if let Some(par_oid) = info.parents[p] {
-                    if let Some(par_idx) = graph.indices.get(&par_oid) {
-                        let par_idx_map = index_map[*par_idx];
-                        let par_info = &graph.commits[*par_idx];
-                        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
-                        let par_column = par_branch.visual.column.unwrap();
+            let par_idx_map = index_map[*par_idx];
+            let par_info = &graph.commits[*par_idx];
+            let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
+            let par_column = par_branch.visual.column.unwrap();
 
-                        let (color, pers) = if info.is_merge {
-                            (par_branch.visual.term_color, par_branch.persistence)
-                        } else {
-                            (branch_color, branch.persistence)
-                        };
+            let (color, pers) = if info.is_merge {
+                (par_branch.visual.term_color, par_branch.persistence)
+            } else {
+                (branch_color, branch.persistence)
+            };
 
-                        if branch.visual.column == par_branch.visual.column {
-                            if par_idx_map > idx_map + 1 {
-                                vline(&mut grid, (idx_map, par_idx_map), column, color, pers);
-                            }
-                        } else {
-                            let split_index = super::get_deviate_index(graph, idx, *par_idx);
-                            let split_idx_map = index_map[split_index];
-                            let inserts = &inserts[&split_index];
-                            for (insert_idx, sub_entry) in inserts.iter().enumerate() {
-                                for occ in sub_entry {
-                                    match occ {
-                                        Occ::Commit(_, _) => {}
-                                        Occ::Range(i1, i2, _, _) => {
-                                            if *i1 == idx && i2 == par_idx {
-                                                vline(
-                                                    &mut grid,
-                                                    (idx_map, split_idx_map + insert_idx),
-                                                    column,
-                                                    color,
-                                                    pers,
-                                                );
-                                                hline(
-                                                    &mut grid,
-                                                    split_idx_map + insert_idx,
-                                                    (par_column, column),
-                                                    info.is_merge && p > 0,
-                                                    color,
-                                                    pers,
-                                                );
-                                                vline(
-                                                    &mut grid,
-                                                    (split_idx_map + insert_idx, par_idx_map),
-                                                    par_column,
-                                                    color,
-                                                    pers,
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+            if branch.visual.column == par_branch.visual.column {
+                if par_idx_map > idx_map + 1 {
+                    vline(&mut grid, (idx_map, par_idx_map), column, color, pers);
                 }
+            } else {
+                let split_index = super::get_deviate_index(graph, idx, *par_idx);
+                let split_idx_map = index_map[split_index];
+                let insert_idx = find_insert_idx(&inserts[&split_index], idx, *par_idx).unwrap();
+                let inx_split = split_idx_map + insert_idx;
+
+                let is_secondary_merge = info.is_merge && p > 0;
+
+                let row123 = (idx_map, inx_split, par_idx_map);
+                let col12 = (column, par_column);
+                zig_zag_line(&mut grid, row123, col12, is_secondary_merge, color, pers);
             }
         }
     }
@@ -233,6 +239,36 @@ fn create_wrapping_options<'a>(
         None
     };
     Ok(wrapping)
+}
+
+/// Find the index of the insert that connects the two commits
+fn find_insert_idx(inserts: &[Vec<Occ>], child_idx: usize, parent_idx: usize) -> Option<usize> {
+    for (insert_idx, sub_entry) in inserts.iter().enumerate() {
+        for occ in sub_entry {
+            if let Occ::Range(i1, i2, _, _) = occ {
+                if *i1 == child_idx && *i2 == parent_idx {
+                    return Some(insert_idx);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Draw a line that connects two commits on different columns
+fn zig_zag_line(
+    grid: &mut Grid,
+    row123: (usize, usize, usize),
+    col12: (usize, usize),
+    is_merge: bool,
+    color: u8,
+    pers: u8,
+) {
+    let (row1, row2, row3) = row123;
+    let (col1, col2) = col12;
+    vline(grid, (row1, row2), col1, color, pers);
+    hline(grid, row2, (col2, col1), is_merge, color, pers);
+    vline(grid, (row2, row3), col2, color, pers);
 }
 
 /// Draws a vertical line
@@ -399,11 +435,38 @@ fn hline(
     }
 }
 
-/// Calculates required additional rows
+/// Calculates required additional rows to visually connect commits that
+/// are not direct descendants in the main commit list. These "inserts"
+//  represent the horizontal lines in the graph.
+///
+/// # Arguments
+///
+/// * `graph`: A reference to the `GitGraph` structure containing the
+//             commit and branch information.
+/// * `compact`: A boolean indicating whether to use a compact layout,
+//               potentially merging some insertions with commits.
+///
+/// # Returns
+///
+/// A `HashMap` where the keys are the indices of commits in the
+/// `graph.commits` vector, and the values are vectors of vectors
+/// of `Occ`. Each inner vector represents a potential row of
+/// insertions needed *before* the commit at the key index. The
+/// `Occ` enum describes what occupies a cell in that row
+/// (either a commit or a range representing a connection).
+///
 fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>> {
+    // Initialize an empty HashMap to store the required insertions. The key is the commit
+    // index, and the value is a vector of rows, where each row is a vector of Occupations (`Occ`).
     let mut inserts: HashMap<usize, Vec<Vec<Occ>>> = HashMap::new();
 
+    // First, for each commit, we initialize an entry in the `inserts`
+    // map with a single row containing the commit itself. This ensures
+    // that every commit has a position in the grid.
     for (idx, info) in graph.commits.iter().enumerate() {
+        // Get the visual column assigned to the branch of this commit. Unwrap is safe here
+        // because `branch_trace` should always point to a valid branch with an assigned column
+        // for commits that are included in the filtered graph.
         let column = graph.all_branches[info.branch_trace.unwrap()]
             .visual
             .column
@@ -412,78 +475,109 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
         inserts.insert(idx, vec![vec![Occ::Commit(idx, column)]]);
     }
 
+    // Now, iterate through the commits again to identify connections
+    // needed between parents that are not directly adjacent in the
+    // `graph.commits` list.
     for (idx, info) in graph.commits.iter().enumerate() {
+        // If the commit has a branch trace (meaning it belongs to a visualized branch).
         if let Some(trace) = info.branch_trace {
+            // Get the `BranchInfo` for the current commit's branch.
             let branch = &graph.all_branches[trace];
+            // Get the visual column of the current commit's branch. Unwrap is safe as explained above.
             let column = branch.visual.column.unwrap();
 
-            for p in 0..2 {
-                if let Some(par_oid) = info.parents[p] {
-                    if let Some(par_idx) = graph.indices.get(&par_oid) {
-                        let par_info = &graph.commits[*par_idx];
-                        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
-                        let par_column = par_branch.visual.column.unwrap();
-                        let column_range = sorted(column, par_column);
+            // Iterate through the two possible parents of the current commit.
+            for (p, par_oid) in info.parents.iter().enumerate() {
+                // Try to find the index of the parent commit in the `graph.commits` vector.
+                if let Some(par_idx) = graph.indices.get(par_oid) {
+                    let par_info = &graph.commits[*par_idx];
+                    let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
+                    let par_column = par_branch.visual.column.unwrap();
+                    // Determine the sorted range of columns between the current commit and its parent.
+                    let column_range = sorted(column, par_column);
 
-                        if column != par_column {
-                            let split_index = super::get_deviate_index(graph, idx, *par_idx);
-                            match inserts.entry(split_index) {
-                                Occupied(mut entry) => {
-                                    let mut insert_at = entry.get().len();
-                                    for (insert_idx, sub_entry) in entry.get().iter().enumerate() {
-                                        let mut occ = false;
-                                        for other_range in sub_entry {
-                                            if other_range.overlaps(&column_range) {
-                                                match other_range {
-                                                    Occ::Commit(target_index, _) => {
-                                                        if !compact
-                                                            || !info.is_merge
-                                                            || idx != *target_index
-                                                            || p == 0
-                                                        {
-                                                            occ = true;
-                                                            break;
-                                                        }
+                    // If the column of the current commit is different from the column of its parent,
+                    // it means we need to draw a horizontal line (an "insert") to connect them.
+                    if column != par_column {
+                        // Find the index in the `graph.commits` list where the visual connection
+                        // should deviate from the parent's line. This helps in drawing the graph
+                        // correctly when branches diverge or merge.
+                        let split_index = super::get_deviate_index(graph, idx, *par_idx);
+                        // Access the entry in the `inserts` map for the `split_index`.
+                        match inserts.entry(split_index) {
+                            // If there's already an entry at this `split_index` (meaning other
+                            // insertions might be needed before this commit).
+                            Occupied(mut entry) => {
+                                // Find the first available row in the existing vector of rows
+                                // where the new range doesn't overlap with existing occupations.
+                                let mut insert_at = entry.get().len();
+                                for (insert_idx, sub_entry) in entry.get().iter().enumerate() {
+                                    let mut occ = false;
+                                    // Check for overlaps with existing `Occ` in the current row.
+                                    for other_range in sub_entry {
+                                        // Check if the current column range overlaps with the other range.
+                                        if other_range.overlaps(&column_range) {
+                                            match other_range {
+                                                // If the other occupation is a commit.
+                                                Occ::Commit(target_index, _) => {
+                                                    // In compact mode, we might allow overlap with the commit itself
+                                                    // for merge commits (specifically the second parent) to keep the
+                                                    // graph tighter.
+                                                    if !compact
+                                                        || !info.is_merge
+                                                        || idx != *target_index
+                                                        || p == 0
+                                                    {
+                                                        occ = true;
+                                                        break;
                                                     }
-                                                    Occ::Range(o_idx, o_par_idx, _, _) => {
-                                                        if idx != *o_idx && par_idx != o_par_idx {
-                                                            occ = true;
-                                                            break;
-                                                        }
+                                                }
+                                                // If the other occupation is a range (another connection).
+                                                Occ::Range(o_idx, o_par_idx, _, _) => {
+                                                    // Avoid overlap with connections between the same commits.
+                                                    if idx != *o_idx && par_idx != o_par_idx {
+                                                        occ = true;
+                                                        break;
                                                     }
                                                 }
                                             }
                                         }
-                                        if !occ {
-                                            insert_at = insert_idx;
-                                            break;
-                                        }
                                     }
-                                    let vec = entry.get_mut();
-                                    if insert_at == vec.len() {
-                                        vec.push(vec![Occ::Range(
-                                            idx,
-                                            *par_idx,
-                                            column_range.0,
-                                            column_range.1,
-                                        )]);
-                                    } else {
-                                        vec[insert_at].push(Occ::Range(
-                                            idx,
-                                            *par_idx,
-                                            column_range.0,
-                                            column_range.1,
-                                        ));
+                                    // If no overlap is found in this row, we can insert here.
+                                    if !occ {
+                                        insert_at = insert_idx;
+                                        break;
                                     }
                                 }
-                                Vacant(entry) => {
-                                    entry.insert(vec![vec![Occ::Range(
+                                // Get a mutable reference to the vector of rows for this `split_index`.
+                                let vec = entry.get_mut();
+                                // If no suitable row was found, add a new row.
+                                if insert_at == vec.len() {
+                                    vec.push(vec![Occ::Range(
                                         idx,
                                         *par_idx,
                                         column_range.0,
                                         column_range.1,
-                                    )]]);
+                                    )]);
+                                } else {
+                                    // Otherwise, insert the new range into the found row.
+                                    vec[insert_at].push(Occ::Range(
+                                        idx,
+                                        *par_idx,
+                                        column_range.0,
+                                        column_range.1,
+                                    ));
                                 }
+                            }
+                            // If there's no entry at this `split_index` yet.
+                            Vacant(entry) => {
+                                // Create a new entry with a single row containing the range.
+                                entry.insert(vec![vec![Occ::Range(
+                                    idx,
+                                    *par_idx,
+                                    column_range.0,
+                                    column_range.1,
+                                )]]);
                             }
                         }
                     }
@@ -492,6 +586,7 @@ fn get_inserts(graph: &GitGraph, compact: bool) -> HashMap<usize, Vec<Vec<Occ>>>
         }
     }
 
+    // Return the map of required insertions.
     inserts
 }
 
@@ -652,8 +747,19 @@ pub fn format_branches(
 
 /// Occupied row ranges
 enum Occ {
-    Commit(usize, usize),
-    Range(usize, usize, usize, usize),
+    /// Horizontal position of commit markers
+    // First  field (usize): The index of a commit within the graph.commits vector.
+    // Second field (usize): The visual column in the grid where this commit is located. This column is determined by the branch the commit belongs to.
+    // Purpose: This variant of Occ signifies that a specific row in the grid is occupied by a commit marker (dot or circle) at a particular column.
+    Commit(usize, usize), // index in Graph.commits, column
+
+    /// Horizontal line connecting two commits
+    // First  field (usize): The index of the starting commit of a visual connection (usually the child commit).
+    // Second field (usize): The index of the ending commit of a visual connection (usually the parent commit).
+    // Third  field (usize): The starting visual column of the range occupied by the connection line between the two commits. This is the minimum of the columns of the two connected commits.
+    // Fourth field (usize): The ending visual column of the range occupied by the connection line between the two commits. This is the maximum of the columns of the two connected commits.
+    // Purpose: This variant of Occ signifies that a range of columns in a particular row is occupied by a horizontal line segment connecting a commit to one of its parents. The range spans from the visual column of one commit to the visual column of the other.
+    Range(usize, usize, usize, usize), // ?child index, parent index, leftmost column, rightmost column
 }
 
 impl Occ {
@@ -674,11 +780,17 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     }
 }
 
-/// Two-dimensional grid with 3 layers, used to produce the graph representation.
+/// Two-dimensional grid used to produce the graph representation.
 #[allow(dead_code)]
 struct Grid {
     width: usize,
     height: usize,
+
+    /// Grid cells are stored in the data vector, layout row wise.
+    /// For each cell in the grid, three values are stored:
+    /// - Character (symbol)
+    /// - Colour
+    /// - Persistence level (z-order, lower numbers take preceedence)
     data: Vec<[u8; 3]>,
 }
 
@@ -694,6 +806,7 @@ impl Grid {
     pub fn reverse(&mut self) {
         self.data.reverse();
     }
+    /// Turn a 2D coordinate into an index of Grid.data
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }
