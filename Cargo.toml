@@ -18,7 +18,7 @@ debug-assertions = false
 overflow-checks = false
 
 [dependencies]
-git2 = {version = "0.15", default-features = false, optional = false}
+git2 = {version = "0.20", default-features = false, optional = false}
 regex = {version = "1.7", default-features = false, optional = false, features = ["std"]}
 serde = "1.0"
 serde_derive = {version = "1.0", default-features = false, optional = false}
