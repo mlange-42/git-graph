@@ -130,7 +130,11 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
     let mut grid = Grid::new(
         num_cols,
         graph.commits.len() + offset,
-        [SPACE, WHITE, settings.branches.persistence.len() as u8 + 2],
+        GridCell {
+            character: SPACE,
+            color: WHITE,
+            pers: settings.branches.persistence.len() as u8 + 2,
+        },
     );
 
     for (idx, info) in graph.commits.iter().enumerate() {
@@ -529,22 +533,18 @@ fn print_graph(
         let mut t_out = String::new();
 
         if color {
-            for arr in row {
-                if arr[0] == SPACE {
-                    write!(g_out, "{}", characters.chars[arr[0] as usize])
+            for cell in row {
+                if cell.character == SPACE {
+                    write!(g_out, "{}", cell.char(characters))
                 } else {
-                    write!(
-                        g_out,
-                        "{}",
-                        Paint::fixed(arr[1], characters.chars[arr[0] as usize])
-                    )
+                    write!(g_out, "{}", Paint::fixed(cell.color, cell.char(characters)))
                 }
                 .unwrap();
             }
         } else {
             let str = row
                 .iter()
-                .map(|arr| characters.chars[arr[0] as usize])
+                .map(|cell| cell.char(characters))
                 .collect::<String>();
             write!(g_out, "{}", str).unwrap();
         }
@@ -704,22 +704,36 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     }
 }
 
-/// Two-dimensional grid used to produce the graph representation.
-#[allow(dead_code)]
+/// One cell in a [Grid]
+#[derive(Clone, Copy)]
+struct GridCell {
+    /// The symbol shown, encoded as in index into settings::Characters
+    character: u8,
+    /// Standard 8-bit terminal colour code
+    color: u8,
+    /// Persistence level. z-order, lower numbers take preceedence.
+    pers: u8,
+}
+
+impl GridCell {
+    pub fn char(&self, characters: &Characters) -> char {
+        characters.chars[self.character as usize]
+    }
+}
+
+/// Two-dimensional grid used to hold the graph layout.
+///
+/// This can be rendered as unicode text or as SVG.
 struct Grid {
     width: usize,
     height: usize,
 
-    /// Grid cells are stored in the data vector, layout row wise.
-    /// For each cell in the grid, three values are stored:
-    /// - Character (symbol)
-    /// - Colour
-    /// - Persistence level (z-order, lower numbers take preceedence)
-    data: Vec<[u8; 3]>,
+    /// Grid cells are stored in row-major order.
+    data: Vec<GridCell>,
 }
 
 impl Grid {
-    pub fn new(width: usize, height: usize, initial: [u8; 3]) -> Self {
+    pub fn new(width: usize, height: usize, initial: GridCell) -> Self {
         Grid {
             width,
             height,
@@ -736,11 +750,15 @@ impl Grid {
     }
     pub fn get_tuple(&self, x: usize, y: usize) -> (u8, u8, u8) {
         let v = self.data[self.index(x, y)];
-        (v[0], v[1], v[2])
+        (v.character, v.color, v.pers)
     }
     pub fn set(&mut self, x: usize, y: usize, character: u8, color: u8, pers: u8) {
         let idx = self.index(x, y);
-        self.data[idx] = [character, color, pers];
+        self.data[idx] = GridCell {
+            character,
+            color,
+            pers,
+        };
     }
     pub fn set_opt(
         &mut self,
@@ -751,15 +769,15 @@ impl Grid {
         pers: Option<u8>,
     ) {
         let idx = self.index(x, y);
-        let arr = &mut self.data[idx];
+        let cell = &mut self.data[idx];
         if let Some(character) = character {
-            arr[0] = character;
+            cell.character = character;
         }
         if let Some(color) = color {
-            arr[1] = color;
+            cell.color = color;
         }
         if let Some(pers) = pers {
-            arr[2] = pers;
+            cell.pers = pers;
         }
     }
 }
