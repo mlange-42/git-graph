@@ -509,59 +509,79 @@ fn assign_sources_targets(
     }
 }
 
-/// Extracts (real or derived from merge summary) and assigns basic properties.
-fn extract_branches(
+/// Extracts and processes actual Git branches (local and remote) from the repository.
+///
+/// This function iterates through the branches found in the Git repository,
+/// filters them based on the `include_remote` setting, and constructs `BranchInfo`
+/// objects for each valid branch. It assigns properties like name, type (local/remote),
+/// visual order, and colors based on the provided settings.
+///
+/// Arguments:
+/// - `repository`: A reference to the Git `Repository` object.
+/// - `indices`: A HashMap mapping commit OIDs to their corresponding indices in the `commits` list.
+/// - `settings`: A reference to the application `Settings` containing branch configuration.
+/// - `counter`: A mutable reference to a counter, incremented for each processed branch to aid in color assignment.
+///
+/// Returns:
+/// A `Result` containing a `Vec<BranchInfo>` on success, or a `String` error message on failure.
+fn extract_actual_branches(
     repository: &Repository,
-    commits: &[CommitInfo],
     indices: &HashMap<Oid, usize>,
     settings: &Settings,
+    counter: &mut usize,
 ) -> Result<Vec<BranchInfo>, String> {
+    // Determine if remote branches should be included based on settings.
     let filter = if settings.include_remote {
         None
     } else {
         Some(BranchType::Local)
     };
+
+    // Retrieve branches from the repository, handling potential errors.
     let actual_branches = repository
         .branches(filter)
         .map_err(|err| err.message().to_string())?
         .collect::<Result<Vec<_>, Error>>()
         .map_err(|err| err.message().to_string())?;
 
-    let mut counter = 0;
-
-    let mut valid_branches = actual_branches
+    // Process each actual branch to create `BranchInfo` objects.
+    let valid_branches = actual_branches
         .iter()
         .filter_map(|(br, tp)| {
             br.get().name().and_then(|n| {
                 br.get().target().map(|t| {
-                    counter += 1;
+                    *counter += 1; // Increment counter for unique branch identification/coloring.
+
+                    // Determine the starting index for slicing the branch name string.
                     let start_index = match tp {
-                        BranchType::Local => 11,
-                        BranchType::Remote => 13,
+                        BranchType::Local => 11,  // "refs/heads/"
+                        BranchType::Remote => 13, // "refs/remotes/"
                     };
                     let name = &n[start_index..];
                     let end_index = indices.get(&t).cloned();
 
+                    // Convert branch color to a terminal-compatible format.
                     let term_color = match to_terminal_color(
                         &branch_color(
                             name,
                             &settings.branches.terminal_colors[..],
                             &settings.branches.terminal_colors_unknown,
-                            counter,
+                            *counter,
                         )[..],
                     ) {
                         Ok(col) => col,
-                        Err(err) => return Err(err),
+                        Err(err) => return Err(err), // Propagate color conversion errors.
                     };
 
+                    // Create and return the BranchInfo object.
                     Ok(BranchInfo::new(
                         t,
-                        None,
+                        None, // No merge OID for actual branches.
                         name.to_string(),
                         branch_order(name, &settings.branches.persistence) as u8,
-                        &BranchType::Remote == tp,
-                        false,
-                        false,
+                        &BranchType::Remote == tp, // Check if it's a remote branch.
+                        false,                     // Not a derived merge branch.
+                        false,                     // Not a tag.
                         BranchVis::new(
                             branch_order(name, &settings.branches.order),
                             term_color,
@@ -569,7 +589,7 @@ fn extract_branches(
                                 name,
                                 &settings.branches.svg_colors,
                                 &settings.branches.svg_colors_unknown,
-                                counter,
+                                *counter,
                             ),
                         ),
                         end_index,
@@ -577,86 +597,147 @@ fn extract_branches(
                 })
             })
         })
-        .collect::<Result<Vec<_>, String>>()?;
+        .collect::<Result<Vec<_>, String>>()?; // Collect results, propagating any errors.
+
+    Ok(valid_branches)
+}
+
+/// Iterates through commits, identifies merge commits, and derives branch information
+/// from their summaries.
+///
+/// This function processes each commit in the provided list. If a commit is identified
+/// as a merge commit and has a summary, it attempts to parse a branch name from the summary.
+/// A `BranchInfo` object is then created for this derived branch, representing the merge
+/// point and its properties.
+///
+/// Arguments:
+/// - `repository`: A reference to the Git `Repository` object.
+/// - `commits`: A slice of `CommitInfo` objects, representing the commits to process.
+/// - `settings`: A reference to the application `Settings` containing branch and merge pattern configuration.
+/// - `counter`: A mutable reference to a counter, incremented for each processed merge branch.
+///
+/// Returns:
+/// A `Result` containing a `Vec<BranchInfo>` on success, or a `String` error message on failure.
+fn extract_merge_branches(
+    repository: &Repository,
+    commits: &[CommitInfo],
+    settings: &Settings,
+    counter: &mut usize,
+) -> Result<Vec<BranchInfo>, String> {
+    let mut merge_branches = Vec::new();
 
     for (idx, info) in commits.iter().enumerate() {
-        let commit = repository
-            .find_commit(info.oid)
-            .map_err(|err| err.message().to_string())?;
+        // Only process if the commit is a merge.
         if info.is_merge {
+            let commit = repository
+                .find_commit(info.oid)
+                .map_err(|err| err.message().to_string())?;
+
+            // Attempt to get the commit summary.
             if let Some(summary) = commit.summary() {
-                counter += 1;
+                *counter += 1; // Increment counter for unique branch identification/coloring.
 
                 let parent_oid = commit
                     .parent_id(1)
                     .map_err(|err| err.message().to_string())?;
 
+                // Parse the branch name from the merge summary using configured patterns.
                 let branch_name = parse_merge_summary(summary, &settings.merge_patterns)
                     .unwrap_or_else(|| "unknown".to_string());
 
+                // Determine persistence and order for the derived branch.
                 let persistence = branch_order(&branch_name, &settings.branches.persistence) as u8;
-
                 let pos = branch_order(&branch_name, &settings.branches.order);
 
+                // Get terminal and SVG colors for the branch.
                 let term_col = to_terminal_color(
                     &branch_color(
                         &branch_name,
                         &settings.branches.terminal_colors[..],
                         &settings.branches.terminal_colors_unknown,
-                        counter,
+                        *counter,
                     )[..],
                 )?;
                 let svg_col = branch_color(
                     &branch_name,
                     &settings.branches.svg_colors,
                     &settings.branches.svg_colors_unknown,
-                    counter,
+                    *counter,
                 );
 
+                // Create and add the BranchInfo for the derived merge branch.
                 let branch_info = BranchInfo::new(
-                    parent_oid,
-                    Some(info.oid),
+                    parent_oid,     // Target is the parent of the merge.
+                    Some(info.oid), // The merge commit itself.
                     branch_name,
                     persistence,
-                    false,
-                    true,
-                    false,
+                    false, // Not a remote branch.
+                    true,  // This is a derived merge branch.
+                    false, // Not a tag.
                     BranchVis::new(pos, term_col, svg_col),
-                    Some(idx + 1),
+                    Some(idx + 1), // End index typically points to the commit after the merge.
                 );
-                valid_branches.push(branch_info);
+                merge_branches.push(branch_info);
             }
         }
     }
+    Ok(merge_branches)
+}
 
-    valid_branches.sort_by_cached_key(|branch| (branch.persistence, !branch.is_merged));
+/// Extracts Git tags and treats them as branches, assigning appropriate properties.
+///
+/// This function iterates through all tags in the repository, resolves their target
+/// commit OID, and if the target commit is found within the `commits` list,
+/// a `BranchInfo` object is created for the tag. Tags are assigned a higher
+/// persistence value to ensure they are displayed prominently.
+///
+/// Arguments:
+/// - `repository`: A reference to the Git `Repository` object.
+/// - `indices`: A HashMap mapping commit OIDs to their corresponding indices in the `commits` list.
+/// - `settings`: A reference to the application `Settings` containing branch configuration.
+/// - `counter`: A mutable reference to a counter, incremented for each processed tag.
+///
+/// Returns:
+/// A `Result` containing a `Vec<BranchInfo>` on success, or a `String` error message on failure.
+fn extract_tags_as_branches(
+    repository: &Repository,
+    indices: &HashMap<Oid, usize>,
+    settings: &Settings,
+    counter: &mut usize,
+) -> Result<Vec<BranchInfo>, String> {
+    let mut tags_info = Vec::new();
+    let mut tags_raw = Vec::new();
 
-    let mut tags = Vec::new();
-
+    // Iterate over all tags in the repository.
     repository
         .tag_foreach(|oid, name| {
-            tags.push((oid, name.to_vec()));
-            true
+            tags_raw.push((oid, name.to_vec()));
+            true // Continue iteration.
         })
         .map_err(|err| err.message().to_string())?;
 
-    for (oid, name) in tags {
-        let name = std::str::from_utf8(&name[5..]).map_err(|err| err.to_string())?;
+    for (oid, name_bytes) in tags_raw {
+        // Convert tag name bytes to a UTF-8 string. Tags typically start with "refs/tags/".
+        let name = std::str::from_utf8(&name_bytes[5..]).map_err(|err| err.to_string())?;
 
+        // Resolve the target OID of the tag. It could be a tag object or directly a commit.
         let target = repository
             .find_tag(oid)
             .map(|tag| tag.target_id())
-            .or_else(|_| repository.find_commit(oid).map(|_| oid));
+            .or_else(|_| repository.find_commit(oid).map(|_| oid)); // If not a tag object, try as a direct commit.
 
         if let Ok(target_oid) = target {
+            // If the target commit is within our processed commits, create a BranchInfo.
             if let Some(target_index) = indices.get(&target_oid) {
-                counter += 1;
+                *counter += 1; // Increment counter for unique tag identification/coloring.
+
+                // Get terminal and SVG colors for the tag.
                 let term_col = to_terminal_color(
                     &branch_color(
                         name,
                         &settings.branches.terminal_colors[..],
                         &settings.branches.terminal_colors_unknown,
-                        counter,
+                        *counter,
                     )[..],
                 )?;
                 let pos = branch_order(name, &settings.branches.order);
@@ -664,25 +745,72 @@ fn extract_branches(
                     name,
                     &settings.branches.svg_colors,
                     &settings.branches.svg_colors_unknown,
-                    counter,
+                    *counter,
                 );
+
+                // Create the BranchInfo object for the tag.
                 let tag_info = BranchInfo::new(
                     target_oid,
-                    None,
+                    None, // No merge OID for tags.
                     name.to_string(),
-                    settings.branches.persistence.len() as u8 + 1,
-                    false,
-                    false,
-                    true,
+                    settings.branches.persistence.len() as u8 + 1, // Tags usually have highest persistence.
+                    false,                                         // Not a remote branch.
+                    false,                                         // Not a derived merge branch.
+                    true,                                          // This is a tag.
                     BranchVis::new(pos, term_col, svg_col),
                     Some(*target_index),
                 );
-                valid_branches.push(tag_info);
+                tags_info.push(tag_info);
             }
         }
     }
+    Ok(tags_info)
+}
 
-    Ok(valid_branches)
+/// Extracts (real or derived from merge summary) and assigns basic properties to branches and tags.
+///
+/// This function orchestrates the extraction of branch information from various sources:
+/// 1. Actual Git branches (local and remote).
+/// 2. Branches derived from merge commit summaries.
+/// 3. Git tags, treated as branches for visualization purposes.
+///
+/// It combines the results from these extraction steps, sorts them based on
+/// persistence and merge status, and returns a comprehensive list of `BranchInfo` objects.
+///
+/// Arguments:
+/// - `repository`: A reference to the Git `Repository` object.
+/// - `commits`: A slice of `CommitInfo` objects, representing all relevant commits.
+/// - `indices`: A HashMap mapping commit OIDs to their corresponding indices in the `commits` list.
+/// - `settings`: A reference to the application `Settings` containing all necessary configuration.
+///
+/// Returns:
+/// A `Result` containing a `Vec<BranchInfo>` on success, or a `String` error message on failure.
+fn extract_branches(
+    repository: &Repository,
+    commits: &[CommitInfo],
+    indices: &HashMap<Oid, usize>,
+    settings: &Settings,
+) -> Result<Vec<BranchInfo>, String> {
+    let mut counter = 0; // Counter for unique branch/tag identification, especially for coloring.
+    let mut all_branches: Vec<BranchInfo> = Vec::new();
+
+    // 1. Extract actual local and remote branches.
+    let actual_branches = extract_actual_branches(repository, indices, settings, &mut counter)?;
+    all_branches.extend(actual_branches);
+
+    // 2. Extract branches derived from merge commit summaries.
+    let merge_branches = extract_merge_branches(repository, commits, settings, &mut counter)?;
+    all_branches.extend(merge_branches);
+
+    // 3. Extract tags and treat them as branches for visualization.
+    let tags_as_branches = extract_tags_as_branches(repository, indices, settings, &mut counter)?;
+    all_branches.extend(tags_as_branches);
+
+    // Sort all collected branches and tags.
+    // Sorting criteria: first by persistence, then by whether they are merged (unmerged first).
+    all_branches.sort_by_cached_key(|branch| (branch.persistence, !branch.is_merged));
+
+    Ok(all_branches)
 }
 
 /// Traces back branches by following 1st commit parent,
