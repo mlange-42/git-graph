@@ -898,21 +898,21 @@ fn assign_branch_columns(
         group_occ[found].push((start, end));
     }
 
-    let group_offset: Vec<usize> = occupied
-        .iter()
-        .scan(0, |acc, group| {
-            *acc += group.len();
-            Some(*acc)
-        })
-        .collect();
+    // Compute start column of each group
+    let mut group_offset: Vec<usize> = vec![];
+    let mut acc = 0;
+    for group in occupied {
+        group_offset.push(acc);
+        acc += group.len();
+    }
 
+    // Compute branch column. Up till now we have computed the branch group
+    // and the column offset within that group. This was to make it easy to
+    // insert columns between groups. Now it is time to convert offset relative
+    // to the group the final column.
     for branch in branches {
         if let Some(column) = branch.visual.column {
-            let offset = if branch.visual.order_group == 0 {
-                0
-            } else {
-                group_offset[branch.visual.order_group - 1]
-            };
+            let offset = group_offset[branch.visual.order_group];
             branch.visual.column = Some(column + offset);
         }
     }
