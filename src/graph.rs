@@ -772,16 +772,14 @@ fn trace_branch(
         any_assigned = true;
 
         let commit = repository.find_commit(curr_oid)?;
-        match commit.parent_count() {
-            0 => {
-                start_index = Some(*index as i32);
-                break;
-            }
-            _ => {
-                prev_index = Some(*index);
-                curr_oid = commit.parent_id(0)?;
-            }
+        if commit.parent_count() == 0 {
+            // If no parents, this is the root commit, set `start_index` and break.
+            start_index = Some(*index as i32);
+            break;
         }
+        // Set `prev_index` to the current commit's index and move to the first parent.
+        prev_index = Some(*index);
+        curr_oid = commit.parent_id(0)?;
     }
 
     let branch = &mut branches[branch_index];
