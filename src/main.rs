@@ -502,24 +502,36 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
             let input = crossterm::event::read()?;
             if let Event::Key(evt) = input {
                 match evt.code {
-                    KeyCode::Down => {
+                    KeyCode::Down | KeyCode::Char('j') => {
                         start_idx += 1;
                         should_update = true;
                     }
-                    KeyCode::Up => {
+                    KeyCode::Up | KeyCode::Char('k') => {
                         if start_idx > 0 {
                             start_idx -= 1;
                             should_update = true;
                         }
                     }
-                    KeyCode::Enter | KeyCode::PageDown => {
+                    KeyCode::Enter | KeyCode::PageDown | KeyCode::Char('f') => {
                         start_idx += height as usize - 2;
                         should_update = true;
                     }
-                    KeyCode::End => {
+                    KeyCode::End | KeyCode::Char('G')  => {
                         start_idx = graph_lines.len() - height as usize - 2;
                         should_update = true;
                         // TODO: maybe make this better
+                    }
+                    KeyCode::PageUp | KeyCode::Char('b') => {
+                        if start_idx >= height as usize - 2 {
+                            start_idx -= height as usize - 2;
+                        } else {
+                            start_idx = 0;
+                        }
+                        should_update = true;
+                    }
+                    KeyCode::Home | KeyCode::Char('g')  => {
+                        start_idx = 0;
+                        should_update = true;
                     }
                     KeyCode::Char(c) => match c {
                         'q' => {
