@@ -516,7 +516,7 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
                         start_idx += height as usize - 2;
                         should_update = true;
                     }
-                    KeyCode::End | KeyCode::Char('G')  => {
+                    KeyCode::End | KeyCode::Char('G') => {
                         start_idx = graph_lines.len() - height as usize - 2;
                         should_update = true;
                         // TODO: maybe make this better
@@ -529,7 +529,7 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
                         }
                         should_update = true;
                     }
-                    KeyCode::Home | KeyCode::Char('g')  => {
+                    KeyCode::Home | KeyCode::Char('g') => {
                         start_idx = 0;
                         should_update = true;
                     }
