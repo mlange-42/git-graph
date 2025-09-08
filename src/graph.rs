@@ -20,7 +20,6 @@
 use crate::print::colors::to_terminal_color;
 use crate::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};
 use git2::{BranchType, Commit, Error, Oid, Reference, Repository};
-use itertools::Itertools;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 
@@ -936,14 +935,15 @@ fn branch_color<T: Clone>(
     unknown: &[T],
     counter: usize,
 ) -> T {
-    let color = order
-        .iter()
-        .find_position(|(b, _)| {
-            (name.starts_with(ORIGIN) && b.is_match(&name[7..])) || b.is_match(name)
-        })
-        .map(|(_pos, col)| &col.1[counter % col.1.len()])
-        .unwrap_or_else(|| &unknown[counter % unknown.len()]);
-    color.clone()
+    let stripped_name = name.strip_prefix(ORIGIN).unwrap_or(name);
+
+    for (regex, colors) in order {
+        if regex.is_match(stripped_name) {
+            return colors[counter % colors.len()].clone();
+        }
+    }
+
+    unknown[counter % unknown.len()].clone()
 }
 
 /// Tries to extract the name of a merged-in branch from the merge commit summary.
