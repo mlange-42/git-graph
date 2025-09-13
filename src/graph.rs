@@ -187,7 +187,7 @@ impl GitGraph {
         self.repository
     }
 
-    pub fn commit(&self, id: Oid) -> Result<Commit, Error> {
+    pub fn commit(&self, id: Oid) -> Result<Commit<'_>, Error> {
         self.repository.find_commit(id)
     }
 }
