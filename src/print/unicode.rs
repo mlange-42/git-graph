@@ -1,4 +1,4 @@
-//! Create graphs in SVG format (Scalable Vector Graphics).
+//! Create graphs in Unicode format with ANSI X3.64 / ISO 6429 colour codes
 
 use crate::graph::{CommitInfo, GitGraph, HeadInfo};
 use crate::print::format::CommitFormat;
@@ -33,7 +33,26 @@ const WHITE: u8 = 7;
 const HEAD_COLOR: u8 = 14;
 const HASH_COLOR: u8 = 11;
 
-type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
+/**
+UnicodeGraphInfo is a type alias for a tuple containing three elements:
+graph-lines, text-lines, start-row
+
+1.  graph_lines: `Vec<String>` - This represents the lines of the generated text-based graph
+    visualization. Each `String` in this vector corresponds to a single row of
+    the graph output, containing characters that form the visual representation
+    of the commit history (like lines, dots, and branch intersections).
+
+2.  text_lines: `Vec<String>`: This represents the lines of the commit messages or other
+    textual information associated with each commit in the graph. Each `String`
+    in this vector corresponds to a line of text that is displayed alongside
+    the graph. This can include commit hashes, author information, commit
+    messages, branch names, and tags, depending on the formatting settings.
+    Some entries in this vector might be empty strings or correspond to
+    inserted blank lines for visual spacing.
+
+3.  start_row: `Vec<usize>`: Starting row for commit in the `graph.commits` vector.
+*/
+pub type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
 
 /// Creates a text-based visual representation of a graph.
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
@@ -652,8 +671,19 @@ pub fn format_branches(
 
 /// Occupied row ranges
 enum Occ {
-    Commit(usize, usize),
-    Range(usize, usize, usize, usize),
+    /// Horizontal position of commit markers
+    // First  field (usize): The index of a commit within the graph.commits vector.
+    // Second field (usize): The visual column in the grid where this commit is located. This column is determined by the branch the commit belongs to.
+    // Purpose: This variant of Occ signifies that a specific row in the grid is occupied by a commit marker (dot or circle) at a particular column.
+    Commit(usize, usize), // index in Graph.commits, column
+
+    /// Horizontal line connecting two commits
+    // First  field (usize): The index of the starting commit of a visual connection (usually the child commit).
+    // Second field (usize): The index of the ending commit of a visual connection (usually the parent commit).
+    // Third  field (usize): The starting visual column of the range occupied by the connection line between the two commits. This is the minimum of the columns of the two connected commits.
+    // Fourth field (usize): The ending visual column of the range occupied by the connection line between the two commits. This is the maximum of the columns of the two connected commits.
+    // Purpose: This variant of Occ signifies that a range of columns in a particular row is occupied by a horizontal line segment connecting a commit to one of its parents. The range spans from the visual column of one commit to the visual column of the other.
+    Range(usize, usize, usize, usize), // ?child index, parent index, leftmost column, rightmost column
 }
 
 impl Occ {
@@ -674,11 +704,17 @@ fn sorted(v1: usize, v2: usize) -> (usize, usize) {
     }
 }
 
-/// Two-dimensional grid with 3 layers, used to produce the graph representation.
+/// Two-dimensional grid used to produce the graph representation.
 #[allow(dead_code)]
 struct Grid {
     width: usize,
     height: usize,
+
+    /// Grid cells are stored in the data vector, layout row wise.
+    /// For each cell in the grid, three values are stored:
+    /// - Character (symbol)
+    /// - Colour
+    /// - Persistence level (z-order, lower numbers take preceedence)
     data: Vec<[u8; 3]>,
 }
 
@@ -694,6 +730,7 @@ impl Grid {
     pub fn reverse(&mut self) {
         self.data.reverse();
     }
+    /// Turn a 2D coordinate into an index of Grid.data
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }

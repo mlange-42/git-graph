@@ -1,3 +1,11 @@
+//! Branching model configurations.
+//!
+//! In this module you will find functions to read and write branching model
+//! configurations on disk.
+//!
+//! The [branching models][BranchSettingsDef] themselves are defined in
+//! module [settings][super::settings]
+
 use crate::settings::{BranchSettingsDef, RepoSettings};
 use git2::Repository;
 use std::ffi::OsStr;
