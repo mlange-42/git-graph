@@ -20,7 +20,6 @@
 use crate::print::colors::to_terminal_color;
 use crate::settings::{BranchOrder, BranchSettings, MergePatterns, Settings};
 use git2::{BranchType, Commit, Error, Oid, Reference, Repository};
-use itertools::Itertools;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 
@@ -773,16 +772,14 @@ fn trace_branch(
         any_assigned = true;
 
         let commit = repository.find_commit(curr_oid)?;
-        match commit.parent_count() {
-            0 => {
-                start_index = Some(*index as i32);
-                break;
-            }
-            _ => {
-                prev_index = Some(*index);
-                curr_oid = commit.parent_id(0)?;
-            }
+        if commit.parent_count() == 0 {
+            // If no parents, this is the root commit, set `start_index` and break.
+            start_index = Some(*index as i32);
+            break;
         }
+        // Set `prev_index` to the current commit's index and move to the first parent.
+        prev_index = Some(*index);
+        curr_oid = commit.parent_id(0)?;
     }
 
     let branch = &mut branches[branch_index];
@@ -901,21 +898,21 @@ fn assign_branch_columns(
         group_occ[found].push((start, end));
     }
 
-    let group_offset: Vec<usize> = occupied
-        .iter()
-        .scan(0, |acc, group| {
-            *acc += group.len();
-            Some(*acc)
-        })
-        .collect();
+    // Compute start column of each group
+    let mut group_offset: Vec<usize> = vec![];
+    let mut acc = 0;
+    for group in occupied {
+        group_offset.push(acc);
+        acc += group.len();
+    }
 
+    // Compute branch column. Up till now we have computed the branch group
+    // and the column offset within that group. This was to make it easy to
+    // insert columns between groups. Now it is time to convert offset relative
+    // to the group the final column.
     for branch in branches {
         if let Some(column) = branch.visual.column {
-            let offset = if branch.visual.order_group == 0 {
-                0
-            } else {
-                group_offset[branch.visual.order_group - 1]
-            };
+            let offset = group_offset[branch.visual.order_group];
             branch.visual.column = Some(column + offset);
         }
     }
@@ -936,14 +933,15 @@ fn branch_color<T: Clone>(
     unknown: &[T],
     counter: usize,
 ) -> T {
-    let color = order
-        .iter()
-        .find_position(|(b, _)| {
-            (name.starts_with(ORIGIN) && b.is_match(&name[7..])) || b.is_match(name)
-        })
-        .map(|(_pos, col)| &col.1[counter % col.1.len()])
-        .unwrap_or_else(|| &unknown[counter % unknown.len()]);
-    color.clone()
+    let stripped_name = name.strip_prefix(ORIGIN).unwrap_or(name);
+
+    for (regex, colors) in order {
+        if regex.is_match(stripped_name) {
+            return colors[counter % colors.len()].clone();
+        }
+    }
+
+    unknown[counter % unknown.len()].clone()
 }
 
 /// Tries to extract the name of a merged-in branch from the merge commit summary.
