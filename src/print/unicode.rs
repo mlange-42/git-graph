@@ -726,7 +726,6 @@ impl GridCell {
 /// This can be rendered as unicode text or as SVG.
 struct Grid {
     width: usize,
-    height: usize,
 
     /// Grid cells are stored in row-major order.
     data: Vec<GridCell>,
@@ -736,7 +735,6 @@ impl Grid {
     pub fn new(width: usize, height: usize, initial: GridCell) -> Self {
         Grid {
             width,
-            height,
             data: vec![initial; width * height],
         }
     }
