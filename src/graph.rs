@@ -34,10 +34,6 @@ pub struct GitGraph {
     pub indices: HashMap<Oid, usize>,
     /// All detected branches and tags, including merged and deleted
     pub all_branches: Vec<BranchInfo>,
-    /// Indices of all real (still existing) branches in `all_branches`
-    pub branches: Vec<usize>,
-    /// Indices of all tags in `all_branches`
-    pub tags: Vec<usize>,
     /// The current HEAD
     pub head: HeadInfo,
 }
@@ -155,37 +151,11 @@ impl GitGraph {
             }
         }
 
-        let branches = all_branches
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, br)| {
-                if !br.is_merged && !br.is_tag {
-                    Some(idx)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let tags = all_branches
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, br)| {
-                if !br.is_merged && br.is_tag {
-                    Some(idx)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
         Ok(GitGraph {
             repository,
             commits: filtered_commits,
             indices: filtered_indices,
             all_branches,
-            branches,
-            tags,
             head,
         })
     }
