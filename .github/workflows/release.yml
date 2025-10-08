@@ -36,7 +36,8 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
           else
-            echo "RELEASE_VERSION=${GITHUB_SHA}" >> $GITHUB_ENV
+            SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+            echo "RELEASE_VERSION=${SHORT_SHA}" >> $GITHUB_ENV
           fi
         shell: bash
 
