@@ -51,7 +51,7 @@ jobs:
         shell: bash
 
       - name: Archive build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.REPO }}-${{ env.RELEASE_VERSION }}-${{ matrix.os_name }}
           path: release.tar.gz
