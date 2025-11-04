@@ -232,17 +232,18 @@ fn create_wrapping_options<'a>(
     } else if atty::is(atty::Stream::Stdout) {
         let width = crossterm::terminal::size()
             .map_err(|err| err.to_string())?
-            .0;
-        let width = if width as usize > graph_width {
-            width as usize - graph_width
+            .0 as usize;
+        let text_width = width.saturating_sub(graph_width);
+        if text_width < 40 {
+            // If too little space left for text, do not wrap at all
+            None
         } else {
-            1
-        };
-        Some(
-            textwrap::Options::new(width)
-                .initial_indent(indent1)
-                .subsequent_indent(indent2),
-        )
+            Some(
+                textwrap::Options::new(text_width)
+                    .initial_indent(indent1)
+                    .subsequent_indent(indent2),
+            )
+        }
     } else {
         None
     };
