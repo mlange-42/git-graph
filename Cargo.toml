@@ -8,6 +8,7 @@ keywords = ["git", "graph"]
 license = "MIT"
 readme = "README.md"
 edition = "2021"
+rust-version = "1.82.0"
 
 [profile.release]
 opt-level = 3
