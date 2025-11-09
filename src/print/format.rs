@@ -540,8 +540,11 @@ pub fn format_date(time: Time, format: &str) -> String {
 
 /// Format a time as a relative time string (e.g., "21 hours ago", "4 days ago")
 pub fn format_relative_time(time: Time) -> String {
-    let commit_time =
-        Local::from_offset(&FixedOffset::east(time.offset_minutes())).timestamp(time.seconds(), 0);
+    let offset = FixedOffset::east_opt(time.offset_minutes() * 60).expect("Invalid offset minutes");
+    let commit_time = Local::from_offset(&offset)
+        .timestamp_opt(time.seconds(), 0)
+        .single()
+        .expect("Invalid timestamp");
     let now = Local::now();
     let duration = now.signed_duration_since(commit_time);
 
