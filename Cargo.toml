@@ -31,6 +31,6 @@ lazy_static = "1.4"
 yansi = "0.5"
 atty = "0.2"
 platform-dirs = "0.3"
-crossterm = {version = "0.25", optional = false}
+crossterm = {version = "0.29", optional = false}
 chrono = {version = "0.4", optional = false}
 textwrap = {version = "0.16", default-features = false, optional = false, features = ["unicode-width"]}

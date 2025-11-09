@@ -5,7 +5,7 @@ use crossterm::cursor::MoveToRow;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
-use crossterm::{ErrorKind, ExecutableCommand};
+use crossterm::ExecutableCommand;
 use git2::Repository;
 use git_graph::config::{
     create_config, get_available_models, get_model, get_model_name, set_model,
@@ -17,7 +17,7 @@ use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
 use git_graph::settings::{BranchOrder, BranchSettings, Characters, MergePatterns, Settings};
 use platform_dirs::AppDirs;
-use std::io::stdout;
+use std::io::{stdout, Error};
 use std::str::FromStr;
 use std::time::Instant;
 
@@ -467,7 +467,7 @@ fn run(
 }
 
 /// Print the graph, paged (i.e. wait for user input once the terminal is filled).
-fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), ErrorKind> {
+fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Error> {
     let (width, height) = crossterm::terminal::size()?;
     let mut start_idx: usize = 0;
     let mut should_update: bool = true;
