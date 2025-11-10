@@ -333,11 +333,14 @@ fn from_args() -> Result<(), String> {
         match &mode[..] {
             "auto" => {
                 atty::is(atty::Stream::Stdout)
-                    && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
+                    && (!cfg!(windows) || {
+                        yansi::enable();
+                        yansi::is_enabled()
+                    })
             }
             "always" => {
                 if cfg!(windows) {
-                    yansi::Paint::enable_windows_ascii();
+                    yansi::enable();
                 }
                 true
             }
@@ -350,7 +353,11 @@ fn from_args() -> Result<(), String> {
             }
         }
     } else {
-        atty::is(atty::Stream::Stdout) && (!cfg!(windows) || yansi::Paint::enable_windows_ascii())
+        atty::is(atty::Stream::Stdout)
+            && (!cfg!(windows) || {
+                yansi::enable();
+                yansi::is_enabled()
+            })
     };
 
     let wrapping = if let Some(wrap_values) = matches.get_many::<String>("wrap") {
