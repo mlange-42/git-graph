@@ -23,9 +23,9 @@ git2 = {version = "0.20", default-features = false, optional = false}
 regex = {version = "1.7", default-features = false, optional = false, features = ["std"]}
 serde = "1.0"
 serde_derive = {version = "1.0", default-features = false, optional = false}
-toml = "0.5"
-itertools = "0.10"
-svg = "0.12"
+toml = "0.9"
+itertools = "0.14"
+svg = "0.18"
 clap = {version = "4.0", optional = false, features = ["cargo"]}
 lazy_static = "1.4"
 yansi = "0.5"
