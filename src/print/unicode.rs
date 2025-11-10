@@ -618,10 +618,11 @@ fn print_graph(
 
         if color {
             for cell in row {
+                let chars = cell.char(characters);
                 if cell.character == SPACE {
-                    write!(g_out, "{}", cell.char(characters))
+                    write!(g_out, "{}", chars)
                 } else {
-                    write!(g_out, "{}", Paint::fixed(cell.color, cell.char(characters)))
+                    write!(g_out, "{}", chars.to_string().fixed(cell.color))
                 }
                 .unwrap();
             }
@@ -682,7 +683,7 @@ pub fn format_branches(
     if let Some(head) = head {
         if !head.is_branch {
             if color {
-                write!(branch_str, " {}", Paint::fixed(HEAD_COLOR, head_str))
+                write!(branch_str, " {}", head_str.fixed(HEAD_COLOR))
             } else {
                 write!(branch_str, " {}", head_str)
             }
@@ -708,7 +709,7 @@ pub fn format_branches(
             if let Some(head) = head {
                 if idx == 0 && head.is_branch {
                     if color {
-                        write!(branch_str, "{} ", Paint::fixed(14, head_str))
+                        write!(branch_str, "{} ", head_str.fixed(14))
                     } else {
                         write!(branch_str, "{} ", head_str)
                     }
@@ -717,7 +718,7 @@ pub fn format_branches(
             }
 
             if color {
-                write!(branch_str, "{}", Paint::fixed(branch_color, &branch.name))
+                write!(branch_str, "{}", &branch.name.fixed(branch_color))
             } else {
                 write!(branch_str, "{}", &branch.name)
             }
@@ -736,10 +737,11 @@ pub fn format_branches(
             let tag = &graph.all_branches[*tag_index];
             let tag_color = curr_color.unwrap_or(&tag.visual.term_color);
 
+            let tag_name = &tag.name[5..];
             if color {
-                write!(branch_str, "{}", Paint::fixed(*tag_color, &tag.name[5..]))
+                write!(branch_str, "{}", tag_name.fixed(*tag_color))
             } else {
-                write!(branch_str, "{}", &tag.name[5..])
+                write!(branch_str, "{}", tag_name)
             }
             .unwrap();
 

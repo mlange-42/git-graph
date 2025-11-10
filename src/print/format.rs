@@ -118,6 +118,7 @@ pub fn format_commit(
                 add_line(&mut lines, &mut out, wrapping);
             } else {
                 write!(out, "{}", &format[curr..start]).unwrap();
+                let id = commit.id();
                 match idx {
                     HASH => {
                         match mode {
@@ -126,9 +127,9 @@ pub fn format_commit(
                             _ => {}
                         }
                         if let Some(color) = hash_color {
-                            write!(out, "{}", Paint::fixed(color, commit.id()))
+                            write!(out, "{}", id.to_string().fixed(color))
                         } else {
-                            write!(out, "{}", commit.id())
+                            write!(out, "{}", id)
                         }
                     }
                     HASH_ABBREV => {
@@ -138,13 +139,9 @@ pub fn format_commit(
                             _ => {}
                         }
                         if let Some(color) = hash_color {
-                            write!(
-                                out,
-                                "{}",
-                                Paint::fixed(color, &commit.id().to_string()[..7])
-                            )
+                            write!(out, "{}", id.to_string()[..7].fixed(color))
                         } else {
-                            write!(out, "{}", &commit.id().to_string()[..7])
+                            write!(out, "{}", &id.to_string()[..7])
                         }
                     }
                     PARENT_HASHES => {
@@ -405,14 +402,11 @@ pub fn format_oneline(
     hash_color: Option<u8>,
 ) -> Vec<String> {
     let mut out = String::new();
+    let id = commit.id();
     if let Some(color) = hash_color {
-        write!(
-            out,
-            "{}",
-            Paint::fixed(color, &commit.id().to_string()[..7])
-        )
+        write!(out, "{}", id.to_string()[..7].fixed(color))
     } else {
-        write!(out, "{}", &commit.id().to_string()[..7])
+        write!(out, "{}", &id.to_string()[..7])
     }
     .unwrap();
 
@@ -447,10 +441,11 @@ pub fn format(
     let mut out_vec = vec![];
     let mut out = String::new();
 
+    let id = commit.id();
     if let Some(color) = hash_color {
-        write!(out, "commit {}", Paint::fixed(color, &commit.id()))
+        write!(out, "commit {}", id.to_string().fixed(color))
     } else {
-        write!(out, "commit {}", &commit.id())
+        write!(out, "commit {}", &id)
     }
     .map_err(|err| err.to_string())?;
 
