@@ -453,7 +453,14 @@ fn run(
         println!("{}", print_svg(&graph, settings)?);
     } else {
         let (g_lines, t_lines, _indices) = print_unicode(&graph, settings)?;
-        if pager && atty::is(atty::Stream::Stdout) {
+        let use_pager =
+            // Pager is enabled
+            pager
+            // and in a terminal, not a pipe
+            && atty::is(atty::Stream::Stdout)
+            // and terminal height is not enough for all lines + the help text
+            && (crossterm::terminal::size().unwrap().1 as usize) < g_lines.len() + 1;
+        if use_pager {
             print_paged(&g_lines, &t_lines).map_err(|err| err.to_string())?;
         } else {
             print_unpaged(&g_lines, &t_lines);
@@ -487,14 +494,17 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
     };
 
     enable_raw_mode()?;
-    while start_idx + visible_lines < graph_lines.len() {
+    loop {
         // Print commits
         if should_update {
             should_update = false;
+            // Make sure that start_idx + visible_lines <= graph_lines.len()
+            start_idx = start_idx.min(graph_lines.len().saturating_sub(visible_lines));
             stdout()
                 .execute(MoveToRow(0))?
                 .execute(Clear(ClearType::CurrentLine))?;
-            for curr_idx in 0..visible_lines {
+            let content_len = visible_lines.min(graph_lines.len());
+            for curr_idx in 0..content_len {
                 stdout()
                     .execute(Clear(ClearType::CurrentLine))?
                     .execute(Print(format!(
@@ -502,6 +512,10 @@ fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Erro
                         graph_lines[start_idx + curr_idx],
                         text_lines[start_idx + curr_idx]
                     )))?;
+            }
+            if content_len < visible_lines {
+                // Exit if screen is larger than full list
+                break;
             }
             // Print help at the end
             stdout().execute(Print(help))?;
