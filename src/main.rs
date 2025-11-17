@@ -1,11 +1,6 @@
 //! Command line tool to show clear git graphs arranged for your branching model.
 
 use clap::{crate_version, Arg, Command};
-use crossterm::cursor::MoveToRow;
-use crossterm::event::{Event, KeyCode, KeyModifiers};
-use crossterm::style::Print;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
-use crossterm::ExecutableCommand;
 use git2::Repository;
 use git_graph::config::{
     create_config, get_available_models, get_model, get_model_name, set_model,
@@ -17,7 +12,6 @@ use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
 use git_graph::settings::{BranchOrder, BranchSettings, Characters, MergePatterns, Settings};
 use platform_dirs::AppDirs;
-use std::io::{stdout, Error};
 use std::str::FromStr;
 use std::time::Instant;
 
@@ -136,13 +130,6 @@ fn from_args() -> Result<(), String> {
                 .help("Print without colors. Missing color support should be detected\n\
                        automatically (e.g. when piping to a file).\n\
                        Overrides option '--color'")
-                .required(false)
-                .num_args(0),
-        )
-        .arg(
-            Arg::new("no-pager")
-                .long("no-pager")
-                .help("Use no pager (print everything at once without prompt).")
                 .required(false)
                 .num_args(0),
         )
@@ -301,7 +288,6 @@ fn from_args() -> Result<(), String> {
     let reverse_commit_order = matches.get_flag("reverse");
 
     let svg = matches.get_flag("svg");
-    let pager = !matches.get_flag("no-pager");
     let compact = !matches.get_flag("sparse");
     let debug = matches.get_flag("debug");
     let style = matches
@@ -418,7 +404,7 @@ fn from_args() -> Result<(), String> {
         merge_patterns: MergePatterns::default(),
     };
 
-    run(repository, &settings, svg, commit_limit, pager)
+    run(repository, &settings, svg, commit_limit)
 }
 
 fn run(
@@ -426,7 +412,6 @@ fn run(
     settings: &Settings,
     svg: bool,
     max_commits: Option<usize>,
-    pager: bool,
 ) -> Result<(), String> {
     let now = Instant::now();
     let graph = GitGraph::new(repository, settings, None, max_commits)?;
@@ -453,18 +438,7 @@ fn run(
         println!("{}", print_svg(&graph, settings)?);
     } else {
         let (g_lines, t_lines, _indices) = print_unicode(&graph, settings)?;
-        let use_pager =
-            // Pager is enabled
-            pager
-            // and in a terminal, not a pipe
-            && atty::is(atty::Stream::Stdout)
-            // and terminal height is not enough for all lines + the help text
-            && (crossterm::terminal::size().unwrap().1 as usize) < g_lines.len() + 1;
-        if use_pager {
-            print_paged(&g_lines, &t_lines).map_err(|err| err.to_string())?;
-        } else {
-            print_unpaged(&g_lines, &t_lines);
-        }
+        print_unpaged(&g_lines, &t_lines);
     };
 
     let duration_print = now.elapsed().as_micros();
@@ -477,90 +451,6 @@ fn run(
             graph.commits.len()
         );
     }
-    Ok(())
-}
-
-/// Print the graph, paged (i.e. wait for user input once the terminal is filled).
-fn print_paged(graph_lines: &[String], text_lines: &[String]) -> Result<(), Error> {
-    let (width, height) = crossterm::terminal::size()?;
-    let mut start_idx: usize = 0;
-    let mut should_update: bool = true;
-    let visible_lines: usize = height as usize - 1;
-    let help = "\r >>> Down/Up: line, PgDown/Enter: page, End: all, Esc/Q/^C: quit\r";
-    let help = if help.len() > width as usize {
-        &help[0..width as usize]
-    } else {
-        help
-    };
-
-    enable_raw_mode()?;
-    loop {
-        // Print commits
-        if should_update {
-            should_update = false;
-            // Make sure that start_idx + visible_lines <= graph_lines.len()
-            start_idx = start_idx.min(graph_lines.len().saturating_sub(visible_lines));
-            stdout()
-                .execute(MoveToRow(0))?
-                .execute(Clear(ClearType::CurrentLine))?;
-            let content_len = visible_lines.min(graph_lines.len());
-            for curr_idx in 0..content_len {
-                stdout()
-                    .execute(Clear(ClearType::CurrentLine))?
-                    .execute(Print(format!(
-                        " {}  {}\r\n",
-                        graph_lines[start_idx + curr_idx],
-                        text_lines[start_idx + curr_idx]
-                    )))?;
-            }
-            if content_len < visible_lines {
-                // Exit if screen is larger than full list
-                break;
-            }
-            // Print help at the end
-            stdout().execute(Print(help))?;
-        } else {
-            let input = crossterm::event::read()?;
-            if let Event::Key(evt) = input {
-                match evt.code {
-                    KeyCode::Down => {
-                        start_idx += 1;
-                        should_update = true;
-                    }
-                    KeyCode::Up => {
-                        if start_idx > 0 {
-                            start_idx -= 1;
-                            should_update = true;
-                        }
-                    }
-                    KeyCode::Enter | KeyCode::PageDown => {
-                        start_idx += height as usize - 2;
-                        should_update = true;
-                    }
-                    KeyCode::End => {
-                        start_idx = graph_lines.len() - height as usize - 2;
-                        should_update = true;
-                        // TODO: maybe make this better
-                    }
-                    KeyCode::Char(c) => match c {
-                        'q' => {
-                            break;
-                        }
-                        'c' if evt.modifiers == KeyModifiers::CONTROL => {
-                            break;
-                        }
-                        _ => {}
-                    },
-                    KeyCode::Esc => {
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    disable_raw_mode()?;
     Ok(())
 }
 
