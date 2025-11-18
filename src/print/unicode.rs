@@ -311,7 +311,8 @@ fn vline(grid: &mut Grid, (from, to): (usize, usize), column: usize, color: u8, 
     }
 }
 
-/// Draws a horizontal line
+/// Draw a horizontal line.
+/// If from > to, this will cause a backward draw.
 fn hline(
     grid: &mut Grid,
     index: usize,
@@ -323,123 +324,157 @@ fn hline(
     if from == to {
         return;
     }
+
     let from_2 = from * 2;
     let to_2 = to * 2;
+
     if from < to {
-        for column in (from_2 + 1)..to_2 {
-            if merge && column == to_2 - 1 {
-                grid.set(column, index, ARR_R, color, pers);
-            } else {
-                let (curr, _, old_pers) = grid.get_tuple(column, index);
-                let (new_col, new_pers) = if pers < old_pers {
-                    (Some(color), Some(pers))
-                } else {
-                    (None, None)
-                };
-                match curr {
-                    DOT | CIRCLE => {}
-                    VER => grid.set_opt(column, index, Some(CROSS), None, None),
-                    HOR | CROSS | HOR_U | HOR_D => {
-                        grid.set_opt(column, index, None, new_col, new_pers)
-                    }
-                    L_U | R_U => grid.set_opt(column, index, Some(HOR_U), new_col, new_pers),
-                    L_D | R_D => grid.set_opt(column, index, Some(HOR_D), new_col, new_pers),
-                    _ => {
-                        grid.set_opt(column, index, Some(HOR), new_col, new_pers);
-                    }
-                }
-            }
-        }
-
-        let (left, _, old_pers) = grid.get_tuple(from_2, index);
-        let (new_col, new_pers) = if pers < old_pers {
-            (Some(color), Some(pers))
-        } else {
-            (None, None)
-        };
-        match left {
-            DOT | CIRCLE => {}
-            VER => grid.set_opt(from_2, index, Some(VER_R), new_col, new_pers),
-            VER_L => grid.set_opt(from_2, index, Some(CROSS), None, None),
-            VER_R => {}
-            HOR | L_U => grid.set_opt(from_2, index, Some(HOR_U), new_col, new_pers),
-            _ => {
-                grid.set_opt(from_2, index, Some(R_D), new_col, new_pers);
-            }
-        }
-
-        let (right, _, old_pers) = grid.get_tuple(to_2, index);
-        let (new_col, new_pers) = if pers < old_pers {
-            (Some(color), Some(pers))
-        } else {
-            (None, None)
-        };
-        match right {
-            DOT | CIRCLE => {}
-            VER => grid.set_opt(to_2, index, Some(VER_L), None, None),
-            VER_L | HOR_U => grid.set_opt(to_2, index, None, new_col, new_pers),
-            HOR | R_U => grid.set_opt(to_2, index, Some(HOR_U), new_col, new_pers),
-            _ => {
-                grid.set_opt(to_2, index, Some(L_U), new_col, new_pers);
-            }
-        }
+        update_range_forward(grid, index, from_2, to_2, merge, color, pers);
+        update_left_cell_forward(grid, index, from_2, color, pers);
+        update_right_cell_forward(grid, index, to_2, color, pers);
     } else {
-        for column in (to_2 + 1)..from_2 {
-            if merge && column == to_2 + 1 {
-                grid.set(column, index, ARR_L, color, pers);
+        update_range_backward(grid, index, from_2, to_2, merge, color, pers);
+        update_left_cell_backward(grid, index, to_2, color, pers);
+        update_right_cell_backward(grid, index, from_2, color, pers);
+    }
+}
+
+fn update_range_forward(
+    grid: &mut Grid,
+    index: usize,
+    from_2: usize,
+    to_2: usize,
+    merge: bool,
+    color: u8,
+    pers: u8,
+) {
+    for column in (from_2 + 1)..to_2 {
+        if merge && column == to_2 - 1 {
+            grid.set(column, index, ARR_R, color, pers);
+        } else {
+            let (curr, _, old_pers) = grid.get_tuple(column, index);
+            let (new_col, new_pers) = if pers < old_pers {
+                (Some(color), Some(pers))
             } else {
-                let (curr, _, old_pers) = grid.get_tuple(column, index);
-                let (new_col, new_pers) = if pers < old_pers {
-                    (Some(color), Some(pers))
-                } else {
-                    (None, None)
-                };
-                match curr {
-                    DOT | CIRCLE => {}
-                    VER => grid.set_opt(column, index, Some(CROSS), None, None),
-                    HOR | CROSS | HOR_U | HOR_D => {
-                        grid.set_opt(column, index, None, new_col, new_pers)
-                    }
-                    L_U | R_U => grid.set_opt(column, index, Some(HOR_U), new_col, new_pers),
-                    L_D | R_D => grid.set_opt(column, index, Some(HOR_D), new_col, new_pers),
-                    _ => {
-                        grid.set_opt(column, index, Some(HOR), new_col, new_pers);
-                    }
+                (None, None)
+            };
+            match curr {
+                DOT | CIRCLE => {}
+                VER => grid.set_opt(column, index, Some(CROSS), None, None),
+                HOR | CROSS | HOR_U | HOR_D => grid.set_opt(column, index, None, new_col, new_pers),
+                L_U | R_U => grid.set_opt(column, index, Some(HOR_U), new_col, new_pers),
+                L_D | R_D => grid.set_opt(column, index, Some(HOR_D), new_col, new_pers),
+                _ => {
+                    grid.set_opt(column, index, Some(HOR), new_col, new_pers);
                 }
             }
         }
+    }
+}
 
-        let (left, _, old_pers) = grid.get_tuple(to_2, index);
-        let (new_col, new_pers) = if pers < old_pers {
-            (Some(color), Some(pers))
+fn update_left_cell_forward(grid: &mut Grid, index: usize, from_2: usize, color: u8, pers: u8) {
+    let (left, _, old_pers) = grid.get_tuple(from_2, index);
+    let (new_col, new_pers) = if pers < old_pers {
+        (Some(color), Some(pers))
+    } else {
+        (None, None)
+    };
+    match left {
+        DOT | CIRCLE => {}
+        VER => grid.set_opt(from_2, index, Some(VER_R), new_col, new_pers),
+        VER_L => grid.set_opt(from_2, index, Some(CROSS), None, None),
+        VER_R => {}
+        HOR | L_U => grid.set_opt(from_2, index, Some(HOR_U), new_col, new_pers),
+        _ => {
+            grid.set_opt(from_2, index, Some(R_D), new_col, new_pers);
+        }
+    }
+}
+
+fn update_right_cell_forward(grid: &mut Grid, index: usize, to_2: usize, color: u8, pers: u8) {
+    let (right, _, old_pers) = grid.get_tuple(to_2, index);
+    let (new_col, new_pers) = if pers < old_pers {
+        (Some(color), Some(pers))
+    } else {
+        (None, None)
+    };
+    match right {
+        DOT | CIRCLE => {}
+        VER => grid.set_opt(to_2, index, Some(VER_L), None, None),
+        VER_L | HOR_U => grid.set_opt(to_2, index, None, new_col, new_pers),
+        HOR | R_U => grid.set_opt(to_2, index, Some(HOR_U), new_col, new_pers),
+        _ => {
+            grid.set_opt(to_2, index, Some(L_U), new_col, new_pers);
+        }
+    }
+}
+
+fn update_range_backward(
+    grid: &mut Grid,
+    index: usize,
+    from_2: usize,
+    to_2: usize,
+    merge: bool,
+    color: u8,
+    pers: u8,
+) {
+    for column in (to_2 + 1)..from_2 {
+        if merge && column == to_2 + 1 {
+            grid.set(column, index, ARR_L, color, pers);
         } else {
-            (None, None)
-        };
-        match left {
-            DOT | CIRCLE => {}
-            VER => grid.set_opt(to_2, index, Some(VER_R), None, None),
-            VER_R => grid.set_opt(to_2, index, None, new_col, new_pers),
-            HOR | L_U => grid.set_opt(to_2, index, Some(HOR_U), new_col, new_pers),
-            _ => {
-                grid.set_opt(to_2, index, Some(R_U), new_col, new_pers);
+            let (curr, _, old_pers) = grid.get_tuple(column, index);
+            let (new_col, new_pers) = if pers < old_pers {
+                (Some(color), Some(pers))
+            } else {
+                (None, None)
+            };
+            match curr {
+                DOT | CIRCLE => {}
+                VER => grid.set_opt(column, index, Some(CROSS), None, None),
+                HOR | CROSS | HOR_U | HOR_D => grid.set_opt(column, index, None, new_col, new_pers),
+                L_U | R_U => grid.set_opt(column, index, Some(HOR_U), new_col, new_pers),
+                L_D | R_D => grid.set_opt(column, index, Some(HOR_D), new_col, new_pers),
+                _ => {
+                    grid.set_opt(column, index, Some(HOR), new_col, new_pers);
+                }
             }
         }
+    }
+}
 
-        let (right, _, old_pers) = grid.get_tuple(from_2, index);
-        let (new_col, new_pers) = if pers < old_pers {
-            (Some(color), Some(pers))
-        } else {
-            (None, None)
-        };
-        match right {
-            DOT | CIRCLE => {}
-            VER => grid.set_opt(from_2, index, Some(VER_L), new_col, new_pers),
-            VER_R => grid.set_opt(from_2, index, Some(CROSS), None, None),
-            VER_L => grid.set_opt(from_2, index, None, new_col, new_pers),
-            HOR | R_D => grid.set_opt(from_2, index, Some(HOR_D), new_col, new_pers),
-            _ => {
-                grid.set_opt(from_2, index, Some(L_D), new_col, new_pers);
-            }
+fn update_left_cell_backward(grid: &mut Grid, index: usize, to_2: usize, color: u8, pers: u8) {
+    let (left, _, old_pers) = grid.get_tuple(to_2, index);
+    let (new_col, new_pers) = if pers < old_pers {
+        (Some(color), Some(pers))
+    } else {
+        (None, None)
+    };
+    match left {
+        DOT | CIRCLE => {}
+        VER => grid.set_opt(to_2, index, Some(VER_R), None, None),
+        VER_R => grid.set_opt(to_2, index, None, new_col, new_pers),
+        HOR | L_U => grid.set_opt(to_2, index, Some(HOR_U), new_col, new_pers),
+        _ => {
+            grid.set_opt(to_2, index, Some(R_U), new_col, new_pers);
+        }
+    }
+}
+
+fn update_right_cell_backward(grid: &mut Grid, index: usize, from_2: usize, color: u8, pers: u8) {
+    let (right, _, old_pers) = grid.get_tuple(from_2, index);
+    let (new_col, new_pers) = if pers < old_pers {
+        (Some(color), Some(pers))
+    } else {
+        (None, None)
+    };
+    match right {
+        DOT | CIRCLE => {}
+        VER => grid.set_opt(from_2, index, Some(VER_L), new_col, new_pers),
+        VER_R => grid.set_opt(from_2, index, Some(CROSS), None, None),
+        VER_L => grid.set_opt(from_2, index, None, new_col, new_pers),
+        HOR | R_D => grid.set_opt(from_2, index, Some(HOR_D), new_col, new_pers),
+        _ => {
+            grid.set_opt(from_2, index, Some(L_D), new_col, new_pers);
         }
     }
 }
