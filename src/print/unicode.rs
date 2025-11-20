@@ -1,6 +1,6 @@
 //! Create graphs in Unicode format with ANSI X3.64 / ISO 6429 colour codes
 
-use crate::graph::{CommitInfo, GitGraph, HeadInfo};
+use crate::graph::{BranchInfo, CommitInfo, GitGraph, HeadInfo};
 use crate::print::format::CommitFormat;
 use crate::settings::{Characters, Settings};
 use itertools::Itertools;
@@ -157,53 +157,15 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
             branch_color,
             branch.persistence,
         );
-        for p in 0..2 {
-            let parent = info.parents[p];
-            let Some(par_oid) = parent else {
-                continue;
-            };
-            let Some(par_idx) = graph.indices.get(&par_oid) else {
-                // Parent is outside scope of graph.indices
-                // so draw a vertical line to the bottom
-                let idx_bottom = grid.height;
-                vline(
-                    &mut grid,
-                    (idx_map, idx_bottom),
-                    column,
-                    branch_color,
-                    branch.persistence,
-                );
-                continue;
-            };
-
-            let par_idx_map = index_map[*par_idx];
-            let par_info = &graph.commits[*par_idx];
-            let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
-            let par_column = par_branch.visual.column.unwrap();
-
-            let (color, pers) = if info.is_merge {
-                (par_branch.visual.term_color, par_branch.persistence)
-            } else {
-                (branch_color, branch.persistence)
-            };
-
-            if branch.visual.column == par_branch.visual.column {
-                if par_idx_map > idx_map + 1 {
-                    vline(&mut grid, (idx_map, par_idx_map), column, color, pers);
-                }
-            } else {
-                let split_index = super::get_deviate_index(graph, idx, *par_idx);
-                let split_idx_map = index_map[split_index];
-                let insert_idx = find_insert_idx(&inserts[&split_index], idx, *par_idx).unwrap();
-                let idx_split = split_idx_map + insert_idx;
-
-                let is_secondary_merge = info.is_merge && p > 0;
-
-                let row123 = (idx_map, idx_split, par_idx_map);
-                let col12 = (column, par_column);
-                zig_zag_line(&mut grid, row123, col12, is_secondary_merge, color, pers);
-            }
-        }
+        draw_parent_lines(
+            graph,
+            branch,
+            &mut grid,
+            info,
+            &inserts,
+            &index_map,
+            idx,
+        );
     }
 
     if settings.reverse_commit_order {
@@ -214,6 +176,69 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
     let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored);
 
     Ok((lines.0, lines.1, index_map))
+}
+
+fn draw_parent_lines(
+    graph: &GitGraph,
+    branch: &BranchInfo,
+    grid: &mut Grid,
+    info: &CommitInfo,
+    inserts: &HashMap<usize, Vec<Vec<Occ>>>,
+    index_map: &[usize],
+    idx: usize,
+) {
+    let column = branch.visual.column.unwrap();
+    let idx_map = index_map[idx];
+
+    let branch_color = branch.visual.term_color;
+
+    for p in 0..2 {
+        let parent = info.parents[p];
+        let Some(par_oid) = parent else {
+            continue;
+        };
+        let Some(par_idx) = graph.indices.get(&par_oid) else {
+            // Parent is outside scope of graph.indices
+            // so draw a vertical line to the bottom
+            let idx_bottom = grid.height;
+            vline(
+                grid,
+                (idx_map, idx_bottom),
+                column,
+                branch_color,
+                branch.persistence,
+            );
+            continue;
+        };
+
+        let par_idx_map = index_map[*par_idx];
+        let par_info = &graph.commits[*par_idx];
+        let par_branch = &graph.all_branches[par_info.branch_trace.unwrap()];
+        let par_column = par_branch.visual.column.unwrap();
+
+        let (color, pers) = if info.is_merge {
+            (par_branch.visual.term_color, par_branch.persistence)
+        } else {
+            (branch_color, branch.persistence)
+        };
+
+        if branch.visual.column == par_branch.visual.column {
+            if par_idx_map > idx_map + 1 {
+                vline(grid, (idx_map, par_idx_map), column, color, pers);
+            }
+        } else {
+            let split_index = super::get_deviate_index(graph, idx, *par_idx);
+            let split_idx_map = index_map[split_index];
+            let insert_idx = find_insert_idx(&inserts[&split_index], idx, *par_idx).unwrap();
+            let idx_split = split_idx_map + insert_idx;
+
+            let is_secondary_merge = info.is_merge && p > 0;
+
+            let row123 = (idx_map, idx_split, par_idx_map);
+            let col12 = (column, par_column);
+            zig_zag_line(grid, row123, col12, is_secondary_merge, color, pers);
+        }
+    }
 }
 
 /// Create `textwrap::Options` from width and indent.
