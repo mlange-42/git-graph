@@ -53,6 +53,11 @@ graph-lines, text-lines, start-row
 3.  start_row: `Vec<usize>`: Starting row for commit in the `graph.commits` vector.
 */
 pub type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
+type RefactorData = (
+    /* offset */ usize,
+    /* index_map */ Vec<usize>,
+    /* text_lines */ Vec<Option<String>>,
+);
 /// Creates a text-based visual representation of a graph.
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
     if graph.all_branches.is_empty() {
@@ -79,17 +84,25 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
     // 3. Compute commit text and index map
     // TODO
 
+    // REFACTOR IN PROGRESS - call old function to get missing variables
+    let (offset, index_map, mut text_lines) =
+        old_print_unicode(graph, settings, &inserts, wrap_options)?;
+
     // 4. Calculate total rows and initialize/draw the grid
-    // TODO
+    let total_rows = graph.commits.len() + offset;
+
+    let mut grid = draw_graph_lines(graph, settings, num_cols, &inserts, &index_map, total_rows);
 
     // 5. Handle reverse order
-    // TODO
+    if settings.reverse_commit_order {
+        text_lines.reverse();
+        grid.reverse();
+    }
 
     // 6. Final printing and result
-    // TODO
+    let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored);
 
-    // REFACTOR IN PROGRESS
-    old_print_unicode(graph, settings, num_cols, inserts, wrap_options)
+    Ok((lines.0, lines.1, index_map))
 }
 
 /// Calculates the necessary column count for the graph grid.
@@ -106,13 +119,11 @@ fn calculate_graph_dimensions(graph: &GitGraph) -> usize {
 /// This is the remaining old code, that gradually will be moved to separate
 /// functions or the new print_unicode
 fn old_print_unicode<'a>(
-    graph: &GitGraph, 
+    graph: &GitGraph,
     settings: &Settings,
-    num_cols: usize,
-    inserts: HashMap<usize, Vec<Vec<Occ>>>,
+    inserts: &HashMap<usize, Vec<Vec<Occ>>>,
     wrap_options: Option<Options<'a>>,
-) -> Result<UnicodeGraphInfo, String> {
-
+) -> Result<RefactorData, String> {
     let head_idx = graph.indices.get(&graph.head.oid);
 
     // Compute commit text into text_lines and add blank rows
@@ -161,9 +172,22 @@ fn old_print_unicode<'a>(
         offset += max_inserts;
     }
 
+    // REFACTOR IN PROGRESS
+    Ok((offset, index_map, text_lines))
+}
+
+/// Initializes the grid and draws all commit/branch connections.
+fn draw_graph_lines(
+    graph: &GitGraph,
+    settings: &Settings,
+    num_cols: usize,
+    inserts: &HashMap<usize, Vec<Vec<Occ>>>,
+    index_map: &[usize],
+    total_rows: usize,
+) -> Grid {
     let mut grid = Grid::new(
         num_cols,
-        graph.commits.len() + offset,
+        total_rows,
         GridCell {
             character: SPACE,
             color: WHITE,
@@ -171,7 +195,6 @@ fn old_print_unicode<'a>(
         },
     );
 
-    // Compute branch lines in grid
     for (idx, info) in graph.commits.iter().enumerate() {
         let Some(trace) = info.branch_trace else {
             continue;
@@ -180,34 +203,19 @@ fn old_print_unicode<'a>(
         let column = branch.visual.column.unwrap();
         let idx_map = index_map[idx];
 
-        let branch_color = branch.visual.term_color;
-
+        // Draw commit point (DOT or CIRCLE)
         grid.set(
             column * 2,
             idx_map,
             if info.is_merge { CIRCLE } else { DOT },
-            branch_color,
+            branch.visual.term_color,
             branch.persistence,
         );
-        draw_parent_lines(
-            graph,
-            branch,
-            &mut grid,
-            info,
-            &inserts,
-            &index_map,
-            idx,
-        );
+
+        // Draw parent lines from this commit
+        draw_parent_lines(graph, branch, &mut grid, info, inserts, index_map, idx);
     }
-
-    if settings.reverse_commit_order {
-        text_lines.reverse();
-        grid.reverse();
-    }
-
-    let lines = print_graph(&settings.characters, &grid, text_lines, settings.colored);
-
-    Ok((lines.0, lines.1, index_map))
+    grid
 }
 
 fn draw_parent_lines(
