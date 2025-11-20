@@ -53,11 +53,7 @@ graph-lines, text-lines, start-row
 3.  start_row: `Vec<usize>`: Starting row for commit in the `graph.commits` vector.
 */
 pub type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
-type RefactorData = (
-    /* offset */ usize,
-    /* index_map */ Vec<usize>,
-    /* text_lines */ Vec<Option<String>>,
-);
+
 /// Creates a text-based visual representation of a graph.
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
     if graph.all_branches.is_empty() {
@@ -82,14 +78,11 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
     };
 
     // 3. Compute commit text and index map
-    // TODO
-
-    // REFACTOR IN PROGRESS - call old function to get missing variables
-    let (offset, index_map, mut text_lines) =
-        old_print_unicode(graph, settings, &inserts, wrap_options)?;
+    let (mut text_lines, index_map) =
+        build_commit_lines_and_map(graph, settings, &inserts, &wrap_options)?;
 
     // 4. Calculate total rows and initialize/draw the grid
-    let total_rows = graph.commits.len() + offset;
+    let total_rows = text_lines.len();
 
     let mut grid = draw_graph_lines(graph, settings, num_cols, &inserts, &index_map, total_rows);
 
@@ -116,14 +109,13 @@ fn calculate_graph_dimensions(graph: &GitGraph) -> usize {
         + 1
 }
 
-/// This is the remaining old code, that gradually will be moved to separate
-/// functions or the new print_unicode
-fn old_print_unicode<'a>(
+/// Iterates through commits to compute text lines, blank line inserts, and the index map.
+fn build_commit_lines_and_map<'a>(
     graph: &GitGraph,
     settings: &Settings,
     inserts: &HashMap<usize, Vec<Vec<Occ>>>,
-    wrap_options: Option<Options<'a>>,
-) -> Result<RefactorData, String> {
+    wrap_options: &Option<Options<'a>>,
+) -> Result<(Vec<Option<String>>, Vec<usize>), String> {
     let head_idx = graph.indices.get(&graph.head.oid);
 
     // Compute commit text into text_lines and add blank rows
@@ -131,8 +123,11 @@ fn old_print_unicode<'a>(
     let mut index_map = vec![];
     let mut text_lines = vec![];
     let mut offset = 0;
+
     for (idx, info) in graph.commits.iter().enumerate() {
         index_map.push(idx + offset);
+
+        // Calculate needed graph inserts (for ranges only)
         let cnt_inserts = if let Some(inserts) = inserts.get(&idx) {
             inserts
                 .iter()
@@ -153,27 +148,28 @@ fn old_print_unicode<'a>(
             None
         };
 
+        // Format the commit message lines
         let lines = format(
             &settings.format,
             graph,
             info,
             head,
             settings.colored,
-            &wrap_options,
+            wrap_options,
         )?;
 
         let num_lines = if lines.is_empty() { 0 } else { lines.len() - 1 };
         let max_inserts = max(cnt_inserts, num_lines);
         let add_lines = max_inserts - num_lines;
 
+        // Extend text_lines with commit lines and blank lines for padding
         text_lines.extend(lines.into_iter().map(Some));
         text_lines.extend((0..add_lines).map(|_| None));
 
         offset += max_inserts;
     }
 
-    // REFACTOR IN PROGRESS
-    Ok((offset, index_map, text_lines))
+    Ok((text_lines, index_map))
 }
 
 /// Initializes the grid and draws all commit/branch connections.
