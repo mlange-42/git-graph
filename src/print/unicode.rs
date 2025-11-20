@@ -71,11 +71,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
     };
 
     // 2. Prepare wrapping for commit text (using references to the new indent strings)
-    let wrap_options = if let Some((width, _, _)) = settings.wrapping {
-        create_wrapping_options(width, &indent1, &indent2, num_cols + 4)?
-    } else {
-        None
-    };
+    let wrap_options = get_wrapping_options(settings, num_cols, &indent1, &indent2)?;
 
     // 3. Compute commit text and index map
     let (mut text_lines, index_map) =
@@ -107,6 +103,22 @@ fn calculate_graph_dimensions(graph: &GitGraph) -> usize {
         .max()
         .unwrap_or(0)
         + 1
+}
+
+/// Prepares wrapping options, returning the options structure.
+// 'a now refers to the lifetime of the indent strings passed in.
+fn get_wrapping_options<'a>(
+    settings: &Settings,
+    num_cols: usize,
+    indent1: &'a str, // Takes reference to owned string
+    indent2: &'a str, // Takes reference to owned string
+) -> Result<Option<Options<'a>>, String> {
+    if let Some((width, _, _)) = settings.wrapping {
+        // We now pass the references directly to create_wrapping_options
+        create_wrapping_options(width, indent1, indent2, num_cols + 4)
+    } else {
+        Ok(None)
+    }
 }
 
 /// Iterates through commits to compute text lines, blank line inserts, and the index map.
