@@ -40,6 +40,14 @@ In case you have [Rust](https://www.rust-lang.org/) installed, you can install w
 cargo install git-graph
 ```
 
+**From `homebrew`**
+
+If you use the [homebrew](https://brew.sh/) package manager:
+
+```
+brew install git-graph
+```
+
 ## Usage
 
 **For detailed information, see the [manual](docs/manual.md)**.
