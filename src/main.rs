@@ -50,6 +50,7 @@ fn from_args() -> Result<(), String> {
     let app = add_repo_args(app);
     let app = add_model_args(app);
     let app = add_commit_limit_args(app);
+    let app = add_color_args(app);
 
     let app = app
         .arg(
@@ -89,23 +90,6 @@ fn from_args() -> Result<(), String> {
                 .short('S')
                 .help("Print a less compact graph: merge lines point to target lines\n\
                        rather than merge commits.")
-                .required(false)
-                .num_args(0),
-        )
-        .arg(
-            Arg::new("color")
-                .long("color")
-                .help("Specify when colors should be used. One of [auto|always|never].\n\
-                       Default: auto.")
-                .required(false)
-                .num_args(1),
-        )
-        .arg(
-            Arg::new("no-color")
-                .long("no-color")
-                .help("Print without colors. Missing color support should be detected\n\
-                       automatically (e.g. when piping to a file).\n\
-                       Overrides option '--color'")
                 .required(false)
                 .num_args(0),
         )
@@ -220,38 +204,7 @@ fn from_args() -> Result<(), String> {
         Some(str) => CommitFormat::from_str(str)?,
     };
 
-    let colored = if matches.get_flag("no-color") {
-        false
-    } else if let Some(mode) = matches.get_one::<String>("color") {
-        match &mode[..] {
-            "auto" => {
-                atty::is(atty::Stream::Stdout)
-                    && (!cfg!(windows) || {
-                        yansi::enable();
-                        yansi::is_enabled()
-                    })
-            }
-            "always" => {
-                if cfg!(windows) {
-                    yansi::enable();
-                }
-                true
-            }
-            "never" => false,
-            other => {
-                return Err(format!(
-                    "Unknown color mode '{}'. Supports [auto|always|never].",
-                    other
-                ))
-            }
-        }
-    } else {
-        atty::is(atty::Stream::Stdout)
-            && (!cfg!(windows) || {
-                yansi::enable();
-                yansi::is_enabled()
-            })
-    };
+    let colored = match_color_args(&mut ses, &matches)?;
 
     let wrapping = if let Some(wrap_values) = matches.get_many::<String>("wrap") {
         let strings = wrap_values.map(|s| s.as_str()).collect::<Vec<_>>();
@@ -509,6 +462,71 @@ fn match_commit_limit_args(ses: &mut Session, matches: &ArgMatches) -> Result<()
     };
 
     Ok(())
+}
+
+//
+//  color flag
+//
+
+fn add_color_args(app: Command) -> Command {
+    app.arg(
+        Arg::new("color")
+            .long("color")
+            .help(
+                "Specify when colors should be used. One of [auto|always|never].\n\
+                       Default: auto.",
+            )
+            .required(false)
+            .num_args(1),
+    )
+    .arg(
+        Arg::new("no-color")
+            .long("no-color")
+            .help(
+                "Print without colors. Missing color support should be detected\n\
+                       automatically (e.g. when piping to a file).\n\
+                       Overrides option '--color'",
+            )
+            .required(false)
+            .num_args(0),
+    )
+}
+
+fn match_color_args(_ses: &mut Session, matches: &ArgMatches) -> Result<bool, String> {
+    let colored = if matches.get_flag("no-color") {
+        false
+    } else if let Some(mode) = matches.get_one::<String>("color") {
+        match &mode[..] {
+            "auto" => {
+                atty::is(atty::Stream::Stdout)
+                    && (!cfg!(windows) || {
+                        yansi::enable();
+                        yansi::is_enabled()
+                    })
+            }
+            "always" => {
+                if cfg!(windows) {
+                    yansi::enable();
+                }
+                true
+            }
+            "never" => false,
+            other => {
+                return Err(format!(
+                    "Unknown color mode '{}'. Supports [auto|always|never].",
+                    other
+                ))
+            }
+        }
+    } else {
+        atty::is(atty::Stream::Stdout)
+            && (!cfg!(windows) || {
+                yansi::enable();
+                yansi::is_enabled()
+            })
+    };
+
+    Ok(colored)
 }
 
 //
