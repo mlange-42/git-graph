@@ -49,6 +49,7 @@ fn from_args() -> Result<(), String> {
     );
     let app = add_repo_args(app);
     let app = add_model_args(app);
+    let app = add_commit_limit_args(app);
 
     let app = app
         .arg(
@@ -58,15 +59,6 @@ fn from_args() -> Result<(), String> {
                 .help("Reverse the order of commits.")
                 .required(false)
                 .num_args(0),
-        )
-        .arg(
-            Arg::new("max-count")
-                .long("max-count")
-                .short('n')
-                .help("Maximum number of commits")
-                .required(false)
-                .num_args(1)
-                .value_name("n"),
         )
         .arg(
             Arg::new("local")
@@ -201,19 +193,7 @@ fn from_args() -> Result<(), String> {
     if match_model_subcommand(&mut ses, &matches)? {
         return Ok(()); // Exit after model subcommand
     }
-
-    ses.commit_limit = match matches.get_one::<String>("max-count") {
-        None => None,
-        Some(str) => match str.parse::<usize>() {
-            Ok(val) => Some(val),
-            Err(_) => {
-                return Err(format![
-                    "Option max-count must be a positive number, but got '{}'",
-                    str
-                ])
-            }
-        },
-    };
+    match_commit_limit_args(&mut ses, &matches)?;
 
     let include_remote = !matches.get_flag("local");
 
@@ -496,6 +476,39 @@ fn match_model_opt(ses: &mut Session, matches: &ArgMatches) -> Result<BranchSett
         &ses.models_dir,
     )?;
     Ok(model)
+}
+
+//
+//  commit_limit flag
+//
+
+fn add_commit_limit_args(app: Command) -> Command {
+    app.arg(
+        Arg::new("max-count")
+            .long("max-count")
+            .short('n')
+            .help("Maximum number of commits")
+            .required(false)
+            .num_args(1)
+            .value_name("n"),
+    )
+}
+
+fn match_commit_limit_args(ses: &mut Session, matches: &ArgMatches) -> Result<(), String> {
+    ses.commit_limit = match matches.get_one::<String>("max-count") {
+        None => None,
+        Some(str) => match str.parse::<usize>() {
+            Ok(val) => Some(val),
+            Err(_) => {
+                return Err(format![
+                    "Option max-count must be a positive number, but got '{}'",
+                    str
+                ])
+            }
+        },
+    };
+
+    Ok(())
 }
 
 //
