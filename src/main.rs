@@ -51,6 +51,7 @@ fn from_args() -> Result<(), String> {
     let app = add_model_args(app);
     let app = add_commit_limit_args(app);
     let app = add_color_args(app);
+    let app = add_wrap_args(app);
 
     let app = app
         .arg(
@@ -101,25 +102,6 @@ fn from_args() -> Result<(), String> {
                          (First character can be used as abbreviation, e.g. '-s r')")
                 .required(false)
                 .num_args(1),
-        )
-        .arg(
-            Arg::new("wrap")
-                .long("wrap")
-                .short('w')
-                .help("Line wrapping for formatted commit text. Default: 'auto 0 8'\n\
-                       Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
-                       For examples, consult 'git-graph --help'")
-                .long_help("Line wrapping for formatted commit text. Default: 'auto 0 8'\n\
-                       Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
-                       Examples:\n    \
-                           git-graph --wrap auto\n    \
-                           git-graph --wrap auto 0 8\n    \
-                           git-graph --wrap none\n    \
-                           git-graph --wrap 80\n    \
-                           git-graph --wrap 80 0 8\n\
-                       'auto' uses the terminal's width if on a terminal.")
-                .required(false)
-                .num_args(0..=3),
         )
         .arg(
             Arg::new("format")
@@ -206,49 +188,7 @@ fn from_args() -> Result<(), String> {
 
     let colored = match_color_args(&mut ses, &matches)?;
 
-    let wrapping = if let Some(wrap_values) = matches.get_many::<String>("wrap") {
-        let strings = wrap_values.map(|s| s.as_str()).collect::<Vec<_>>();
-        if strings.is_empty() {
-            Some((None, Some(0), Some(8)))
-        } else {
-            match strings[0] {
-                "none" => None,
-                "auto" => {
-                    let wrap = strings
-                        .iter()
-                        .skip(1)
-                        .map(|str| str.parse::<usize>())
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(|_| {
-                            format!(
-                                "ERROR: Can't parse option --wrap '{}' to integers.",
-                                strings.join(" ")
-                            )
-                        })?;
-                    Some((None, wrap.first().cloned(), wrap.get(1).cloned()))
-                }
-                _ => {
-                    let wrap = strings
-                        .iter()
-                        .map(|str| str.parse::<usize>())
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(|_| {
-                            format!(
-                                "ERROR: Can't parse option --wrap '{}' to integers.",
-                                strings.join(" ")
-                            )
-                        })?;
-                    Some((
-                        wrap.first().cloned(),
-                        wrap.get(1).cloned(),
-                        wrap.get(2).cloned(),
-                    ))
-                }
-            }
-        }
-    } else {
-        Some((None, Some(0), Some(8)))
-    };
+    let wrapping = match_wrap_args(&mut ses, &matches)?;
 
     let settings = Settings {
         reverse_commit_order,
@@ -527,6 +467,85 @@ fn match_color_args(_ses: &mut Session, matches: &ArgMatches) -> Result<bool, St
     };
 
     Ok(colored)
+}
+
+//
+//  wrap flag
+//
+
+fn add_wrap_args(app: Command) -> Command {
+    app.arg(
+        Arg::new("wrap")
+            .long("wrap")
+            .short('w')
+            .help(
+                "Line wrapping for formatted commit text. Default: 'auto 0 8'\n\
+                       Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
+                       For examples, consult 'git-graph --help'",
+            )
+            .long_help(
+                "Line wrapping for formatted commit text. Default: 'auto 0 8'\n\
+                       Argument format: [<width>|auto|none[ <indent1>[ <indent2>]]]\n\
+                       Examples:\n    \
+                           git-graph --wrap auto\n    \
+                           git-graph --wrap auto 0 8\n    \
+                           git-graph --wrap none\n    \
+                           git-graph --wrap 80\n    \
+                           git-graph --wrap 80 0 8\n\
+                       'auto' uses the terminal's width if on a terminal.",
+            )
+            .required(false)
+            .num_args(0..=3),
+    )
+}
+
+type WrapType = Option<(Option<usize>, Option<usize>, Option<usize>)>;
+fn match_wrap_args(_ses: &mut Session, matches: &ArgMatches) -> Result<WrapType, String> {
+    let wrapping = if let Some(wrap_values) = matches.get_many::<String>("wrap") {
+        let strings = wrap_values.map(|s| s.as_str()).collect::<Vec<_>>();
+        if strings.is_empty() {
+            Some((None, Some(0), Some(8)))
+        } else {
+            match strings[0] {
+                "none" => None,
+                "auto" => {
+                    let wrap = strings
+                        .iter()
+                        .skip(1)
+                        .map(|str| str.parse::<usize>())
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|_| {
+                            format!(
+                                "ERROR: Can't parse option --wrap '{}' to integers.",
+                                strings.join(" ")
+                            )
+                        })?;
+                    Some((None, wrap.first().cloned(), wrap.get(1).cloned()))
+                }
+                _ => {
+                    let wrap = strings
+                        .iter()
+                        .map(|str| str.parse::<usize>())
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|_| {
+                            format!(
+                                "ERROR: Can't parse option --wrap '{}' to integers.",
+                                strings.join(" ")
+                            )
+                        })?;
+                    Some((
+                        wrap.first().cloned(),
+                        wrap.get(1).cloned(),
+                        wrap.get(2).cloned(),
+                    ))
+                }
+            }
+        }
+    } else {
+        Some((None, Some(0), Some(8)))
+    };
+
+    Ok(wrapping)
 }
 
 //
