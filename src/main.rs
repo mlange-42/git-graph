@@ -36,61 +36,13 @@ fn from_args() -> Result<(), String> {
     store_default_models(&mut ses)?;
 
     let matches = match_args();
-
-    if match_model_list(&mut ses, &matches)? {
-        return Ok(()); // Exit after showing model list
-    }
-
-    match_repo_args(&mut ses, &matches)?;
-
-    if match_model_subcommand(&mut ses, &matches)? {
-        return Ok(()); // Exit after model subcommand
-    }
-    match_commit_limit_args(&mut ses, &matches)?;
-
-    let include_remote = !matches.get_flag("local");
-
-    let reverse_commit_order = matches.get_flag("reverse");
-
-    ses.svg = matches.get_flag("svg");
-    let compact = !matches.get_flag("sparse");
-    let debug = matches.get_flag("debug");
-    let style = matches
-        .get_one::<String>("style")
-        .map(|s| Characters::from_str(s))
-        .unwrap_or_else(|| Ok(Characters::thin()))?;
-
-    let style = if reverse_commit_order {
-        style.reverse()
-    } else {
-        style
-    };
-
-    let model = match_model_opt(&mut ses, &matches)?;
-
-    let format = match_format_args(&mut ses, &matches)?;
-
-    let colored = match_color_args(&mut ses, &matches)?;
-
-    let wrapping = match_wrap_args(&mut ses, &matches)?;
-
-    let settings = Settings {
-        reverse_commit_order,
-        debug,
-        colored,
-        compact,
-        include_remote,
-        format,
-        wrapping,
-        characters: style,
-        branch_order: BranchOrder::ShortestFirst(true),
-        branches: BranchSettings::from(model).map_err(|err| err.to_string())?,
-        merge_patterns: MergePatterns::default(),
+    if !configure_session(&mut ses, &matches)? {
+        return Ok(()); // If the configuration decided session should not start
     };
 
     run(
         ses.repository.unwrap(),
-        &settings,
+        ses.settings.as_ref().unwrap(),
         ses.svg,
         ses.commit_limit,
     )
@@ -176,12 +128,73 @@ fn match_args() -> ArgMatches {
     app.get_matches()
 }
 
+/// Return true if session should continue, false if it should exit now
+fn configure_session(ses: &mut Session, matches: &ArgMatches) -> Result<bool, String> {
+    // return values
+    let exit_now = false;
+    let run_application = true;
+
+    if match_model_list(ses, matches)? {
+        return Ok(exit_now); // Exit after showing model list
+    }
+
+    match_repo_args(ses, matches)?;
+
+    if match_model_subcommand(ses, matches)? {
+        return Ok(exit_now); // Exit after model subcommand
+    }
+    match_commit_limit_args(ses, matches)?;
+
+    let include_remote = !matches.get_flag("local");
+
+    let reverse_commit_order = matches.get_flag("reverse");
+
+    ses.svg = matches.get_flag("svg");
+    let compact = !matches.get_flag("sparse");
+    let debug = matches.get_flag("debug");
+    let style = matches
+        .get_one::<String>("style")
+        .map(|s| Characters::from_str(s))
+        .unwrap_or_else(|| Ok(Characters::thin()))?;
+
+    let style = if reverse_commit_order {
+        style.reverse()
+    } else {
+        style
+    };
+
+    let model = match_model_opt(ses, matches)?;
+
+    let format = match_format_args(ses, matches)?;
+
+    let colored = match_color_args(ses, matches)?;
+
+    let wrapping = match_wrap_args(ses, matches)?;
+
+    let settings = Settings {
+        reverse_commit_order,
+        debug,
+        colored,
+        compact,
+        include_remote,
+        format,
+        wrapping,
+        characters: style,
+        branch_order: BranchOrder::ShortestFirst(true),
+        branches: BranchSettings::from(model).map_err(|err| err.to_string())?,
+        merge_patterns: MergePatterns::default(),
+    };
+    ses.settings = Some(settings);
+
+    Ok(run_application)
+}
+
 struct Session {
     // models related fields
     models_dir: PathBuf,
 
     // Settings related fields
-    // TODO
+    pub settings: Option<Settings>,
 
     // Other fields
     pub repository: Option<Repository>,
@@ -196,7 +209,7 @@ impl Session {
             models_dir: PathBuf::new(),
 
             // Settings related fields
-            // TODO
+            settings: None,
 
             // Other fields
             repository: None,
