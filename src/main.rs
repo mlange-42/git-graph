@@ -52,6 +52,7 @@ fn from_args() -> Result<(), String> {
     let app = add_commit_limit_args(app);
     let app = add_color_args(app);
     let app = add_wrap_args(app);
+    let app = add_format_args(app);
 
     let app = app
         .arg(
@@ -89,8 +90,10 @@ fn from_args() -> Result<(), String> {
             Arg::new("sparse")
                 .long("sparse")
                 .short('S')
-                .help("Print a less compact graph: merge lines point to target lines\n\
-                       rather than merge commits.")
+                .help(
+                    "Print a less compact graph: merge lines point to target lines\n\
+                       rather than merge commits.",
+                )
                 .required(false)
                 .num_args(0),
         )
@@ -98,55 +101,13 @@ fn from_args() -> Result<(), String> {
             Arg::new("style")
                 .long("style")
                 .short('s')
-                .help("Output style. One of [normal/thin|round|bold|double|ascii].\n  \
-                         (First character can be used as abbreviation, e.g. '-s r')")
+                .help(
+                    "Output style. One of [normal/thin|round|bold|double|ascii].\n  \
+                         (First character can be used as abbreviation, e.g. '-s r')",
+                )
                 .required(false)
                 .num_args(1),
-        )
-        .arg(
-            Arg::new("format")
-                .long("format")
-                .short('f')
-                .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n  \
-                         (First character can be used as abbreviation, e.g. '-f m')\n\
-                       Default: oneline.\n\
-                       For placeholders supported in \"<string>\", consult 'git-graph --help'")
-                .long_help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n  \
-                              (First character can be used as abbreviation, e.g. '-f m')\n\
-                            Formatting placeholders for \"<string>\":\n    \
-                                %n    newline\n    \
-                                %H    commit hash\n    \
-                                %h    abbreviated commit hash\n    \
-                                %P    parent commit hashes\n    \
-                                %p    abbreviated parent commit hashes\n    \
-                                %d    refs (branches, tags)\n    \
-                                %s    commit summary\n    \
-                                %b    commit message body\n    \
-                                %B    raw body (subject and body)\n    \
-                                %an   author name\n    \
-                                %ae   author email\n    \
-                                %ad   author date\n    \
-                                %as   author date in short format 'YYYY-MM-DD'\n    \
-                                %cn   committer name\n    \
-                                %ce   committer email\n    \
-                                %cd   committer date\n    \
-                                %cs   committer date in short format 'YYYY-MM-DD'\n    \
-                                \n    \
-                                If you add a + (plus sign) after % of a placeholder,\n       \
-                                   a line-feed is inserted immediately before the expansion if\n       \
-                                   and only if the placeholder expands to a non-empty string.\n    \
-                                If you add a - (minus sign) after % of a placeholder, all\n       \
-                                   consecutive line-feeds immediately preceding the expansion are\n       \
-                                   deleted if and only if the placeholder expands to an empty string.\n    \
-                                If you add a ' ' (space) after % of a placeholder, a space is\n       \
-                                   inserted immediately before the expansion if and only if\n       \
-                                   the placeholder expands to a non-empty string.\n\
-                            \n    \
-                                See also the respective git help: https://git-scm.com/docs/pretty-formats\n")
-                .required(false)
-                .num_args(1),
-        )
-    ;
+        );
 
     let matches = app.get_matches();
 
@@ -181,10 +142,7 @@ fn from_args() -> Result<(), String> {
 
     let model = match_model_opt(&mut ses, &matches)?;
 
-    let format = match matches.get_one::<String>("format") {
-        None => CommitFormat::OneLine,
-        Some(str) => CommitFormat::from_str(str)?,
-    };
+    let format = match_format_args(&mut ses, &matches)?;
 
     let colored = match_color_args(&mut ses, &matches)?;
 
@@ -546,6 +504,65 @@ fn match_wrap_args(_ses: &mut Session, matches: &ArgMatches) -> Result<WrapType,
     };
 
     Ok(wrapping)
+}
+
+//
+//  commit format flags - format
+//
+
+fn add_format_args(app: Command) -> Command {
+    app
+        .arg(
+            Arg::new("format")
+                .long("format")
+                .short('f')
+                .help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n  \
+                         (First character can be used as abbreviation, e.g. '-f m')\n\
+                       Default: oneline.\n\
+                       For placeholders supported in \"<string>\", consult 'git-graph --help'")
+                .long_help("Commit format. One of [oneline|short|medium|full|\"<string>\"].\n  \
+                              (First character can be used as abbreviation, e.g. '-f m')\n\
+                            Formatting placeholders for \"<string>\":\n    \
+                                %n    newline\n    \
+                                %H    commit hash\n    \
+                                %h    abbreviated commit hash\n    \
+                                %P    parent commit hashes\n    \
+                                %p    abbreviated parent commit hashes\n    \
+                                %d    refs (branches, tags)\n    \
+                                %s    commit summary\n    \
+                                %b    commit message body\n    \
+                                %B    raw body (subject and body)\n    \
+                                %an   author name\n    \
+                                %ae   author email\n    \
+                                %ad   author date\n    \
+                                %as   author date in short format 'YYYY-MM-DD'\n    \
+                                %cn   committer name\n    \
+                                %ce   committer email\n    \
+                                %cd   committer date\n    \
+                                %cs   committer date in short format 'YYYY-MM-DD'\n    \
+                                \n    \
+                                If you add a + (plus sign) after % of a placeholder,\n       \
+                                   a line-feed is inserted immediately before the expansion if\n       \
+                                   and only if the placeholder expands to a non-empty string.\n    \
+                                If you add a - (minus sign) after % of a placeholder, all\n       \
+                                   consecutive line-feeds immediately preceding the expansion are\n       \
+                                   deleted if and only if the placeholder expands to an empty string.\n    \
+                                If you add a ' ' (space) after % of a placeholder, a space is\n       \
+                                   inserted immediately before the expansion if and only if\n       \
+                                   the placeholder expands to a non-empty string.\n\
+                            \n    \
+                                See also the respective git help: https://git-scm.com/docs/pretty-formats\n")
+                .required(false)
+                .num_args(1),
+        )
+}
+
+fn match_format_args(_ses: &mut Session, matches: &ArgMatches) -> Result<CommitFormat, String> {
+    let format = match matches.get_one::<String>("format") {
+        None => CommitFormat::OneLine,
+        Some(str) => CommitFormat::from_str(str)?,
+    };
+    Ok(format)
 }
 
 //
