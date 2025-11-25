@@ -35,6 +35,69 @@ fn from_args() -> Result<(), String> {
     let mut ses = Session::new();
     store_default_models(&mut ses)?;
 
+    let matches = match_args();
+
+    if match_model_list(&mut ses, &matches)? {
+        return Ok(()); // Exit after showing model list
+    }
+
+    match_repo_args(&mut ses, &matches)?;
+
+    if match_model_subcommand(&mut ses, &matches)? {
+        return Ok(()); // Exit after model subcommand
+    }
+    match_commit_limit_args(&mut ses, &matches)?;
+
+    let include_remote = !matches.get_flag("local");
+
+    let reverse_commit_order = matches.get_flag("reverse");
+
+    ses.svg = matches.get_flag("svg");
+    let compact = !matches.get_flag("sparse");
+    let debug = matches.get_flag("debug");
+    let style = matches
+        .get_one::<String>("style")
+        .map(|s| Characters::from_str(s))
+        .unwrap_or_else(|| Ok(Characters::thin()))?;
+
+    let style = if reverse_commit_order {
+        style.reverse()
+    } else {
+        style
+    };
+
+    let model = match_model_opt(&mut ses, &matches)?;
+
+    let format = match_format_args(&mut ses, &matches)?;
+
+    let colored = match_color_args(&mut ses, &matches)?;
+
+    let wrapping = match_wrap_args(&mut ses, &matches)?;
+
+    let settings = Settings {
+        reverse_commit_order,
+        debug,
+        colored,
+        compact,
+        include_remote,
+        format,
+        wrapping,
+        characters: style,
+        branch_order: BranchOrder::ShortestFirst(true),
+        branches: BranchSettings::from(model).map_err(|err| err.to_string())?,
+        merge_patterns: MergePatterns::default(),
+    };
+
+    run(
+        ses.repository.unwrap(),
+        &settings,
+        ses.svg,
+        ses.commit_limit,
+    )
+}
+
+fn match_args() -> ArgMatches {
+    // Declare command line argument interface for clap
     let app = Command::new("git-graph").version(crate_version!()).about(
         "Structured Git graphs for your branching model.\n    \
                  https://github.com/mlange-42/git-graph\n\
@@ -109,65 +172,8 @@ fn from_args() -> Result<(), String> {
                 .num_args(1),
         );
 
-    let matches = app.get_matches();
-
-    if match_model_list(&mut ses, &matches)? {
-        return Ok(()); // Exit after showing model list
-    }
-
-    match_repo_args(&mut ses, &matches)?;
-
-    if match_model_subcommand(&mut ses, &matches)? {
-        return Ok(()); // Exit after model subcommand
-    }
-    match_commit_limit_args(&mut ses, &matches)?;
-
-    let include_remote = !matches.get_flag("local");
-
-    let reverse_commit_order = matches.get_flag("reverse");
-
-    ses.svg = matches.get_flag("svg");
-    let compact = !matches.get_flag("sparse");
-    let debug = matches.get_flag("debug");
-    let style = matches
-        .get_one::<String>("style")
-        .map(|s| Characters::from_str(s))
-        .unwrap_or_else(|| Ok(Characters::thin()))?;
-
-    let style = if reverse_commit_order {
-        style.reverse()
-    } else {
-        style
-    };
-
-    let model = match_model_opt(&mut ses, &matches)?;
-
-    let format = match_format_args(&mut ses, &matches)?;
-
-    let colored = match_color_args(&mut ses, &matches)?;
-
-    let wrapping = match_wrap_args(&mut ses, &matches)?;
-
-    let settings = Settings {
-        reverse_commit_order,
-        debug,
-        colored,
-        compact,
-        include_remote,
-        format,
-        wrapping,
-        characters: style,
-        branch_order: BranchOrder::ShortestFirst(true),
-        branches: BranchSettings::from(model).map_err(|err| err.to_string())?,
-        merge_patterns: MergePatterns::default(),
-    };
-
-    run(
-        ses.repository.unwrap(),
-        &settings,
-        ses.svg,
-        ses.commit_limit,
-    )
+    // Return match of declared arguments with what is present on command line
+    app.get_matches()
 }
 
 struct Session {
