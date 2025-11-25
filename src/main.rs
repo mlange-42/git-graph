@@ -1,5 +1,6 @@
 //! Command line tool to show clear git graphs arranged for your branching model.
 
+use clap::ArgMatches;
 use clap::{crate_version, Arg, Command};
 use git2::Repository;
 use git_graph::config::{
@@ -36,10 +37,8 @@ fn from_args() -> Result<(), String> {
 
     let mut ses = Session::new();
 
-    let app = Command::new("git-graph")
-        .version(crate_version!())
-        .about(
-            "Structured Git graphs for your branching model.\n    \
+    let app = Command::new("git-graph").version(crate_version!()).about(
+        "Structured Git graphs for your branching model.\n    \
                  https://github.com/mlange-42/git-graph\n\
              \n\
              EXAMPES:\n    \
@@ -49,7 +48,9 @@ fn from_args() -> Result<(), String> {
                  git-graph model --list      -> List available branching models\n    \
                  git-graph model             -> Show repo's current branching models\n    \
                  git-graph model <model>     -> Permanently set model <model> for this repo",
-        )
+    );
+    let app = add_repo_args(app);
+    let app = app
         .arg(
             Arg::new("reverse")
                 .long("reverse")
@@ -57,14 +58,6 @@ fn from_args() -> Result<(), String> {
                 .help("Reverse the order of commits.")
                 .required(false)
                 .num_args(0),
-        )
-        .arg(
-            Arg::new("path")
-                .long("path")
-                .short('p')
-                .help("Open repository from this path or above. Default '.'")
-                .required(false)
-                .num_args(1),
         )
         .arg(
             Arg::new("max-count")
@@ -206,15 +199,6 @@ fn from_args() -> Result<(), String> {
                 .required(false)
                 .num_args(1),
         )
-        .arg(
-            Arg::new("skip-repo-owner-validation")
-                .long("skip-repo-owner-validation")
-                .help("Skip owner validation for the repository.\n\
-                       This will turn off libgit2's owner validation, which may increase security risks.\n\
-                       Please do not disable this validation for repositories you do not trust.")
-                .required(false)
-                .num_args(0)
-        )
         .subcommand(Command::new("model")
             .about("Prints or permanently sets the branching model for a repository.")
             .arg(
@@ -246,26 +230,20 @@ fn from_args() -> Result<(), String> {
         }
     }
 
-    let skip_repo_owner_validation = matches.get_flag("skip-repo-owner-validation");
-    if skip_repo_owner_validation {
-        println!("Warning: skip-repo-owner-validation is set! ");
-    }
-    let dot = ".".to_string();
-    let path = matches.get_one::<String>("path").unwrap_or(&dot);
-    let repository = get_repo(path, skip_repo_owner_validation)
-        .map_err(|err| format!("ERROR: {}\n       Navigate into a repository before running git-graph, or use option --path", err.message()))?;
+    match_repo_args(&mut ses, &matches)?;
 
     if let Some(matches) = matches.subcommand_matches("model") {
+        let repository = ses.repository.as_ref().unwrap();
         match matches.get_one::<String>("model") {
             None => {
-                let curr_model = get_model_name(&repository, REPO_CONFIG_FILE)?;
+                let curr_model = get_model_name(repository, REPO_CONFIG_FILE)?;
                 match curr_model {
                     None => print!("No branching model set"),
                     Some(model) => print!("{}", model),
                 }
             }
             Some(model) => {
-                set_model(&repository, model, REPO_CONFIG_FILE, &models_dir)?;
+                set_model(repository, model, REPO_CONFIG_FILE, &models_dir)?;
                 eprint!("Branching model set to '{}'", model);
             }
         };
@@ -304,7 +282,7 @@ fn from_args() -> Result<(), String> {
     };
 
     let model = get_model(
-        &repository,
+        ses.repository.as_ref().unwrap(),
         matches.get_one::<String>("model").map(|s| &s[..]),
         REPO_CONFIG_FILE,
         &models_dir,
@@ -392,8 +370,6 @@ fn from_args() -> Result<(), String> {
         Some((None, Some(0), Some(8)))
     };
 
-    ses.repository = Some(repository);
-
     let settings = Settings {
         reverse_commit_order,
         debug,
@@ -441,6 +417,42 @@ impl Session {
             commit_limit: None,
         }
     }
+}
+
+fn add_repo_args(app: Command) -> Command {
+    app.arg(
+        Arg::new("path")
+            .long("path")
+            .short('p')
+            .help("Open repository from this path or above. Default '.'")
+            .required(false)
+            .num_args(1),
+    )
+    .arg(
+        Arg::new("skip-repo-owner-validation")
+            .long("skip-repo-owner-validation")
+            .help(
+                "Skip owner validation for the repository.\n\
+                This will turn off libgit2's owner validation, which may increase security risks.\n\
+                Please do not disable this validation for repositories you do not trust.",
+            )
+            .required(false)
+            .num_args(0),
+    )
+}
+
+fn match_repo_args(ses: &mut Session, matches: &ArgMatches) -> Result<(), String> {
+    let skip_repo_owner_validation = matches.get_flag("skip-repo-owner-validation");
+    if skip_repo_owner_validation {
+        println!("Warning: skip-repo-owner-validation is set! ");
+    }
+    let default_path = ".".to_string();
+    let path = matches.get_one::<String>("path").unwrap_or(&default_path);
+    let repository = get_repo(path, skip_repo_owner_validation)
+        .map_err(|err| format!("ERROR: {}\n       Navigate into a repository before running git-graph, or use option --path", err.message()))?;
+
+    ses.repository = Some(repository);
+    Ok(())
 }
 
 fn run(
