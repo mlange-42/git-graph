@@ -34,6 +34,8 @@ fn from_args() -> Result<(), String> {
 
     create_config(&models_dir)?;
 
+    let mut ses = Session::new();
+
     let app = Command::new("git-graph")
         .version(crate_version!())
         .about(
@@ -270,7 +272,7 @@ fn from_args() -> Result<(), String> {
         return Ok(());
     }
 
-    let commit_limit = match matches.get_one::<String>("max-count") {
+    ses.commit_limit = match matches.get_one::<String>("max-count") {
         None => None,
         Some(str) => match str.parse::<usize>() {
             Ok(val) => Some(val),
@@ -287,7 +289,7 @@ fn from_args() -> Result<(), String> {
 
     let reverse_commit_order = matches.get_flag("reverse");
 
-    let svg = matches.get_flag("svg");
+    ses.svg = matches.get_flag("svg");
     let compact = !matches.get_flag("sparse");
     let debug = matches.get_flag("debug");
     let style = matches
@@ -390,6 +392,8 @@ fn from_args() -> Result<(), String> {
         Some((None, Some(0), Some(8)))
     };
 
+    ses.repository = Some(repository);
+
     let settings = Settings {
         reverse_commit_order,
         debug,
@@ -404,7 +408,39 @@ fn from_args() -> Result<(), String> {
         merge_patterns: MergePatterns::default(),
     };
 
-    run(repository, &settings, svg, commit_limit)
+    run(
+        ses.repository.unwrap(),
+        &settings,
+        ses.svg,
+        ses.commit_limit,
+    )
+}
+
+struct Session {
+    // Settings related fields
+    // TODO
+
+    // Other fields
+    pub repository: Option<Repository>,
+    pub svg: bool,
+    pub commit_limit: Option<usize>,
+}
+
+impl Session {
+    pub fn new() -> Self {
+        Self {
+            // models related fields
+            // TODO
+
+            // Settings related fields
+            // TODO
+
+            // Other fields
+            repository: None,
+            svg: false,
+            commit_limit: None,
+        }
+    }
 }
 
 fn run(
