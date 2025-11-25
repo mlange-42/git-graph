@@ -11,8 +11,11 @@ use git_graph::graph::GitGraph;
 use git_graph::print::format::CommitFormat;
 use git_graph::print::svg::print_svg;
 use git_graph::print::unicode::print_unicode;
-use git_graph::settings::{BranchOrder, BranchSettings, Characters, MergePatterns, Settings};
+use git_graph::settings::{
+    BranchOrder, BranchSettings, BranchSettingsDef, Characters, MergePatterns, Settings,
+};
 use platform_dirs::AppDirs;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Instant;
 
@@ -29,13 +32,8 @@ fn main() {
 }
 
 fn from_args() -> Result<(), String> {
-    let app_dir = AppDirs::new(Some("git-graph"), false).unwrap().config_dir;
-    let mut models_dir = app_dir;
-    models_dir.push("models");
-
-    create_config(&models_dir)?;
-
     let mut ses = Session::new();
+    store_default_models(&mut ses)?;
 
     let app = Command::new("git-graph").version(crate_version!()).about(
         "Structured Git graphs for your branching model.\n    \
@@ -50,6 +48,8 @@ fn from_args() -> Result<(), String> {
                  git-graph model <model>     -> Permanently set model <model> for this repo",
     );
     let app = add_repo_args(app);
+    let app = add_model_args(app);
+
     let app = app
         .arg(
             Arg::new("reverse")
@@ -67,17 +67,6 @@ fn from_args() -> Result<(), String> {
                 .required(false)
                 .num_args(1)
                 .value_name("n"),
-        )
-        .arg(
-            Arg::new("model")
-                .long("model")
-                .short('m')
-                .help("Branching model. Available presets are [simple|git-flow|none].\n\
-                       Default: git-flow. \n\
-                       Permanently set the model for a repository with\n\
-                         > git-graph model <model>")
-                .required(false)
-                .num_args(1),
         )
         .arg(
             Arg::new("local")
@@ -199,55 +188,18 @@ fn from_args() -> Result<(), String> {
                 .required(false)
                 .num_args(1),
         )
-        .subcommand(Command::new("model")
-            .about("Prints or permanently sets the branching model for a repository.")
-            .arg(
-                Arg::new("model")
-                    .help("The branching model to be used. Available presets are [simple|git-flow|none].\n\
-                           When not given, prints the currently set model.")
-                    .value_name("model")
-                    .num_args(1)
-                    .required(false)
-                    .index(1))
-            .arg(
-                Arg::new("list")
-                    .long("list")
-                    .short('l')
-                    .help("List all available branching models.")
-                    .required(false)
-                    .num_args(0),
-        ));
+    ;
 
     let matches = app.get_matches();
 
-    if let Some(matches) = matches.subcommand_matches("model") {
-        if matches.get_flag("list") {
-            println!(
-                "{}",
-                itertools::join(get_available_models(&models_dir)?, "\n")
-            );
-            return Ok(());
-        }
+    if match_model_list(&mut ses, &matches)? {
+        return Ok(()); // Exit after showing model list
     }
 
     match_repo_args(&mut ses, &matches)?;
 
-    if let Some(matches) = matches.subcommand_matches("model") {
-        let repository = ses.repository.as_ref().unwrap();
-        match matches.get_one::<String>("model") {
-            None => {
-                let curr_model = get_model_name(repository, REPO_CONFIG_FILE)?;
-                match curr_model {
-                    None => print!("No branching model set"),
-                    Some(model) => print!("{}", model),
-                }
-            }
-            Some(model) => {
-                set_model(repository, model, REPO_CONFIG_FILE, &models_dir)?;
-                eprint!("Branching model set to '{}'", model);
-            }
-        };
-        return Ok(());
+    if match_model_subcommand(&mut ses, &matches)? {
+        return Ok(()); // Exit after model subcommand
     }
 
     ses.commit_limit = match matches.get_one::<String>("max-count") {
@@ -281,12 +233,7 @@ fn from_args() -> Result<(), String> {
         style
     };
 
-    let model = get_model(
-        ses.repository.as_ref().unwrap(),
-        matches.get_one::<String>("model").map(|s| &s[..]),
-        REPO_CONFIG_FILE,
-        &models_dir,
-    )?;
+    let model = match_model_opt(&mut ses, &matches)?;
 
     let format = match matches.get_one::<String>("format") {
         None => CommitFormat::OneLine,
@@ -393,6 +340,9 @@ fn from_args() -> Result<(), String> {
 }
 
 struct Session {
+    // models related fields
+    models_dir: PathBuf,
+
     // Settings related fields
     // TODO
 
@@ -406,7 +356,7 @@ impl Session {
     pub fn new() -> Self {
         Self {
             // models related fields
-            // TODO
+            models_dir: PathBuf::new(),
 
             // Settings related fields
             // TODO
@@ -454,6 +404,103 @@ fn match_repo_args(ses: &mut Session, matches: &ArgMatches) -> Result<(), String
     ses.repository = Some(repository);
     Ok(())
 }
+
+//
+//  "model" subcommand
+//
+
+/// Fill APP_dir/git-graph folder with default models
+fn store_default_models(ses: &mut Session) -> Result<(), String> {
+    let app_dir = AppDirs::new(Some("git-graph"), false).unwrap().config_dir;
+    let mut models_dir = app_dir;
+    models_dir.push("models");
+
+    create_config(&models_dir)?;
+
+    ses.models_dir = models_dir;
+    Ok(())
+}
+
+fn add_model_args(app: Command) -> Command {
+    app
+        .arg(
+            Arg::new("model")
+                .long("model")
+                .short('m')
+                .help("Branching model. Available presets are [simple|git-flow|none].\n\
+                       Default: git-flow. \n\
+                       Permanently set the model for a repository with\n\
+                         > git-graph model <model>")
+                .required(false)
+                .num_args(1),
+        )
+        .subcommand(Command::new("model")
+        .about("Prints or permanently sets the branching model for a repository.")
+        .arg(
+            Arg::new("model")
+                .help("The branching model to be used. Available presets are [simple|git-flow|none].\n\
+                        When not given, prints the currently set model.")
+                .value_name("model")
+                .num_args(1)
+                .required(false)
+                .index(1))
+        .arg(
+            Arg::new("list")
+                .long("list")
+                .short('l')
+                .help("List all available branching models.")
+                .required(false)
+                .num_args(0),
+    ))
+}
+
+fn match_model_list(ses: &mut Session, matches: &ArgMatches) -> Result<bool, String> {
+    if let Some(matches) = matches.subcommand_matches("model") {
+        if matches.get_flag("list") {
+            println!(
+                "{}",
+                itertools::join(get_available_models(&ses.models_dir)?, "\n")
+            );
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn match_model_subcommand(ses: &mut Session, matches: &ArgMatches) -> Result<bool, String> {
+    if let Some(matches) = matches.subcommand_matches("model") {
+        let repository = ses.repository.as_ref().unwrap();
+        match matches.get_one::<String>("model") {
+            None => {
+                let curr_model = get_model_name(repository, REPO_CONFIG_FILE)?;
+                match curr_model {
+                    None => print!("No branching model set"),
+                    Some(model) => print!("{}", model),
+                }
+            }
+            Some(model) => {
+                set_model(repository, model, REPO_CONFIG_FILE, &ses.models_dir)?;
+                eprint!("Branching model set to '{}'", model);
+            }
+        };
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+fn match_model_opt(ses: &mut Session, matches: &ArgMatches) -> Result<BranchSettingsDef, String> {
+    let model = get_model(
+        ses.repository.as_ref().unwrap(),
+        matches.get_one::<String>("model").map(|s| &s[..]),
+        REPO_CONFIG_FILE,
+        &ses.models_dir,
+    )?;
+    Ok(model)
+}
+
+//
+//  Run application
+//
 
 fn run(
     repository: Repository,
