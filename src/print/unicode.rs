@@ -81,16 +81,21 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
     old_print_unicode(graph, settings)
 }
 
-/// This is the remaining old code, that gradually will be moved to separate
-/// functions or the new print_unicode
-fn old_print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
-    let num_cols = 2 * graph
+/// Calculates the necessary column count for the graph grid.
+fn calculate_graph_dimensions(graph: &GitGraph) -> usize {
+    2 * graph
         .all_branches
         .iter()
         .map(|b| b.visual.column.unwrap_or(0))
         .max()
-        .unwrap()
-        + 1;
+        .unwrap_or(0)
+        + 1
+}
+
+/// This is the remaining old code, that gradually will be moved to separate
+/// functions or the new print_unicode
+fn old_print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
+    let num_cols = calculate_graph_dimensions(graph);
 
     let head_idx = graph.indices.get(&graph.head.oid);
 
