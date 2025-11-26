@@ -53,9 +53,34 @@ graph-lines, text-lines, start-row
 3.  start_row: `Vec<usize>`: Starting row for commit in the `graph.commits` vector.
 */
 pub type UnicodeGraphInfo = (Vec<String>, Vec<String>, Vec<usize>);
-
 /// Creates a text-based visual representation of a graph.
 pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
+
+    // 1. Calculate dimensions and inserts
+    // TODO
+
+    // 2. Prepare wrapping for commit text (using references to the new indent strings)
+    // TODO
+
+    // 3. Compute commit text and index map
+    // TODO
+
+    // 4. Calculate total rows and initialize/draw the grid
+    // TODO
+
+    // 5. Handle reverse order
+    // TODO
+
+    // 6. Final printing and result
+    // TODO
+
+    // REFACTOR IN PROGRESS
+    old_print_unicode(graph, settings)
+}
+
+/// This is the remaining old code, that gradually will be moved to separate
+/// functions or the new print_unicode
+fn old_print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
     if graph.all_branches.is_empty() {
         return Ok((vec![], vec![], vec![]));
     }
