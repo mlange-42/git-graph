@@ -60,10 +60,21 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
     }
 
     // 1. Calculate dimensions and inserts
-    // TODO
+    let num_cols = calculate_graph_dimensions(graph);
+    let inserts = get_inserts(graph, settings.compact);
+
+    let (indent1, indent2) = if let Some((_, ind1, ind2)) = settings.wrapping {
+        (" ".repeat(ind1.unwrap_or(0)), " ".repeat(ind2.unwrap_or(0)))
+    } else {
+        ("".to_string(), "".to_string())
+    };
 
     // 2. Prepare wrapping for commit text (using references to the new indent strings)
-    // TODO
+    let wrap_options = if let Some((width, _, _)) = settings.wrapping {
+        create_wrapping_options(width, &indent1, &indent2, num_cols + 4)?
+    } else {
+        None
+    };
 
     // 3. Compute commit text and index map
     // TODO
@@ -78,7 +89,7 @@ pub fn print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGra
     // TODO
 
     // REFACTOR IN PROGRESS
-    old_print_unicode(graph, settings)
+    old_print_unicode(graph, settings, num_cols, inserts, wrap_options)
 }
 
 /// Calculates the necessary column count for the graph grid.
@@ -94,24 +105,15 @@ fn calculate_graph_dimensions(graph: &GitGraph) -> usize {
 
 /// This is the remaining old code, that gradually will be moved to separate
 /// functions or the new print_unicode
-fn old_print_unicode(graph: &GitGraph, settings: &Settings) -> Result<UnicodeGraphInfo, String> {
-    let num_cols = calculate_graph_dimensions(graph);
+fn old_print_unicode<'a>(
+    graph: &GitGraph, 
+    settings: &Settings,
+    num_cols: usize,
+    inserts: HashMap<usize, Vec<Vec<Occ>>>,
+    wrap_options: Option<Options<'a>>,
+) -> Result<UnicodeGraphInfo, String> {
 
     let head_idx = graph.indices.get(&graph.head.oid);
-
-    let inserts = get_inserts(graph, settings.compact);
-
-    let (indent1, indent2) = if let Some((_, ind1, ind2)) = settings.wrapping {
-        (" ".repeat(ind1.unwrap_or(0)), " ".repeat(ind2.unwrap_or(0)))
-    } else {
-        ("".to_string(), "".to_string())
-    };
-
-    let wrap_options = if let Some((width, _, _)) = settings.wrapping {
-        create_wrapping_options(width, &indent1, &indent2, num_cols + 4)?
-    } else {
-        None
-    };
 
     // Compute commit text into text_lines and add blank rows
     // if needed to match branch graph inserts.
