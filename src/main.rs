@@ -1,5 +1,9 @@
 //! Command line tool to show clear git graphs arranged for your branching model.
 
+// Configure clippy to look for complex functions
+#![warn(clippy::cognitive_complexity)]
+#![warn(clippy::too_many_lines)]
+
 use clap::{crate_version, Arg, Command};
 use git2::Repository;
 use git_graph::config::{
