@@ -83,14 +83,14 @@ pub fn format_commit(
     wrapping: &Option<Options>,
     hash_color: Option<u8>,
 ) -> Result<Vec<String>, String> {
+    // Find replacements
     let mut replacements = vec![];
-
     for (idx, arr) in PLACEHOLDERS.iter().enumerate() {
         let mut curr = 0;
         loop {
             let mut found = false;
             for (mode, str) in arr.iter().enumerate() {
-                if let Some(start) = &format[curr..format.len()].find(str) {
+                if let Some(start) = &format[curr..].find(str) {
                     replacements.push((curr + start, str.len(), idx, mode));
                     curr += start + str.len();
                     found = true;
@@ -102,296 +102,266 @@ pub fn format_commit(
             }
         }
     }
-
     replacements.sort_by_key(|p| p.0);
 
+    // Generate formatted lines
     let mut lines = vec![];
     let mut out = String::new();
-    if replacements.is_empty() {
-        write!(out, "{}", format).unwrap();
-        add_line(&mut lines, &mut out, wrapping);
-    } else {
-        let mut curr = 0;
-        for (start, len, idx, mode) in replacements {
-            if idx == NEW_LINE {
-                write!(out, "{}", &format[curr..start]).unwrap();
-                add_line(&mut lines, &mut out, wrapping);
-            } else {
-                write!(out, "{}", &format[curr..start]).unwrap();
-                let id = commit.id();
-                match idx {
-                    HASH => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        if let Some(color) = hash_color {
-                            write!(out, "{}", id.to_string().fixed(color))
-                        } else {
-                            write!(out, "{}", id)
-                        }
-                    }
-                    HASH_ABBREV => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        if let Some(color) = hash_color {
-                            write!(out, "{}", id.to_string()[..7].fixed(color))
-                        } else {
-                            write!(out, "{}", &id.to_string()[..7])
-                        }
-                    }
-                    PARENT_HASHES => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        for i in 0..commit.parent_count() {
-                            write!(out, "{}", commit.parent_id(i).unwrap()).unwrap();
-                            if i < commit.parent_count() - 1 {
-                                write!(out, " ").unwrap();
-                            }
-                        }
-                        Ok(())
-                    }
-                    PARENT_HASHES_ABBREV => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        for i in 0..commit.parent_count() {
-                            write!(
-                                out,
-                                "{}",
-                                &commit
-                                    .parent_id(i)
-                                    .map_err(|err| err.to_string())?
-                                    .to_string()[..7]
-                            )
-                            .unwrap();
-                            if i < commit.parent_count() - 1 {
-                                write!(out, " ").unwrap();
-                            }
-                        }
-                        Ok(())
-                    }
-                    REFS => {
-                        match mode {
-                            MODE_SPACE => {
-                                if !branches.is_empty() {
-                                    write!(out, " ").unwrap()
-                                }
-                            }
-                            MODE_PLUS => {
-                                if !branches.is_empty() {
-                                    add_line(&mut lines, &mut out, wrapping)
-                                }
-                            }
-                            MODE_MINUS => {
-                                if branches.is_empty() {
-                                    out = remove_empty_lines(&mut lines, out)
-                                }
-                            }
-                            _ => {}
-                        }
-                        write!(out, "{}", branches)
-                    }
-                    SUBJECT => {
-                        let summary = commit.summary().unwrap_or("");
-                        match mode {
-                            MODE_SPACE => {
-                                if !summary.is_empty() {
-                                    write!(out, " ").unwrap()
-                                }
-                            }
-                            MODE_PLUS => {
-                                if !summary.is_empty() {
-                                    add_line(&mut lines, &mut out, wrapping)
-                                }
-                            }
-                            MODE_MINUS => {
-                                if summary.is_empty() {
-                                    out = remove_empty_lines(&mut lines, out)
-                                }
-                            }
-                            _ => {}
-                        }
-                        write!(out, "{}", summary)
-                    }
-                    AUTHOR => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(out, "{}", &commit.author().name().unwrap_or(""))
-                    }
-                    AUTHOR_EMAIL => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(out, "{}", &commit.author().email().unwrap_or(""))
-                    }
-                    AUTHOR_DATE => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(
-                            out,
-                            "{}",
-                            format_date(commit.author().when(), "%a %b %e %H:%M:%S %Y %z")
-                        )
-                    }
-                    AUTHOR_DATE_SHORT => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(out, "{}", format_date(commit.author().when(), "%F"))
-                    }
-                    AUTHOR_DATE_RELATIVE => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(out, "{}", format_relative_time(commit.author().when()))
-                    }
-                    COMMITTER => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(out, "{}", &commit.committer().name().unwrap_or(""))
-                    }
-                    COMMITTER_EMAIL => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(out, "{}", &commit.committer().email().unwrap_or(""))
-                    }
-                    COMMITTER_DATE => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(
-                            out,
-                            "{}",
-                            format_date(commit.committer().when(), "%a %b %e %H:%M:%S %Y %z")
-                        )
-                    }
-                    COMMITTER_DATE_SHORT => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(out, "{}", format_date(commit.committer().when(), "%F"))
-                    }
-                    COMMITTER_DATE_RELATIVE => {
-                        match mode {
-                            MODE_SPACE => write!(out, " ").unwrap(),
-                            MODE_PLUS => add_line(&mut lines, &mut out, wrapping),
-                            _ => {}
-                        }
-                        write!(out, "{}", format_relative_time(commit.committer().when()))
-                    }
-                    BODY => {
-                        let message = commit
-                            .message()
-                            .unwrap_or("")
-                            .lines()
-                            .collect::<Vec<&str>>();
+    let mut formatter = CommitFieldFormatter::new(
+        commit, &branches, hash_color, wrapping, &mut out, &mut lines,
+    );
 
-                        let num_parts = message.len();
-                        match mode {
-                            MODE_SPACE => {
-                                if num_parts > 2 {
-                                    write!(out, " ").unwrap()
-                                }
-                            }
-                            MODE_PLUS => {
-                                if num_parts > 2 {
-                                    add_line(&mut lines, &mut out, wrapping)
-                                }
-                            }
-                            MODE_MINUS => {
-                                if num_parts <= 2 {
-                                    out = remove_empty_lines(&mut lines, out)
-                                }
-                            }
-                            _ => {}
-                        }
-                        for (cnt, line) in message.iter().enumerate() {
-                            if cnt > 1 && (cnt < num_parts - 1 || !line.is_empty()) {
-                                write!(out, "{}", line).unwrap();
-                                add_line(&mut lines, &mut out, wrapping);
-                            }
-                        }
-                        Ok(())
-                    }
-                    BODY_RAW => {
-                        let message = commit
-                            .message()
-                            .unwrap_or("")
-                            .lines()
-                            .collect::<Vec<&str>>();
+    let mut curr = 0;
+    for &(start, len, idx, mode) in &replacements {
+        formatter.out.push_str(&format[curr..start]);
+        formatter.format_field(idx, mode)?;
+        curr = start + len;
+    }
+    formatter.out.push_str(&format[curr..]);
+    formatter.finalize_tail();
+    Ok(lines)
+}
 
-                        let num_parts = message.len();
+struct CommitFieldFormatter<'a> {
+    commit: &'a Commit<'a>,
+    branches: &'a str,
+    hash_color: Option<u8>,
+    wrapping: &'a Option<Options<'a>>,
+    out: &'a mut String,
+    lines: &'a mut Vec<String>,
+}
 
-                        match mode {
-                            MODE_SPACE => {
-                                if !message.is_empty() {
-                                    write!(out, " ").unwrap()
-                                }
-                            }
-                            MODE_PLUS => {
-                                if !message.is_empty() {
-                                    add_line(&mut lines, &mut out, wrapping)
-                                }
-                            }
-                            MODE_MINUS => {
-                                if message.is_empty() {
-                                    out = remove_empty_lines(&mut lines, out)
-                                }
-                            }
-                            _ => {}
-                        }
-                        for (cnt, line) in message.iter().enumerate() {
-                            if cnt < num_parts - 1 || !line.is_empty() {
-                                write!(out, "{}", line).unwrap();
-                                add_line(&mut lines, &mut out, wrapping);
-                            }
-                        }
-                        Ok(())
-                    }
-                    x => return Err(format!("No commit field at index {}", x)),
-                }
-                .unwrap();
-            }
-            curr = start + len;
-        }
-        write!(out, "{}", &format[curr..(format.len())]).unwrap();
-        if !out.is_empty() {
-            add_line(&mut lines, &mut out, wrapping);
+impl<'a> CommitFieldFormatter<'a> {
+    fn new(
+        commit: &'a Commit,
+        branches: &'a str,
+        hash_color: Option<u8>,
+        wrapping: &'a Option<Options>,
+        out: &'a mut String,
+        lines: &'a mut Vec<String>,
+    ) -> Self {
+        Self {
+            commit,
+            branches,
+            hash_color,
+            wrapping,
+            out,
+            lines,
         }
     }
-    Ok(lines)
+
+    fn handle_mode(&mut self, mode: usize, field_has_content: bool) {
+        match mode {
+            MODE_SPACE => {
+                if field_has_content {
+                    self.out.push(' ');
+                }
+            }
+            MODE_PLUS => {
+                if field_has_content {
+                    self.add_line();
+                }
+            }
+            MODE_MINUS => {
+                if !field_has_content {
+                    *self.out = remove_empty_lines(self.lines, self.out.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn format_field(&mut self, idx: usize, mode: usize) -> Result<(), String> {
+        match idx {
+            NEW_LINE => self.add_line(),
+            HASH => self.format_hash(mode),
+            HASH_ABBREV => self.format_hash_abbrev(mode),
+            PARENT_HASHES => self.format_parent_hashes(mode)?,
+            PARENT_HASHES_ABBREV => self.format_parent_hashes_abbrev(mode)?,
+            REFS => self.format_refs(mode),
+            SUBJECT => self.format_subject(mode)?,
+            AUTHOR => self.format_author(mode),
+            AUTHOR_EMAIL => self.format_author_email(mode),
+            AUTHOR_DATE => self.format_author_date(mode),
+            AUTHOR_DATE_SHORT => self.format_author_date_short(mode),
+            AUTHOR_DATE_RELATIVE => self.format_author_date_relative(mode),
+            COMMITTER => self.format_committer(mode),
+            COMMITTER_EMAIL => self.format_committer_email(mode),
+            COMMITTER_DATE => self.format_committer_date(mode),
+            COMMITTER_DATE_SHORT => self.format_committer_date_short(mode),
+            COMMITTER_DATE_RELATIVE => self.format_committer_date_relative(mode),
+            BODY => self.format_body(mode)?,
+            BODY_RAW => self.format_body_raw(mode)?,
+            x => return Err(format!("No commit field at index {}", x)),
+        }
+        Ok(())
+    }
+
+    fn add_line(&mut self) {
+        if !self.out.is_empty() {
+            add_line(self.lines, self.out, self.wrapping);
+        }
+    }
+
+    pub fn finalize_tail(&mut self) {
+        self.add_line();
+    }
+
+    fn format_hash(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        let id = self.commit.id();
+        if let Some(color) = self.hash_color {
+            self.out.push_str(&id.to_string().fixed(color).to_string());
+        } else {
+            self.out.push_str(&id.to_string());
+        }
+    }
+
+    fn format_hash_abbrev(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        let id = self.commit.id().to_string();
+        let s = &id[..7];
+        if let Some(color) = self.hash_color {
+            self.out.push_str(&s.fixed(color).to_string());
+        } else {
+            self.out.push_str(s);
+        }
+    }
+
+    fn format_parent_hashes(&mut self, mode: usize) -> Result<(), String> {
+        self.handle_mode(mode, true);
+        for i in 0..self.commit.parent_count() {
+            self.out
+                .push_str(&self.commit.parent_id(i).unwrap().to_string());
+            if i < self.commit.parent_count() - 1 {
+                self.out.push(' ');
+            }
+        }
+        Ok(())
+    }
+
+    fn format_parent_hashes_abbrev(&mut self, mode: usize) -> Result<(), String> {
+        self.handle_mode(mode, true);
+        for i in 0..self.commit.parent_count() {
+            let parent_id = self.commit.parent_id(i).map_err(|err| err.to_string())?;
+            self.out.push_str(&parent_id.to_string()[..7]);
+            if i < self.commit.parent_count() - 1 {
+                self.out.push(' ');
+            }
+        }
+        Ok(())
+    }
+
+    fn format_refs(&mut self, mode: usize) {
+        self.handle_mode(mode, !self.branches.is_empty());
+        self.out.push_str(self.branches);
+    }
+
+    fn format_subject(&mut self, mode: usize) -> Result<(), String> {
+        let summary = self.commit.summary().unwrap_or("");
+        self.handle_mode(mode, !summary.is_empty());
+        self.out.push_str(summary);
+        Ok(())
+    }
+
+    fn format_author(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out.push_str(self.commit.author().name().unwrap_or(""));
+    }
+
+    fn format_author_email(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out
+            .push_str(self.commit.author().email().unwrap_or(""));
+    }
+
+    fn format_author_date(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out.push_str(&format_date(
+            self.commit.author().when(),
+            "%a %b %e %H:%M:%S %Y %z",
+        ));
+    }
+
+    fn format_author_date_short(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out
+            .push_str(&format_date(self.commit.author().when(), "%F"));
+    }
+
+    fn format_author_date_relative(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out
+            .push_str(&format_relative_time(self.commit.author().when()));
+    }
+
+    fn format_committer(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out
+            .push_str(self.commit.committer().name().unwrap_or(""));
+    }
+
+    fn format_committer_email(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out
+            .push_str(self.commit.committer().email().unwrap_or(""));
+    }
+
+    fn format_committer_date(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out.push_str(&format_date(
+            self.commit.committer().when(),
+            "%a %b %e %H:%M:%S %Y %z",
+        ));
+    }
+
+    fn format_committer_date_short(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out
+            .push_str(&format_date(self.commit.committer().when(), "%F"));
+    }
+
+    fn format_committer_date_relative(&mut self, mode: usize) {
+        self.handle_mode(mode, true);
+        self.out
+            .push_str(&format_relative_time(self.commit.committer().when()));
+    }
+
+    fn format_body(&mut self, mode: usize) -> Result<(), String> {
+        let message = self
+            .commit
+            .message()
+            .unwrap_or("")
+            .lines()
+            .collect::<Vec<&str>>();
+        let num_parts = message.len();
+        self.handle_mode(mode, num_parts > 2);
+        for (cnt, line) in message.iter().enumerate() {
+            if cnt > 1 && (cnt < num_parts - 1 || !line.is_empty()) {
+                self.out.push_str(line);
+                self.add_line();
+            }
+        }
+        Ok(())
+    }
+
+    fn format_body_raw(&mut self, mode: usize) -> Result<(), String> {
+        let message = self
+            .commit
+            .message()
+            .unwrap_or("")
+            .lines()
+            .collect::<Vec<&str>>();
+        let num_parts = message.len();
+        self.handle_mode(mode, !message.is_empty());
+        for (cnt, line) in message.iter().enumerate() {
+            if cnt < num_parts - 1 || !line.is_empty() {
+                self.out.push_str(line);
+                self.add_line();
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Format a commit for `CommitFormat::OneLine`.
