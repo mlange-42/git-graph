@@ -68,7 +68,7 @@ pub fn get_model_name(repository: &Repository, file_name: &str) -> Result<Option
             toml::from_str(&std::fs::read_to_string(config_path).map_err(|err| err.to_string())?)
                 .map_err(|err| err.to_string())?;
 
-        Ok(Some(repo_config.model))
+        Ok(repo_config.model)
     } else {
         Ok(None)
     }
@@ -94,7 +94,11 @@ pub fn get_model<P: AsRef<Path> + AsRef<OsStr>>(
                 )
                 .map_err(|err| err.to_string())?;
 
-                read_model(&repo_config.model, app_model_path)
+                match repo_config.model {
+                    None => Ok(read_model("git-flow", app_model_path)
+                        .unwrap_or_else(|_| BranchSettingsDef::git_flow())),
+                    Some(model) => read_model(&model, app_model_path),
+                }
             } else {
                 Ok(read_model("git-flow", app_model_path)
                     .unwrap_or_else(|_| BranchSettingsDef::git_flow()))
@@ -149,7 +153,7 @@ pub fn set_model<P: AsRef<Path>>(
     config_path.push(repo_config_file);
 
     let config = RepoSettings {
-        model: model.to_string(),
+        model: Some(model.to_string()),
     };
 
     let str = toml::to_string_pretty(&config).map_err(|err| err.to_string())?;

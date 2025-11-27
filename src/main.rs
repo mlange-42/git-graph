@@ -17,6 +17,11 @@ use std::time::Instant;
 
 const REPO_CONFIG_FILE: &str = "git-graph.toml";
 
+#[derive(serde_derive::Serialize, serde_derive::Deserialize)]
+pub struct CommitFormatToml {
+    pub format: Option<String>,
+}
+
 fn main() {
     std::process::exit(match from_args() {
         Ok(_) => 0,
@@ -309,7 +314,23 @@ fn from_args() -> Result<(), String> {
     )?;
 
     let format = match matches.get_one::<String>("format") {
-        None => CommitFormat::OneLine,
+        None => {
+            let mut config_path = std::path::PathBuf::from(repository.path());
+            config_path.push(REPO_CONFIG_FILE);
+            if config_path.exists() {
+                let commit_format_toml: CommitFormatToml = toml::from_str(
+                    &std::fs::read_to_string(config_path).map_err(|err| err.to_string())?,
+                )
+                .map_err(|err| err.to_string())
+                .unwrap();
+                match commit_format_toml.format {
+                    None => CommitFormat::OneLine,
+                    Some(format) => CommitFormat::from_str(&format)?,
+                }
+            } else {
+                CommitFormat::OneLine
+            }
+        }
         Some(str) => CommitFormat::from_str(str)?,
     };
 
